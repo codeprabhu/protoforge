@@ -1,2 +1,5 @@
 .venv
 generated
+*.out
+__pycache__
+results

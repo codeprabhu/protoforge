@@ -22,5 +22,20 @@ def clean_rtl(text: str) -> str:
 
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("`module", "module").replace("endmodule`", "endmodule")
+
+    # --- markdown-escape cleanup ---
+    # Some models over-apply markdown escaping (learned from markdown-heavy
+    # training data where `word_word_word` would render as italics) even
+    # inside fenced code blocks. This produces illegal Verilog like
+    # `top\_glue`, `rst\_n`, or a stray `*` colliding with `//` comments
+    # (`*// comment`). Strip these mechanically before saving.
+    text = text.replace("\\_", "_")
+    text = text.replace("\\*", "*")
+    # a leading "*" directly touching a "//" comment marker is markdown bold
+    # bleeding into a Verilog line comment -- drop the stray asterisk(s).
+    text = re.sub(r"\*+(//)", r"\1", text)
+    # trailing stray asterisks at end of a comment line, same cause
+    text = re.sub(r"(//[^\n]*?)\*+\s*$", r"\1", text, flags=re.MULTILINE)
+
     text = re.sub(r"[ \t]+$", "", text, flags=re.MULTILINE)
     return text.strip()

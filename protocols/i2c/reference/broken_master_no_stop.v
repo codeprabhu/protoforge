@@ -18,6 +18,36 @@ module top_glue (
     localparam ADDR_BYTE = 8'hA0; // 0x50 << 1 | write(0)
     localparam DATA_BYTE = 8'h3C; // arbitrary payload
 
+    // --- Device instantiations (present per the real top_glue contract;
+    //     unused electrically here since this reference master only
+    //     exercises the physical bus for oracle-validation purposes) ---
+    reg  a_reg_write;
+    reg  [7:0] a_reg_addr;
+    reg  [7:0] a_reg_wdata;
+    wire [7:0] a_reg_rdata;
+    wire a_data_ready;
+    device_sensor u_device_a (
+        .clk(clk), .rst_n(rst_n),
+        .reg_write(a_reg_write), .reg_addr(a_reg_addr), .reg_wdata(a_reg_wdata),
+        .reg_rdata(a_reg_rdata), .data_ready(a_data_ready)
+    );
+
+    reg  b_start, b_rw;
+    reg  [7:0] b_target_addr, b_write_data;
+    wire [7:0] b_read_data;
+    wire b_busy, b_done;
+    device_controller u_device_b (
+        .clk(clk), .rst_n(rst_n),
+        .start(b_start), .rw(b_rw),
+        .target_addr(b_target_addr), .write_data(b_write_data),
+        .read_data(b_read_data), .busy(b_busy), .done(b_done)
+    );
+
+    initial begin
+        a_reg_write = 0; a_reg_addr = 0; a_reg_wdata = 0;
+        b_start = 0; b_rw = 0; b_target_addr = 0; b_write_data = 0;
+    end
+
     localparam HALF = 4; // clk cycles per SCL half-period
 
     // States

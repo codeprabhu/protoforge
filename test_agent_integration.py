@@ -20,7 +20,7 @@ BROKEN = open("protocols/i2c/reference/broken_master_no_stop.v").read()
 GOOD = open("protocols/i2c/reference/good_master.v").read()
 
 
-def fake_generate_verilog(prompt, model=None):
+def fake_generate_verilog(prompt, model=None, temperature=None):
     call_count["n"] += 1
     if call_count["n"] == 1:
         print("[stub] first call -> returning BROKEN master (no STOP)")
