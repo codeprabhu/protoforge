@@ -124,7 +124,9 @@ module testbench_i2c;
         #20 tb_start = 1;
         #10 tb_start = 0;
 
-        wait (tb_done || $time > 5000);
+        #5000;
+        if (!tb_done)
+            $display("EVENT:TIMEOUT");
 
         if ($time > 5000) $display("EVENT:TIMEOUT");
 

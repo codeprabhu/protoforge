@@ -3,6 +3,79 @@ from agent.rtl_cleaner import clean_rtl
 from tools.file_tool import save_file
 from tools.verilog_parser import parse_verilog_file, ModuleInfo
 
+I2C_IMPLEMENTATION_RULES = """
+IMPORTANT:
+
+The testbench only observes the external SDA and SCL wires.
+
+Driving internal device signals such as:
+
+    a_reg_write
+    a_reg_addr
+    a_reg_wdata
+    b_start
+    b_target_addr
+    b_write_data
+
+DOES NOT perform an I2C transaction.
+
+The generated FSM itself must directly generate:
+
+    START
+    Address byte 0xA0
+    ACK cycle
+    Data byte
+    ACK cycle
+    STOP
+
+on the SDA and SCL wires.
+
+The protocol spec requires:
+
+    START -> 0xA0 -> ACK -> DATA -> ACK -> STOP
+
+I2C is an open-drain bus.
+
+Create:
+
+    reg sda_drive_low;
+    reg scl_drive_low;
+
+and drive the bus using:
+
+    assign sda = sda_drive_low ? 1'b0 : 1'bz;
+    assign scl = scl_drive_low ? 1'b0 : 1'bz;
+
+Never assign directly to SDA or SCL inside an always block.
+
+ILLEGAL:
+
+    sda <= 1'b0;
+    scl <= 1'b1;
+
+LEGAL:
+
+    sda_drive_low <= 1'b1;
+    scl_drive_low <= 1'b0;
+
+The generated FSM must contain:
+
+    IDLE
+    START
+    SEND_ADDR
+    ACK_ADDR
+    SEND_DATA
+    ACK_DATA
+    STOP
+    DONE
+
+Use counters and state transitions.
+
+NEVER use # delays.
+NEVER use wait statements.
+NEVER use initial blocks.
+NEVER use curly braces for statement grouping.
+"""
 def build_instance_block(info: ModuleInfo, label: str, instance_name: str) -> dict:
     """
     Deterministically generates the wire/reg declarations + instantiation
@@ -64,6 +137,9 @@ you can drive/read from your FSM:
 
 Protocol specification to implement in the marked section:
 {protocol_spec}
+
+Additional implementation requirements:
+{implementation_rules}
 
 Here is the module you must complete. Copy the instantiation section
 EXACTLY as shown -- it is already correct and complete. Only write code
@@ -150,11 +226,22 @@ module top_glue (
     inout  wire sda,
     inout  wire scl,
     input  wire tb_start,
-    output wire tb_done
+    output reg tb_done
 );
 
 Output ONLY the corrected module in a single ```verilog code block,
 nothing else.
+Additional I2C-specific checks:
+
+- SDA and SCL are open-drain inout wires.
+- Never assign directly to SDA or SCL in an always block.
+- Use internal drive signals and continuous assigns.
+- START = SDA falling while SCL high.
+- STOP = SDA rising while SCL high.
+- Address byte must be 8'hA0.
+- Two ACK phases must exist.
+- Do not use device_controller as an I2C master.
+- Do not use # delays.
 """
 
 
@@ -173,6 +260,7 @@ def generate_glue_rtl(device_a_path, device_b_path, protocol_spec_path,
         device_b_module=b.name, device_b_signal_map=_signal_map_summary("b", b_inst["signals"]),
         device_b_instance_code=b_inst["code"],
         protocol_spec=spec,
+        implementation_rules=I2C_IMPLEMENTATION_RULES,
     )
 
     if debug_prompt_path:

@@ -3,12 +3,19 @@ import re
 
 
 def run_simulation(executable: str) -> dict:
-    result = subprocess.run(["vvp", executable], capture_output=True, text=True)
-    return {
-        "stdout": result.stdout,
-        "stderr": result.stderr,
-        "returncode": result.returncode,
-    }
+    try:
+        result = subprocess.run(
+            ["vvp", executable],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+    except subprocess.TimeoutExpired:
+        return {
+            "success": False,
+            "stdout": "",
+            "stderr": "Simulation timeout"
+        }
 
 
 RESULT_RE = re.compile(

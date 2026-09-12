@@ -14,7 +14,7 @@ SPEC = "protocols/i2c/spec.md"
 TB = "protocols/i2c/testbench_i2c.v"
 TOP = "generated/top_glue.v"
 SIM_OUT = "generated/sim.out"
-MAX_REPAIRS = 3
+MAX_REPAIRS = 0
 RESULTS_LOG = "results/runs.jsonl"
 REQUIRED_INSTANCES = ["device_sensor", "device_controller"]
 
