@@ -101,7 +101,12 @@ def _load_successful_examples(memory_dir: Path) -> list[tuple[str, str, str]]:
             except (OSError, json.JSONDecodeError):
                 continue
             if meta.get("verified_pass") is True:
-                examples.append((rtl_path.stem, rtl_path.read_text(encoding="utf-8"), "learned"))
+                code = rtl_path.read_text(encoding="utf-8")
+                actual_digest = hashlib.sha256(code.encode("utf-8")).hexdigest()
+                # Memory is an input to code generation: reject stale/tampered
+                # sidecars rather than treating a modified artifact as proven.
+                if meta.get("sha256") == actual_digest and rtl_path.stem == actual_digest[:16]:
+                    examples.append((rtl_path.stem, code, "learned"))
     return examples
 
 
@@ -161,7 +166,8 @@ def memory_summary(memory_dir: str | Path | None = None) -> dict:
     """Return a simple count useful for logs and CLI diagnostics."""
     root = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
     passing_dir = root / "passing"
-    learned = len(list(passing_dir.glob("*.v"))) if passing_dir.is_dir() else 0
+    learned = len(_load_successful_examples(root)) - int(DEFAULT_REFERENCE.is_file())
+    learned = max(learned, 0)
     return {"seed_examples": int(DEFAULT_REFERENCE.is_file()), "learned_passing_examples": learned}
 
 

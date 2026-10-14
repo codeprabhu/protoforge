@@ -4,7 +4,7 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 
 ## Changes in this iteration
 
-- **Deterministic inference defaults:** the default model is `qwen2.5-coder:7b`, generation temperature is `0`, and Ollama receives a fixed seed. Override with `PROTOFORGE_MODEL`, `PROTOFORGE_TEMPERATURE`, `PROTOFORGE_SEED`, `PROTOFORGE_NUM_CTX`, and `PROTOFORGE_NUM_PREDICT`.
+- **Small-model-first generation:** the default model is `qwen2.5-coder:3b`. The model is asked for only the FSM declarations and sequential block; the harness deterministically supplies the top-level ports, parsed device instances, and open-drain bus assignments. Full-module outputs remain accepted for compatibility. This reduces the surface area where a small model can corrupt the wrapper. Generation temperature is `0` by default and Ollama receives a fixed seed. Override with `PROTOFORGE_MODEL`, `PROTOFORGE_TEMPERATURE`, `PROTOFORGE_SEED`, `PROTOFORGE_NUM_CTX`, and `PROTOFORGE_NUM_PREDICT`.
 - **Verified-example retrieval:** a small offline RAG/few-shot layer starts from a reset-safe few-shot copy derived from the existing known-good I²C oracle and learns additional examples only after they pass the compile + simulation oracle. Failed designs are archived separately and never retrieved as positive examples. No embedding model or vector database is required.
 - **Real repair loop:** two repairs are attempted by default after the initial generation (`PROTOFORGE_MAX_REPAIRS=2`). Each repair prompt includes the failed code, the specific structural/compiler/protocol diagnosis, and verified reference context.
 - **Stronger structural gate:** validates the required top-level port contract, open-drain SDA/SCL drivers, sequential completion logic, required device instances, and rejects procedural bus writes, `initial`, `wait`, delays, and malformed statement grouping before compiling.
@@ -21,7 +21,7 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 - **Honest batches (`main.py`):** each run gets its own seed (`PROTOFORGE_SEED + i`) and the sampling temperature is explicit (`PROTOFORGE_BATCH_TEMPERATURE`, default 0). At temperature 0 all runs are expected to be identical, so the report prints `Distinct first designs: k/N` and warns when a batch is effectively one sample. A failing run (e.g. Ollama down) is recorded as `generation_error` instead of aborting the batch; a first-run configuration error stops early. A machine-readable summary is written to `results/batch_summary.json`.
 - **Retrieval ablation:** `PROTOFORGE_NO_RETRIEVAL=1` removes the reference example from the prompt. The seed example is derived from the known-good oracle, so compare pass rates with it on and off before claiming the model can generate an I²C master.
 - **Real-simulator end-to-end tests (`tests/test_e2e_real_sim.py`):** only the LLM is stubbed; structural gate, iverilog, vvp, judge and repair routing are real (broken -> repaired passes, correct passes first try, persistent fault exhausts the repair budget).
-- Baseline measured this iteration: golden + both reset-safe references behave as expected under the real simulator, 27 tests pass. The LLM generation path (Ollama) was still **not** exercised here.
+- The current environment check reports 22 passing tool-independent tests and 9 simulator-dependent tests skipped because Icarus is unavailable. The real LLM generation path (Ollama) has not been exercised in this environment.
 
 ## Run it
 
@@ -29,7 +29,7 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 2. Pull a code-oriented local model:
 
    ```bash
-   ollama pull qwen2.5-coder:7b
+   ollama pull qwen2.5-coder:3b
    ```
 
 3. Install the Python requirements:
@@ -47,10 +47,35 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 5. Run a reproducibility batch:
 
    ```bash
-   python main.py 20 qwen2.5-coder:7b
+   python main.py 20 qwen2.5-coder:3b
    ```
 
 The batch reports both first-try pass rate and final pass rate after the configured repair budget, so repairs do not hide first-generation quality. Each run logs its attempt stages, failed checks, source hashes, seed, elapsed time, and final status to `results/runs.jsonl`. Passing RTL snapshots are added to `results/rtl_memory/passing/` and can be retrieved in later runs.
+
+## Small-model evaluation (recommended first)
+
+The default is the 3B code-specialized Qwen model to keep the experiment practical
+on consumer hardware. Do not evaluate only with temperature 0 and then call
+20 identical generations 20 independent samples. First establish a deterministic
+baseline, then sample with a non-zero temperature:
+
+```bash
+# Deterministic baseline (usually one unique first design repeated)
+PROTOFORGE_BATCH_TEMPERATURE=0 python main.py 5 qwen2.5-coder:3b
+
+# Diversity / repair stress test
+PROTOFORGE_BATCH_TEMPERATURE=0.25 PROTOFORGE_MAX_REPAIRS=2 \
+  python main.py 20 qwen2.5-coder:3b
+
+# Retrieval ablation: same setup, but no known-good reference in the prompt
+PROTOFORGE_NO_RETRIEVAL=1 PROTOFORGE_BATCH_TEMPERATURE=0.25 \
+  python main.py 20 qwen2.5-coder:3b
+```
+
+Compare first-try pass rate, post-repair pass rate, distinct candidate hashes,
+and recovery count. The retrieval-enabled condition includes a known-good
+reference, so it measures reference-conditioned synthesis rather than
+from-scratch RTL competence. Keep that distinction explicit in reports.
 
 ## Tests
 
@@ -63,9 +88,9 @@ python -m pytest -q tests
 This covers structural checks, result parsing, verified-example memory behavior, and a mocked end-to-end repair cycle. The real model/compiler/simulator path still needs Ollama and Icarus installed:
 
 ```bash
-python test_agent_integration.py
-python test_structural_gate.py
-python test_reported_bug.py
+python manual_agent_integration.py
+python manual_structural_gate.py
+python manual_reported_bug.py
 ```
 
 ## What is not claimed yet

@@ -9,15 +9,48 @@ def _strip_comments(rtl: str) -> str:
 
 
 def _open_drain(code: str, net: str) -> bool:
-    """True if `net` is driven only as `cond ? 1'b0 : 1'bz` (either polarity).
+    """Require exactly one tri-state open-drain continuous driver for ``net``.
 
-    The condition may be any expression (``~x``, ``(a && b)``, ``!oe``), not
-    just a bare identifier. Driving a hard 1'b1 is rejected: open-drain buses
-    must release the line (high-Z), never actively drive high.
+    The expression must be ``condition ? 0 : z`` or ``condition ? z : 0``.
+    Parse the top-level ternary rather than relying on a regex that can be
+    fooled by a second, active-high driver or by a nested condition.
     """
-    low_z = rf"\bassign\s+{net}\s*=\s*[^;?]+\?\s*1\s*'\s*b0\s*:\s*1\s*'\s*bz\s*;"
-    z_low = rf"\bassign\s+{net}\s*=\s*[^;?]+\?\s*1\s*'\s*bz\s*:\s*1\s*'\s*b0\s*;"
-    return bool(re.search(low_z, code, re.I) or re.search(z_low, code, re.I))
+    assignments = re.findall(
+        rf"\bassign\s+{re.escape(net)}\s*=\s*([^;]+);", code, re.I
+    )
+    if len(assignments) != 1:
+        return False
+    expr = assignments[0].strip()
+
+    # Locate the top-level '?' and its matching ':' while ignoring nested
+    # parentheses and ternaries in the condition.
+    depth = 0
+    question = None
+    ternary_depth = 0
+    colon = None
+    for i, ch in enumerate(expr):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth < 0:
+                return False
+        elif depth == 0 and ch == "?":
+            if question is None:
+                question = i
+            ternary_depth += 1
+        elif depth == 0 and ch == ":" and question is not None:
+            ternary_depth -= 1
+            if ternary_depth == 0:
+                colon = i
+                break
+    if question is None or colon is None or not expr[:question].strip():
+        return False
+    true_branch = re.sub(r"\s+", "", expr[question + 1:colon]).lower()
+    false_branch = re.sub(r"\s+", "", expr[colon + 1:]).lower()
+    low = {"1'b0", "1'h0", "1'd0", "1'b0"}
+    high_z = {"1'bz", "1'hz", "1'dz"}
+    return (true_branch in low and false_branch in high_z) or (true_branch in high_z and false_branch in low)
 
 
 def structural_checks(rtl: str, required_instances: list) -> dict:
@@ -58,7 +91,7 @@ def structural_checks(rtl: str, required_instances: list) -> dict:
 
     for name in required_instances:
         pattern = re.compile(rf"\b{re.escape(name)}\s+\w+\s*\(", re.I)
-        checks[f"instantiates_{name}"] = bool(pattern.search(code_only))
+        checks[f"instantiates_{name}"] = len(pattern.findall(code_only)) == 1
 
     failed = [name for name, passed in checks.items() if not passed]
     return {"pass": not failed, "failed_checks": failed, "checks": checks}
@@ -85,9 +118,9 @@ def explain_structural_failures(failed_checks, required_instances) -> str:
     parts = []
     for check in failed_checks:
         if check.startswith("instantiates_"):
-            name = check[len("instantiates_"):]
+            name = check[len("instantiates_"): ]
             parts.append(
-                f"The module {name} was not instantiated. Add it using its exact port names and the pre-generated signal map."
+                f"Instantiate {name} exactly once using its exact port names and the pre-generated signal map."
             )
         else:
             parts.append(STRUCTURAL_EXPLANATIONS.get(check, check))

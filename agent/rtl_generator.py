@@ -1,3 +1,5 @@
+import re
+
 from agent.ollama_client import generate_verilog
 from agent.rtl_cleaner import clean_rtl
 from tools.file_tool import save_file
@@ -195,6 +197,83 @@ backslash before underscores or asterisks) -- this is a plain text
 Verilog file, not markdown prose.
 """
 
+
+SMALL_MODEL_PROMPT = """You are generating the control fragment for a fixed Verilog-2001 I2C wrapper.
+Do NOT generate a module header, device declarations/instances, bus assignments,
+or endmodule. Those are generated deterministically by the harness. Return only
+RTL declarations needed by your FSM and one clocked always block.
+
+Fixed signals already declared by the harness:
+- clk, rst_n, tb_start, tb_done
+- sda_drive_low and scl_drive_low are regs; 1 means pull the line low, 0 means release it
+- SDA/SCL are already wired as open-drain: assign line = drive_low ? 1'b0 : 1'bz
+- Device A is instantiated as u_device_a; ports/signals: {device_a_signal_map}
+- Device B is instantiated as u_device_b; ports/signals: {device_b_signal_map}
+
+Task: implement exactly one transaction after tb_start: START, address byte 8'hA0
+(MSB first), slave ACK clock, one data byte 8'h3C (MSB first), slave ACK clock,
+STOP, then assert tb_done. The testbench observes only external SDA/SCL; writing
+internal device registers is not a substitute for an I2C transaction.
+
+Rules:
+- START is SDA falling while SCL is released/high; STOP is SDA rising while SCL is high.
+- Each data bit has a low phase to set SDA and a high phase to sample/clock it.
+- Release SDA during each ACK so the slave can pull it low.
+- Keep SCL released during START/STOP transitions. Use a counter so phases last
+  several clk cycles (the testbench must observe the edges).
+- Use an explicit FSM and nonblocking assignments in always @(posedge clk or negedge rst_n).
+- Reset state, counters, drive registers and tb_done in the reset branch.
+- No initial, wait, #delay, SystemVerilog-only syntax, curly-brace statement blocks,
+  or procedural assignments to SDA/SCL. Use plain Verilog-2001.
+- Every multi-statement case arm must use begin/end. Do not omit default recovery.
+
+Protocol spec:
+{protocol_spec}
+
+Implementation constraints:
+{implementation_rules}
+
+Retrieved verified RTL (reference only; do not copy module/interface/instance wrappers):
+{retrieved_context}
+
+Return only the declarations and always block, no markdown fences and no prose.
+"""
+
+
+def _assemble_fragment(a_instance_code: str, b_instance_code: str, fragment: str) -> str:
+    """Wrap a model-produced FSM fragment in a deterministic module shell.
+
+    Full-module output remains accepted for backwards compatibility, but the
+    small-model path asks for only the behavior-bearing fragment so the model
+    cannot corrupt the port list or device instantiations.
+    """
+    return f'''module top_glue (
+    input  wire clk,
+    input  wire rst_n,
+    inout  wire sda,
+    inout  wire scl,
+    input  wire tb_start,
+    output reg  tb_done
+);
+
+    // Generated deterministically from parsed device interfaces.
+{a_instance_code}
+
+{b_instance_code}
+
+    // Open-drain bus drivers are fixed by the harness.
+    reg sda_drive_low;
+    reg scl_drive_low;
+    assign sda = sda_drive_low ? 1'b0 : 1'bz;
+    assign scl = scl_drive_low ? 1'b0 : 1'bz;
+
+    // Model-generated FSM fragment begins here.
+{fragment.rstrip()}
+    // Model-generated FSM fragment ends here.
+endmodule
+'''
+
+
 REPAIR_PROMPT = """The following top_glue module {failure_kind}.
 
 Full code:
@@ -268,11 +347,13 @@ def generate_glue_rtl(device_a_path, device_b_path, protocol_spec_path,
     )
     retrieved_context = retrieve_rtl_context(retrieval_query, max_examples=1, max_chars=10000)
 
-    prompt = GLUE_PROMPT.format(
-        device_a_module=a.name, device_a_signal_map=_signal_map_summary("a", a_inst["signals"]),
-        device_a_instance_code=a_inst["code"],
-        device_b_module=b.name, device_b_signal_map=_signal_map_summary("b", b_inst["signals"]),
-        device_b_instance_code=b_inst["code"],
+    signal_map_a = _signal_map_summary("a", a_inst["signals"])
+    signal_map_b = _signal_map_summary("b", b_inst["signals"])
+    # Ask even small models for only the behavior-bearing fragment. The
+    # wrapper/ports/instances/open-drain drivers are deterministic scaffolding.
+    prompt = SMALL_MODEL_PROMPT.format(
+        device_a_signal_map=signal_map_a,
+        device_b_signal_map=signal_map_b,
         protocol_spec=spec,
         implementation_rules=I2C_IMPLEMENTATION_RULES,
         retrieved_context=retrieved_context,
@@ -286,7 +367,13 @@ def generate_glue_rtl(device_a_path, device_b_path, protocol_spec_path,
         kwargs["seed"] = seed
     if model:
         kwargs["model"] = model
-    rtl = clean_rtl(generate_verilog(prompt, **kwargs))
+    generated = clean_rtl(generate_verilog(prompt, **kwargs))
+    # Preserve compatibility with full-module responses from older prompts or
+    # models that ignore the fragment contract; those still go through gates.
+    if re.search(r"\bmodule\s+top_glue\b", generated, re.I):
+        rtl = generated
+    else:
+        rtl = _assemble_fragment(a_inst["code"], b_inst["code"], generated)
     save_file(out_path, rtl)
     return out_path, prompt
 

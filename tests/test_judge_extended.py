@@ -45,3 +45,14 @@ def test_open_drain_rejects_active_high_and_wrong_net():
     assert not _open_drain("assign sda = oe ? 1'b1 : 1'bz;", "sda")
     assert not _open_drain("assign sda = oe;", "sda")
     assert not _open_drain("assign scl = oe ? 1'b0 : 1'bz;", "sda")
+
+
+def test_open_drain_rejects_a_second_active_high_driver():
+    # A regex that merely finds one legal assign can miss a second illegal
+    # driver, which makes the electrical contract ambiguous or incorrect.
+    code = "assign sda = oe ? 1'b0 : 1'bz; assign sda = 1'b1;"
+    assert not _open_drain(code, "sda")
+
+
+def test_open_drain_handles_parenthesized_compound_enable():
+    assert _open_drain("assign sda = ((a && !b) || c) ? 1'b0 : 1'bz;", "sda")

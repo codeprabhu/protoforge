@@ -99,3 +99,14 @@ def test_ollama_client_uses_stable_options_without_real_ollama(tmp_path, monkeyp
     assert seen["options"]["seed"] == ollama_client.DEFAULT_SEED
     assert seen["options"]["num_ctx"] == ollama_client.DEFAULT_NUM_CTX
     assert seen["options"]["num_predict"] == ollama_client.DEFAULT_NUM_PREDICT
+
+
+def test_tampered_passing_memory_entry_is_not_retrieved(tmp_path):
+    import json
+    from tools.rtl_memory import _load_successful_examples
+
+    good = (ROOT / "protocols/i2c/reference/good_master_reset_safe.v").read_text()
+    path = record_passing_example(good, "unit-model", {}, tmp_path)
+    path.write_text(good + "\n// edited after verification\n")
+    examples = _load_successful_examples(tmp_path)
+    assert not any(origin == "learned" for _, _, origin in examples)
