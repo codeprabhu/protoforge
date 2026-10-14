@@ -42,6 +42,9 @@ module testbench_i2c;
     reg sda_d = 1, scl_d = 1;
     integer saw_start = 0;
     integer saw_stop  = 0;
+    integer n_start  = 0;       // total START conditions observed
+    integer n_stop   = 0;       // total STOP conditions observed
+    integer saw_done = 0;       // tb_done was observed high at least once
     integer bit_count = 0;      // bits shifted in since last START
     integer byte_count = 0;     // completed bytes since last START
     reg [7:0] shift_reg = 8'h00;
@@ -97,8 +100,10 @@ module testbench_i2c;
     always @(posedge clk) begin
         sda_d <= sda;
         scl_d <= scl;
+        if (tb_done) saw_done = 1;
         if (scl && scl_d && sda_d && !sda) begin
             saw_start = 1;
+            n_start = n_start + 1;
             in_transaction = 1;
             bit_count = 0;
             byte_count = 0;
@@ -106,6 +111,7 @@ module testbench_i2c;
         end
         if (scl && scl_d && !sda_d && sda) begin
             saw_stop = 1;
+            n_stop = n_stop + 1;
             in_transaction = 0;
             $display("EVENT:STOP:%0t", $time);
         end
@@ -115,8 +121,13 @@ module testbench_i2c;
     // Stimulus
     // ---------------------------------------------------------------
     initial begin
-        $dumpfile("generated/testbench_i2c.vcd");
-        $dumpvars(0, testbench_i2c);
+        // VCD tracing is opt-in to keep batch evaluation from producing
+        // hundreds of megabytes of waveforms by default. Run with +dump_vcd
+        // when a waveform is actually needed for debugging.
+        if ($test$plusargs("dump_vcd")) begin
+            $dumpfile("generated/testbench_i2c.vcd");
+            $dumpvars(0, testbench_i2c);
+        end
 
         rst_n = 0;
         tb_start = 0;
@@ -125,15 +136,17 @@ module testbench_i2c;
         #10 tb_start = 0;
 
         #5000;
-        if (!tb_done)
+        // Report a timeout only when the DUT never signalled completion.
+        // (Previously a second, unconditional `$time > 5000` check printed
+        // EVENT:TIMEOUT on every run, including passing ones.)
+        if (!tb_done && !saw_done)
             $display("EVENT:TIMEOUT");
-
-        if ($time > 5000) $display("EVENT:TIMEOUT");
 
         #50; // let any trailing STOP condition settle before we sample
 
-        $display("RESULT:saw_start=%0d saw_stop=%0d saw_ack_addr=%0d saw_ack_data=%0d addr=%02h data=%02h",
-                  saw_start, saw_stop, saw_ack_addr, saw_ack_data, captured_addr, captured_data);
+        $display("RESULT:saw_start=%0d saw_stop=%0d saw_ack_addr=%0d saw_ack_data=%0d addr=%02h data=%02h tb_done=%0d starts=%0d stops=%0d",
+                  saw_start, saw_stop, saw_ack_addr, saw_ack_data, captured_addr, captured_data,
+                  (tb_done || saw_done) ? 1 : 0, n_start, n_stop);
         $finish;
     end
 

@@ -1,2 +1,3 @@
-ollama
-mcp
+ollama>=0.4
+mcp>=1.0
+pytest>=8.0

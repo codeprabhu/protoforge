@@ -1,84 +1,94 @@
-"""
-Cheap, fast, string-level checks run on generated RTL *before* it's ever
-handed to iverilog. Catches the failure mode where the model produces
-syntactically-fine Verilog that completely ignores the actual task (e.g.
-a standalone I2C FSM with no device instantiation at all) -- something
-a compiler will never flag, since "compiles" and "does the assigned task"
-are unrelated properties.
-"""
+"""Fast pre-compile checks for generated synthesizable I2C master RTL."""
 
 import re
 
 
+def _strip_comments(rtl: str) -> str:
+    rtl = re.sub(r"/\*[\s\S]*?\*/", "", rtl)
+    return re.sub(r"//[^\n]*", "", rtl)
+
+
+def _open_drain(code: str, net: str) -> bool:
+    """True if `net` is driven only as `cond ? 1'b0 : 1'bz` (either polarity).
+
+    The condition may be any expression (``~x``, ``(a && b)``, ``!oe``), not
+    just a bare identifier. Driving a hard 1'b1 is rejected: open-drain buses
+    must release the line (high-Z), never actively drive high.
+    """
+    low_z = rf"\bassign\s+{net}\s*=\s*[^;?]+\?\s*1\s*'\s*b0\s*:\s*1\s*'\s*bz\s*;"
+    z_low = rf"\bassign\s+{net}\s*=\s*[^;?]+\?\s*1\s*'\s*bz\s*:\s*1\s*'\s*b0\s*;"
+    return bool(re.search(low_z, code, re.I) or re.search(z_low, code, re.I))
+
+
 def structural_checks(rtl: str, required_instances: list) -> dict:
-    """
-    required_instances: e.g. ["device_sensor", "device_controller"] --
-    the module names that MUST appear as instantiated instances (not just
-    mentioned in a comment) in the generated top-level module.
-    """
-    # Strip line comments before pattern-matching so a "#10" or "{ ... }"
-    # mentioned only in a comment doesn't false-positive.
-    code_only = re.sub(r"//.*", "", rtl)
+    """Catch structural/protocol anti-patterns before invoking a compiler."""
+    code_only = _strip_comments(rtl)
+    header_match = re.search(r"\bmodule\s+top_glue\s*\((.*?)\)\s*;", code_only, re.I | re.S)
+    header = header_match.group(1) if header_match else ""
+    port_names = re.findall(r"\b(?:input|output|inout)\b\s+(?:(?:wire|reg)\s+)?(?:\[[^\]]+\]\s*)?(\w+)", header, re.I)
+    required_ports = ["clk", "rst_n", "sda", "scl", "tb_start", "tb_done"]
+    normalized_ports = [p.lower() for p in port_names]
+    port_directions = [d.lower() for d in re.findall(r"\b(input|output|inout)\b", header, re.I)]
+    required_directions = ["input", "input", "inout", "inout", "input", "output"]
+
+    # Legal open-drain continuous assignments are excluded from the
+    # procedural-write scan below. Direct procedural writes to SDA/SCL are
+    # a semantic bug even where the compiler allows them.
+    no_bus_assign_lines = re.sub(
+        r"\bassign\s+(?:sda|scl)\s*=\s*[^;]*;", "", code_only, flags=re.I
+    )
 
     checks = {
-        "has_top_glue": bool(re.search(r"\bmodule\s+top_glue\b", rtl)),
-        "has_always_block": "always @" in rtl or "always@" in rtl,
+        "has_top_glue": header_match is not None,
+        "has_exact_top_ports": normalized_ports == required_ports,
+        "has_correct_top_port_directions": port_directions == required_directions,
+        "has_always_block": bool(re.search(r"\balways\s*@", code_only, re.I)),
         "no_markdown_escapes": "\\_" not in rtl and "\\*" not in rtl,
-        # `#10` etc is testbench-style delay control -- meaningless/illegal
-        # inside a clocked always block meant for synthesizable hardware.
-        # Small local models reach for this constantly when they don't
-        # know how to implement clock-divided timing with a counter.
         "no_delay_statements": not bool(re.search(r"#\s*\d", code_only)),
-        # `{ a <= 0, b <= 1 }` is not legal Verilog -- {} is bit
-        # concatenation syntax, not a statement block. This is a distinct
-        # anti-pattern from missing begin/end and needs its own message.
+        "no_wait_statements": not bool(re.search(r"\bwait\s*\(", code_only, re.I)),
+        "no_initial_blocks": not bool(re.search(r"\binitial\b", code_only, re.I)),
         "no_brace_statement_blocks": not bool(
             re.search(r"\{[^{}]*<=[^{}]*,[^{}]*<=", code_only)
         ),
+        "open_drain_sda": _open_drain(code_only, "sda"),
+        "open_drain_scl": _open_drain(code_only, "scl"),
+        "no_procedural_bus_writes": not bool(re.search(r"\b(?:sda|scl)\s*(?:<=|=(?!=))", no_bus_assign_lines, re.I)),
+        "has_tb_done_logic": bool(re.search(r"\btb_done\s*<=", code_only)),
     }
 
     for name in required_instances:
-        # crude but effective: "<module_name> <instance_name> (" is the
-        # universal Verilog instantiation shape. A bare mention in a
-        # comment won't match this pattern.
-        pattern = re.compile(rf"\b{re.escape(name)}\s+\w+\s*\(")
-        checks[f"instantiates_{name}"] = bool(pattern.search(rtl))
+        pattern = re.compile(rf"\b{re.escape(name)}\s+\w+\s*\(", re.I)
+        checks[f"instantiates_{name}"] = bool(pattern.search(code_only))
 
-    failed = [k for k, v in checks.items() if not v]
-    return {"pass": len(failed) == 0, "failed_checks": failed, "checks": checks}
+    failed = [name for name, passed in checks.items() if not passed]
+    return {"pass": not failed, "failed_checks": failed, "checks": checks}
 
 
 STRUCTURAL_EXPLANATIONS = {
-    "has_top_glue": "The module is not named `top_glue`, or the module header is malformed.",
-    "has_always_block": "No `always @` block was found -- this looks like combinational-only code with no actual state machine.",
-    "no_markdown_escapes": "The code contains markdown escape artifacts like `\\_` or `\\*` which are not legal Verilog.",
-    "no_delay_statements": (
-        "The code uses `#<number>` delay control (e.g. `#10`) inside a clocked always block. "
-        "This is a testbench-only construct and is not synthesizable hardware -- it will not "
-        "behave the way you expect inside `always @(posedge clk)`. To wait N clock cycles, "
-        "use a counter register: increment it every clock edge, and only advance to the next "
-        "state when the counter reaches the target value. Remove every `#` delay from the design."
-    ),
-    "no_brace_statement_blocks": (
-        "The code uses curly braces `{ ... }` to group multiple statements, e.g. "
-        "`{ a <= 0, b <= 1 }`. This is illegal -- curly braces in Verilog are ONLY for bit "
-        "concatenation (e.g. `{a, b}` to join two signals), never for grouping statements. "
-        "To execute multiple statements together, use `begin ... end` with a semicolon after "
-        "each individual statement, e.g. `begin a <= 0; b <= 1; end`."
-    ),
+    "has_top_glue": "The module is not named top_glue or its module header is malformed.",
+    "has_exact_top_ports": "top_glue must expose exactly clk, rst_n, sda, scl, tb_start, and tb_done in that order.",
+    "has_correct_top_port_directions": "Use input clk, input rst_n, inout SDA/SCL, input tb_start, and output tb_done.",
+    "has_always_block": "No clocked always block was found; implement a sequential FSM.",
+    "no_markdown_escapes": "The code contains markdown escape artifacts such as \\_ or \\*.",
+    "no_delay_statements": "The RTL uses #<number> delay controls. Use a cycle counter instead.",
+    "no_wait_statements": "The RTL uses wait, which is forbidden in this synthesizable Verilog task.",
+    "no_initial_blocks": "The RTL uses an initial block. Initialize sequential state through the active-low reset instead.",
+    "no_brace_statement_blocks": "Curly braces cannot group statements in Verilog. Use begin ... end.",
+    "open_drain_sda": "SDA must be driven open-drain: assign sda = sda_drive_low ? 1'b0 : 1'bz (with an internal drive-low signal).",
+    "open_drain_scl": "SCL must be driven open-drain: assign scl = scl_drive_low ? 1'b0 : 1'bz (with an internal drive-low signal).",
+    "no_procedural_bus_writes": "Never assign SDA or SCL inside an always block; only drive them through open-drain continuous assigns.",
+    "has_tb_done_logic": "tb_done must be assigned by the sequential control logic after STOP.",
 }
 
 
 def explain_structural_failures(failed_checks, required_instances) -> str:
     parts = []
-    for c in failed_checks:
-        if c.startswith("instantiates_"):
-            name = c[len("instantiates_"):]
+    for check in failed_checks:
+        if check.startswith("instantiates_"):
+            name = check[len("instantiates_"):]
             parts.append(
-                f"The module {name} was NOT instantiated anywhere in the code. "
-                f"You MUST add an instance of {name}, e.g. `{name} u_{name} (.clk(clk), ...);`, "
-                f"using its exact port names."
+                f"The module {name} was not instantiated. Add it using its exact port names and the pre-generated signal map."
             )
         else:
-            parts.append(STRUCTURAL_EXPLANATIONS.get(c, c))
+            parts.append(STRUCTURAL_EXPLANATIONS.get(check, check))
     return " ".join(parts)

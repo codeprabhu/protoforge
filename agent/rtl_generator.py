@@ -2,6 +2,7 @@ from agent.ollama_client import generate_verilog
 from agent.rtl_cleaner import clean_rtl
 from tools.file_tool import save_file
 from tools.verilog_parser import parse_verilog_file, ModuleInfo
+from tools.rtl_memory import retrieve_rtl_context
 
 I2C_IMPLEMENTATION_RULES = """
 IMPORTANT:
@@ -58,23 +59,19 @@ LEGAL:
     sda_drive_low <= 1'b1;
     scl_drive_low <= 1'b0;
 
-The generated FSM must contain:
+Use a clocked, explicit FSM with these behaviors/states (names may differ only
+when the phases are unambiguously represented):
 
-    IDLE
-    START
-    SEND_ADDR
-    ACK_ADDR
-    SEND_DATA
-    ACK_DATA
-    STOP
-    DONE
+    IDLE -> START -> START_HOLD -> address bits -> address ACK
+         -> data bits -> data ACK -> STOP -> DONE
 
-Use counters and state transitions.
+Use separate low/high clock phases for each bit and ACK. Keep SCL released
+(high) while setting up the START and STOP transitions. A counter must hold
+each SCL half-period long enough for the testbench to observe it. Drive both
+bus lines open-drain using internal *_drive_low registers and tri-state assigns.
 
-NEVER use # delays.
-NEVER use wait statements.
-NEVER use initial blocks.
-NEVER use curly braces for statement grouping.
+NEVER use # delays, wait statements, or initial blocks. Do not use SystemVerilog
+syntax: target plain Verilog-2001. Never use curly braces for statement grouping.
 """
 def build_instance_block(info: ModuleInfo, label: str, instance_name: str) -> dict:
     """
@@ -140,6 +137,13 @@ Protocol specification to implement in the marked section:
 
 Additional implementation requirements:
 {implementation_rules}
+
+Retrieved design context from verified examples and previous passing runs:
+{retrieved_context}
+
+The retrieved example is for protocol timing guidance only. Use the instance
+block below, obey the current device interfaces and exact top-level contract,
+and do not copy any forbidden constructs from historical examples.
 
 Here is the module you must complete. Copy the instantiation section
 EXACTLY as shown -- it is already correct and complete. Only write code
@@ -217,6 +221,9 @@ Common mistakes to check for specifically:
   you just assigned it with `<=` in a prior statement -- that reads the
   OLD value, not the one you just set.
 
+Verified reference context (use as a timing pattern; output only the repaired design):
+{verified_context}
+
 Fix the code. Keep the module name `top_glue` and its exact port list
 unchanged:
 
@@ -246,13 +253,20 @@ Additional I2C-specific checks:
 
 
 def generate_glue_rtl(device_a_path, device_b_path, protocol_spec_path,
-                       out_path="generated/top_glue.v", model=None, debug_prompt_path="generated/last_prompt.txt"):
+                       out_path="generated/top_glue.v", model=None, debug_prompt_path="generated/last_prompt.txt",
+                       temperature=0.0, seed=None):
     a = parse_verilog_file(device_a_path)
     b = parse_verilog_file(device_b_path)
     spec = open(protocol_spec_path).read()
 
     a_inst = build_instance_block(a, "a", "u_device_a")
     b_inst = build_instance_block(b, "b", "u_device_b")
+
+    retrieval_query = (
+        "I2C open-drain master FSM START START_HOLD address 0xA0 MSB-first "
+        "ACK data byte ACK STOP low high clock phases counter tb_done synthesizable Verilog-2001"
+    )
+    retrieved_context = retrieve_rtl_context(retrieval_query, max_examples=1, max_chars=10000)
 
     prompt = GLUE_PROMPT.format(
         device_a_module=a.name, device_a_signal_map=_signal_map_summary("a", a_inst["signals"]),
@@ -261,24 +275,41 @@ def generate_glue_rtl(device_a_path, device_b_path, protocol_spec_path,
         device_b_instance_code=b_inst["code"],
         protocol_spec=spec,
         implementation_rules=I2C_IMPLEMENTATION_RULES,
+        retrieved_context=retrieved_context,
     )
 
     if debug_prompt_path:
         save_file(debug_prompt_path, prompt)
 
-    kwargs = {"model": model} if model else {}
+    kwargs = {"temperature": temperature}
+    if seed is not None:
+        kwargs["seed"] = seed
+    if model:
+        kwargs["model"] = model
     rtl = clean_rtl(generate_verilog(prompt, **kwargs))
     save_file(out_path, rtl)
     return out_path, prompt
 
 
-def repair_rtl(code, failure_kind, failure_detail, out_path="generated/top_glue.v", model=None, temperature=None):
-    prompt = REPAIR_PROMPT.format(code=code, failure_kind=failure_kind, failure_detail=failure_detail)
+def repair_rtl(code, failure_kind, failure_detail, out_path="generated/top_glue.v", model=None, temperature=None, seed=None):
+    repair_context = retrieve_rtl_context(
+        "I2C master repair open drain START STOP ACK address 0xA0 data byte clock phases Verilog-2001",
+        max_examples=1,
+        max_chars=8000,
+    )
+    prompt = REPAIR_PROMPT.format(
+        code=code,
+        failure_kind=failure_kind,
+        failure_detail=failure_detail,
+        verified_context=repair_context,
+    )
     kwargs = {}
     if model:
         kwargs["model"] = model
     if temperature is not None:
         kwargs["temperature"] = temperature
+    if seed is not None:
+        kwargs["seed"] = seed
     fixed = clean_rtl(generate_verilog(prompt, **kwargs))
     save_file(out_path, fixed)
     return fixed, prompt

@@ -115,7 +115,7 @@ assign scl = scl_reg;
 endmodule
 """
 
-GOOD = open("protocols/i2c/reference/good_master.v").read()
+GOOD = open("protocols/i2c/reference/good_master_reset_safe.v").read()
 
 call_count = {"n": 0}
 

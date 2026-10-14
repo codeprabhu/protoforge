@@ -2,4 +2,8 @@
 generated
 *.out
 __pycache__
-results
+resultsresults/rtl_memory/
+generated/*.vcd
+.pytest_cache/
+__pycache__/
+*.py[cod]

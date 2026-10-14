@@ -17,6 +17,12 @@ def judge(result: dict, expected_addr: str = "a0") -> dict:
         "stop": result["saw_stop"] == 1,
         "correct_address": result.get("addr", "").lower() == expected_addr.lower(),
     }
+    # Extended checks, only when the testbench reported them (older RESULT
+    # lines do not carry these fields, so they are skipped rather than failed).
+    if "tb_done" in result:
+        checks["tb_done"] = result["tb_done"] == 1
+        checks["single_start"] = result["starts"] == 1
+        checks["single_stop"] = result["stops"] == 1
     failed = [k for k, v in checks.items() if not v]
     return {"pass": len(failed) == 0, "failed_checks": failed, "raw": result}
 
@@ -27,6 +33,9 @@ FAILURE_EXPLANATIONS = {
     "data_ack": "No ACK was seen after the data byte -- the slave never pulled SDA low on the 9th clock of the data phase.",
     "stop": "No STOP condition (SDA rising while SCL is high) was observed on the bus -- the transaction never terminated correctly.",
     "correct_address": "The address byte captured on the bus did not match the expected 0xA0 (0x50 write).",
+    "tb_done": "tb_done was never asserted -- the spec requires it to go high once the STOP condition has been issued.",
+    "single_start": "The bus showed more than one START condition (or none); v1 requires exactly one START and no repeated START.",
+    "single_stop": "The bus showed more than one STOP condition (or none); v1 requires exactly one STOP at the end of the transaction.",
     "simulation_unparseable": "The simulation did not produce a valid RESULT: line -- it likely hung or tb_done was never asserted.",
 }
 

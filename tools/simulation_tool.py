@@ -1,41 +1,72 @@
-import subprocess
+"""Run an Icarus simulation and parse the stable machine-readable result."""
+
 import re
+import subprocess
+
+RESULT_RE = re.compile(
+    r"RESULT:saw_start=(\d) saw_stop=(\d) saw_ack_addr=(\d) saw_ack_data=(\d) "
+    r"addr=([0-9a-fA-F]+) data=([0-9a-fA-F]+)"
+    r"(?: tb_done=(\d) starts=(\d+) stops=(\d+))?"
+)
 
 
-def run_simulation(executable: str) -> dict:
+def run_simulation(executable: str, timeout: float = 8.0) -> dict:
+    """Run vvp; always return a result dictionary, including on success."""
     try:
         result = subprocess.run(
             ["vvp", executable],
             capture_output=True,
             text=True,
-            timeout=5
+            timeout=timeout,
         )
-    except subprocess.TimeoutExpired:
+    except FileNotFoundError:
         return {
             "success": False,
+            "returncode": None,
             "stdout": "",
-            "stderr": "Simulation timeout"
+            "stderr": "Icarus Verilog runtime vvp was not found. Install iverilog and ensure vvp is on PATH.",
+            "timeout": False,
+            "tool_missing": True,
         }
-
-
-RESULT_RE = re.compile(
-    r"RESULT:saw_start=(\d) saw_stop=(\d) saw_ack_addr=(\d) saw_ack_data=(\d) "
-    r"addr=([0-9a-fA-F]+) data=([0-9a-fA-F]+)"
-)
+    except subprocess.TimeoutExpired as exc:
+        stdout = exc.stdout or ""
+        if isinstance(stdout, bytes):
+            stdout = stdout.decode("utf-8", errors="replace")
+        stderr = exc.stderr or ""
+        if isinstance(stderr, bytes):
+            stderr = stderr.decode("utf-8", errors="replace")
+        return {
+            "success": False,
+            "returncode": None,
+            "stdout": stdout,
+            "stderr": f"Simulation timeout after {timeout}s. {stderr}".strip(),
+            "timeout": True,
+        }
+    return {
+        "success": result.returncode == 0,
+        "returncode": result.returncode,
+        "stdout": result.stdout,
+        "stderr": result.stderr,
+        "timeout": False,
+    }
 
 
 def parse_result_line(stdout: str) -> dict:
-    """
-    Parses the RESULT:/EVENT: lines emitted by protocols/i2c/testbench_i2c.v
-    into a structured dict. This is the boundary between raw simulator text
-    and everything downstream (judge(), repair prompts, logging).
-    """
-    m = RESULT_RE.search(stdout)
+    """Parse the RESULT line emitted by protocols/i2c/testbench_i2c.v."""
+    m = RESULT_RE.search(stdout or "")
     if not m:
-        return {"parsed": False, "timeout": "EVENT:TIMEOUT" in stdout, "raw_stdout": stdout}
+        return {
+            "parsed": False,
+            "timeout": "EVENT:TIMEOUT" in (stdout or ""),
+            "raw_stdout": stdout or "",
+        }
 
-    saw_start, saw_stop, saw_ack_addr, saw_ack_data, addr, data = m.groups()
+    saw_start, saw_stop, saw_ack_addr, saw_ack_data, addr, data, tb_done, starts, stops = m.groups()
+    extra = {}
+    if tb_done is not None:  # newer testbench; older RESULT lines omit these
+        extra = {"tb_done": int(tb_done), "starts": int(starts), "stops": int(stops)}
     return {
+        **extra,
         "parsed": True,
         "saw_start": int(saw_start),
         "saw_stop": int(saw_stop),

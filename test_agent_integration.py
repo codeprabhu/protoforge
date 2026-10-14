@@ -16,8 +16,8 @@ import os
 import agent.ollama_client as ollama_client
 
 call_count = {"n": 0}
-BROKEN = open("protocols/i2c/reference/broken_master_no_stop.v").read()
-GOOD = open("protocols/i2c/reference/good_master.v").read()
+BROKEN = open("protocols/i2c/reference/broken_master_no_stop_reset_safe.v").read()
+GOOD = open("protocols/i2c/reference/good_master_reset_safe.v").read()
 
 
 def fake_generate_verilog(prompt, model=None, temperature=None):
