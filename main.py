@@ -20,7 +20,7 @@ from agent_core.agent import run_once
 from agent.ollama_client import DEFAULT_MODEL, DEFAULT_SEED
 from tools.rtl_memory import memory_summary
 
-KNOWN_FINALS = {"pass", "compile_failed", "structural_failed", "sim_checks_failed", "tool_missing", "generation_error"}
+KNOWN_FINALS = {"pass", "compile_failed", "structural_failed", "hardware_failed", "sim_checks_failed", "tool_missing", "generation_error"}
 
 
 def run_batch(n_runs: int, model: str | None = None, run_fn=run_once,
@@ -79,6 +79,7 @@ def format_summary(s: dict) -> str:
         f"Compile-failed:         {s['outcomes'].get('compile_failed', 0)}/{n}",
         f"Structural-failed:      {s['outcomes'].get('structural_failed', 0)}/{n}",
         f"Simulation-failed:      {s['outcomes'].get('sim_checks_failed', 0)}/{n}",
+        f"Hardware-failed:         {s['outcomes'].get('hardware_failed', 0)}/{n}",
         f"Tool-missing:           {s['outcomes'].get('tool_missing', 0)}/{n}",
         f"Generation errors:      {s['outcomes'].get('generation_error', 0)}/{n}",
         f"Other outcomes:         {s['other_outcomes']}",

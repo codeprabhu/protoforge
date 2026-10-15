@@ -47,3 +47,17 @@ def test_model_repair_loop_recovers_from_missing_stop(tmp_path, monkeypatch):
     assert [attempt["failed_checks"] for attempt in result["attempts"]] == [["stop"], []]
     assert calls["count"] == 2
     assert Path(pipeline.RESULTS_LOG).is_file()
+
+
+def test_repair_prompt_preserves_valid_phases():
+    prompt = rtl_generator.REPAIR_PROMPT.format(
+        failure_kind="compiled but failed protocol checks",
+        code="module top_glue; endmodule",
+        failure_detail="No STOP condition was observed; tb_done was never asserted.",
+        verified_context="context",
+    )
+    prompt += "\nObserved-failure preservation contract:\n" + rtl_generator._repair_discipline(
+        "No STOP condition was observed; tb_done was never asserted."
+    )
+    assert "address ACK" in prompt and "data ACK" in prompt
+    assert "Already-valid phases" in prompt

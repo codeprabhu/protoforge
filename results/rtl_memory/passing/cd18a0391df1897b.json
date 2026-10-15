@@ -1,0 +1,21 @@
+{
+  "created_at": 1791997260.5803814,
+  "metadata": {
+    "checks": {
+      "addr": "a0",
+      "data": "3c",
+      "parsed": true,
+      "saw_ack_addr": 1,
+      "saw_ack_data": 1,
+      "saw_start": 1,
+      "saw_stop": 1,
+      "starts": 1,
+      "stops": 1,
+      "tb_done": 1
+    },
+    "protocol": "i2c-v1"
+  },
+  "model": "stub-model",
+  "sha256": "cd18a0391df1897b786f348f353cc17f9a01921c359a98d8f515e90005b8783b",
+  "verified_pass": true
+}

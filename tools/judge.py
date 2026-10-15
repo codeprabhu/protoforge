@@ -1,4 +1,4 @@
-def judge(result: dict, expected_addr: str = "a0") -> dict:
+def judge(result: dict, expected_addr: str = "a0", expected_data: str = "3c") -> dict:
     """
     Turns a parsed simulation result (from simulation_tool.parse_result_line)
     into a pass/fail verdict plus which specific I2C primitive(s) failed.
@@ -16,6 +16,7 @@ def judge(result: dict, expected_addr: str = "a0") -> dict:
         "data_ack": result["saw_ack_data"] == 1,
         "stop": result["saw_stop"] == 1,
         "correct_address": result.get("addr", "").lower() == expected_addr.lower(),
+        "correct_data": result.get("data", "").lower() == expected_data.lower(),
     }
     # Extended checks, only when the testbench reported them (older RESULT
     # lines do not carry these fields, so they are skipped rather than failed).
@@ -33,6 +34,7 @@ FAILURE_EXPLANATIONS = {
     "data_ack": "No ACK was seen after the data byte -- the slave never pulled SDA low on the 9th clock of the data phase.",
     "stop": "No STOP condition (SDA rising while SCL is high) was observed on the bus -- the transaction never terminated correctly.",
     "correct_address": "The address byte captured on the bus did not match the expected 0xA0 (0x50 write).",
+    "correct_data": "The data byte captured on the bus did not match the required 0x3C payload.",
     "tb_done": "tb_done was never asserted -- the spec requires it to go high once the STOP condition has been issued.",
     "single_start": "The bus showed more than one START condition (or none); v1 requires exactly one START and no repeated START.",
     "single_stop": "The bus showed more than one STOP condition (or none); v1 requires exactly one STOP at the end of the transaction.",

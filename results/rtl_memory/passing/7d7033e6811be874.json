@@ -1,0 +1,21 @@
+{
+  "created_at": 1791982228.173055,
+  "metadata": {
+    "checks": {
+      "addr": "a0",
+      "data": "3c",
+      "parsed": true,
+      "saw_ack_addr": 1,
+      "saw_ack_data": 1,
+      "saw_start": 1,
+      "saw_stop": 1,
+      "starts": 1,
+      "stops": 1,
+      "tb_done": 1
+    },
+    "protocol": "i2c-v1"
+  },
+  "model": "qwen2.5-coder:7b",
+  "sha256": "7d7033e6811be874e735afc4db89ac00fe847f439951d5fc9175fabab2ed7280",
+  "verified_pass": true
+}

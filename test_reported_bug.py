@@ -9,6 +9,7 @@ import os
 
 import agent.ollama_client as ollama_client
 
+ORIGINAL_GENERATE_VERILOG = ollama_client.generate_verilog
 # The exact code the user's real Ollama run produced (trimmed of surrounding
 # prose) -- embedded directly so this test is self-contained and doesn't
 # depend on any external fixture file.
@@ -145,6 +146,7 @@ assert result["attempts"][0]["stage"] == "structural"
 assert "no_delay_statements" in result["attempts"][0]["failed_checks"]
 assert "no_brace_statement_blocks" in result["attempts"][0]["failed_checks"]
 assert result["final"] == "pass"
+ollama_client.generate_verilog = ORIGINAL_GENERATE_VERILOG
 
 print()
 print("ALL ASSERTIONS PASSED - the exact reported bug is now caught pre-compile, and repair recovers.")

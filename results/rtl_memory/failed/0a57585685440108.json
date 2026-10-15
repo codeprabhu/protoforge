@@ -1,0 +1,18 @@
+{
+  "created_at": 1791991252.3422508,
+  "detail": "No START condition (SDA falling while SCL is high) was observed on the bus. No ACK was seen after the address byte -- the slave never pulled SDA low on the 9th clock of the address phase. No ACK was seen after the data byte -- the slave never pulled SDA low on the 9th clock of the data phase. No STOP condition (SDA rising while SCL is high) was observed on the bus -- the transaction never terminated correctly. The address byte captured on the bus did not match the expected 0xA0 (0x50 write). The data byte captured on the bus did not match the required 0x3C payload. The bus showed more than one START condition (or none); v1 requires exactly one START and no repeated START. The bus showed more than one STOP condition (or none); v1 requires exactly one STOP at the end of the transaction.",
+  "failed_checks": [
+    "start",
+    "address_ack",
+    "data_ack",
+    "stop",
+    "correct_address",
+    "correct_data",
+    "single_start",
+    "single_stop"
+  ],
+  "model": "qwen2.5-coder:7b",
+  "sha256": "0a575856854401080e1b107c7ea5e985aecc374ddd1b3841397c5819236f902e",
+  "stage": "simulate",
+  "verified_pass": false
+}

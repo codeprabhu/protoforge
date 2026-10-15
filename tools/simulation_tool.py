@@ -10,11 +10,11 @@ RESULT_RE = re.compile(
 )
 
 
-def run_simulation(executable: str, timeout: float = 8.0) -> dict:
+def run_simulation(executable: str, timeout: float = 8.0, plusargs=None) -> dict:
     """Run vvp; always return a result dictionary, including on success."""
     try:
         result = subprocess.run(
-            ["vvp", executable],
+            ["vvp", executable, *(plusargs or [])],
             capture_output=True,
             text=True,
             timeout=timeout,

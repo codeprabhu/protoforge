@@ -1,0 +1,14 @@
+{
+  "created_at": 1791997636.1147785,
+  "detail": "SDA must be driven open-drain: assign sda = sda_drive_low ? 1'b0 : 1'bz (with an internal drive-low signal). SCL must be driven open-drain: assign scl = scl_drive_low ? 1'b0 : 1'bz (with an internal drive-low signal). Instantiate device_sensor exactly once using its exact port names and the pre-generated signal map. Instantiate device_controller exactly once using its exact port names and the pre-generated signal map.",
+  "failed_checks": [
+    "open_drain_sda",
+    "open_drain_scl",
+    "instantiates_device_sensor",
+    "instantiates_device_controller"
+  ],
+  "model": "qwen2.5-coder:7b",
+  "sha256": "9d37cf97c5854cec45b721f1bad05065911147d8c629bf13dad7ce8b4806287a",
+  "stage": "structural",
+  "verified_pass": false
+}

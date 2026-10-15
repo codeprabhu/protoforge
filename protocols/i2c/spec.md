@@ -38,10 +38,10 @@ against every generation attempt without ever being edited.
 
 ## v1 required transaction (this is what the testbench checks)
 
-Master (top_glue's I2C logic) writes ONE byte to slave address 0x50:
+Master (top_glue's I2C logic) writes ONE byte, `0x3C`, to slave address 0x50:
 
 ```
-START -> [0x50 << 1 | 0] -> ACK -> [data byte] -> ACK -> STOP
+START -> [0x50 << 1 | 0] -> ACK -> [0x3C] -> ACK -> STOP
 ```
 
 `tb_start` pulses high for one cycle to kick off this transaction.

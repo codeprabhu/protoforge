@@ -54,13 +54,20 @@ def parse_verilog_file(filepath: str) -> ModuleInfo:
 
 
 def parse_verilog_source(source: str) -> ModuleInfo:
-    match = MODULE_HEADER_RE.search(source)
-    if not match:
+    matches = list(MODULE_HEADER_RE.finditer(source))
+    if not matches:
         raise ValueError(
             "Could not find a `module name (...);` header. "
             "Only ANSI-style port declarations are supported (see devices/CONTRACT.md)."
         )
 
+    if len(matches) != 1:
+        raise ValueError("A device file must contain exactly one module")
+
+    if re.search(r"\bgenerate\b", source, re.IGNORECASE):
+        raise ValueError("Device files must not contain generate blocks")
+
+    match = matches[0]
     name = match.group(1)
     port_block = match.group(2)
 
@@ -73,5 +80,9 @@ def parse_verilog_source(source: str) -> ModuleInfo:
             f"Found module '{name}' but couldn't extract any ports. "
             "Check that ports are declared ANSI-style inside the parentheses."
         )
+
+    port_names = {p.name for p in ports}
+    if not {"clk", "rst_n"}.issubset(port_names):
+        raise ValueError(f"Device {name} must expose clk and rst_n ports")
 
     return ModuleInfo(name=name, ports=ports, raw_source=source)

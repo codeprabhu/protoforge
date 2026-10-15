@@ -44,7 +44,8 @@ print(json.dumps(result, indent=2))
 
 assert result["final"] == "pass", "expected the repair loop to recover and pass"
 assert len(result["attempts"]) == 2, "expected exactly 2 attempts: 1 failure + 1 pass"
-assert result["attempts"][0]["failed_checks"] == ["stop"], "expected the first attempt to fail only on STOP"
+assert set(result["attempts"][0]["failed_checks"]) == {"stop", "single_stop"}, \
+    "expected the first attempt to fail on the missing STOP checks"
 assert call_count["n"] == 2, "expected exactly 2 LLM calls: 1 generate + 1 repair"
 
 print()

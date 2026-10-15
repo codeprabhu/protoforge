@@ -20,6 +20,11 @@ def clean_rtl(text: str) -> str:
         if modules:
             text = "\n\n".join(modules)
 
+    # Handle truncated responses where the model emitted an opening fence but
+    # ran out of tokens before the closing fence.
+    text = re.sub(r"^```(?:verilog|v|systemverilog)?\s*\n", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\n```\s*$", "", text)
+
     text = text.replace("\r\n", "\n").replace("\r", "\n")
     text = text.replace("`module", "module").replace("endmodule`", "endmodule")
 

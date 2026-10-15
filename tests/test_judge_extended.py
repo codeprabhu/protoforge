@@ -24,6 +24,13 @@ def test_extended_result_line_passes_when_clean():
     assert judge(parsed)["pass"]
 
 
+def test_wrong_data_byte_fails_protocol_judge():
+    parsed = parse_result_line(BASE.replace("data=3c", "data=00"))
+    verdict = judge(parsed)
+    assert not verdict["pass"]
+    assert verdict["failed_checks"] == ["correct_data"]
+
+
 def test_missing_tb_done_fails():
     v = judge(parse_result_line(BASE + " tb_done=0 starts=1 stops=1"))
     assert not v["pass"] and v["failed_checks"] == ["tb_done"]

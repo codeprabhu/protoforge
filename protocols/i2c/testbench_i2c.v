@@ -50,6 +50,9 @@ module testbench_i2c;
     reg [7:0] shift_reg = 8'h00;
     reg [7:0] captured_addr = 8'h00;
     reg [7:0] captured_data = 8'h00;
+    reg [7:0] expected_addr_byte = 8'hA0;
+    reg [7:0] expected_data_byte = 8'h3C;
+    integer plusarg_dummy;
     integer saw_ack_addr = 0;
     integer saw_ack_data = 0;
     reg in_transaction = 0;
@@ -68,7 +71,7 @@ module testbench_i2c;
         // negedge (i.e. it spans exactly one SCL high pulse: the ack cell).
         if (slave_ack_drive) begin
             slave_ack_drive <= 0; // release after the ack cell completes
-        end else if (bit_count == 8 && byte_count == 0 && shift_reg == 8'hA0) begin
+        end else if (bit_count == 8 && byte_count == 0 && shift_reg == expected_addr_byte) begin
             slave_ack_drive <= 1;
             saw_ack_addr = 1;
             captured_addr = shift_reg;
@@ -121,6 +124,10 @@ module testbench_i2c;
     // Stimulus
     // ---------------------------------------------------------------
     initial begin
+        // The checked-in v1 defaults remain A0/3C; protocol-specific runs
+        // may override these without changing the trusted testbench source.
+        plusarg_dummy = $value$plusargs("I2C_ADDR=%h", expected_addr_byte);
+        plusarg_dummy = $value$plusargs("I2C_DATA=%h", expected_data_byte);
         // VCD tracing is opt-in to keep batch evaluation from producing
         // hundreds of megabytes of waveforms by default. Run with +dump_vcd
         // when a waveform is actually needed for debugging.

@@ -4,7 +4,7 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 
 ## Changes in this iteration
 
-- **Small-model-first generation:** the default model is `qwen2.5-coder:3b`. The model is asked for only the FSM declarations and sequential block; the harness deterministically supplies the top-level ports, parsed device instances, and open-drain bus assignments. Full-module outputs remain accepted for compatibility. This reduces the surface area where a small model can corrupt the wrapper. Generation temperature is `0` by default and Ollama receives a fixed seed. Override with `PROTOFORGE_MODEL`, `PROTOFORGE_TEMPERATURE`, `PROTOFORGE_SEED`, `PROTOFORGE_NUM_CTX`, and `PROTOFORGE_NUM_PREDICT`.
+- **Small-model-first generation:** the default model is `qwen2.5-coder:7b`. The model is asked for only the FSM declarations and sequential block; the harness deterministically supplies the top-level ports, parsed device instances, and open-drain bus assignments. Full-module outputs remain accepted for compatibility. This reduces the surface area where a small model can corrupt the wrapper. Generation temperature is `0` by default and Ollama receives a fixed seed. Override with `PROTOFORGE_MODEL`, `PROTOFORGE_TEMPERATURE`, `PROTOFORGE_SEED`, `PROTOFORGE_NUM_CTX`, and `PROTOFORGE_NUM_PREDICT`.
 - **Verified-example retrieval:** a small offline RAG/few-shot layer starts from a reset-safe few-shot copy derived from the existing known-good I²C oracle and learns additional examples only after they pass the compile + simulation oracle. Failed designs are archived separately and never retrieved as positive examples. No embedding model or vector database is required.
 - **Real repair loop:** two repairs are attempted by default after the initial generation (`PROTOFORGE_MAX_REPAIRS=2`). Each repair prompt includes the failed code, the specific structural/compiler/protocol diagnosis, and verified reference context.
 - **Stronger structural gate:** validates the required top-level port contract, open-drain SDA/SCL drivers, sequential completion logic, required device instances, and rejects procedural bus writes, `initial`, `wait`, delays, and malformed statement grouping before compiling.
@@ -29,7 +29,7 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 2. Pull a code-oriented local model:
 
    ```bash
-   ollama pull qwen2.5-coder:3b
+   ollama pull qwen2.5-coder:7b
    ```
 
 3. Install the Python requirements:
@@ -41,35 +41,48 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 4. Generate and evaluate one design:
 
    ```bash
-   python agent_core/agent.py
+   python -m agent_core.agent
    ```
 
 5. Run a reproducibility batch:
 
    ```bash
-   python main.py 20 qwen2.5-coder:3b
+   python main.py 20 qwen2.5-coder:7b
    ```
 
 The batch reports both first-try pass rate and final pass rate after the configured repair budget, so repairs do not hide first-generation quality. Each run logs its attempt stages, failed checks, source hashes, seed, elapsed time, and final status to `results/runs.jsonl`. Passing RTL snapshots are added to `results/rtl_memory/passing/` and can be retrieved in later runs.
 
+The device set is contract-driven and configurable. Each listed Verilog file
+must contain exactly one plain-Verilog module with `clk` and active-low `rst_n`:
+
+```bash
+PROTOFORGE_DEVICE_PATHS=devices/device_sensor.v,devices/device_controller.v \
+  python -m agent_core.agent
+```
+
+The harness parses every device interface, generates unique instance and signal
+names, checks the generated RTL with Icarus, Verilator, and Yosys, and only then
+runs the I²C protocol oracle. Device-local driver signals are not treated as
+I²C bus activity.
+
 ## Small-model evaluation (recommended first)
 
-The default is the 3B code-specialized Qwen model to keep the experiment practical
+The default is the 7B code-specialized Qwen model requested for this evaluation
 on consumer hardware. Do not evaluate only with temperature 0 and then call
 20 identical generations 20 independent samples. First establish a deterministic
 baseline, then sample with a non-zero temperature:
 
 ```bash
 # Deterministic baseline (usually one unique first design repeated)
-PROTOFORGE_BATCH_TEMPERATURE=0 python main.py 5 qwen2.5-coder:3b
+PROTOFORGE_BATCH_TEMPERATURE=0 python main.py 5 qwen2.5-coder:7b
 
 # Diversity / repair stress test
 PROTOFORGE_BATCH_TEMPERATURE=0.25 PROTOFORGE_MAX_REPAIRS=2 \
-  python main.py 20 qwen2.5-coder:3b
+  python main.py 20 qwen2.5-coder:7b
 
 # Retrieval ablation: same setup, but no known-good reference in the prompt
 PROTOFORGE_NO_RETRIEVAL=1 PROTOFORGE_BATCH_TEMPERATURE=0.25 \
-  python main.py 20 qwen2.5-coder:3b
+  python main.py 20 qwen2.5-coder:7b
 ```
 
 Compare first-try pass rate, post-repair pass rate, distinct candidate hashes,
@@ -93,6 +106,13 @@ python manual_structural_gate.py
 python manual_reported_bug.py
 ```
 
-## What is not claimed yet
+## Current validation status
 
-No real Qwen/Ollama generation batch was run in this development environment. Icarus Verilog was available in iteration 3, so the testbench, judge and references were run for real; the model path was not. The unit tests and mocked repair-loop test pass, but the actual model pass rate must be measured on a machine with the chosen model and simulator installed. This pipeline improves reproducibility and feedback; it does not guarantee that every model generation will pass.
+The deterministic multi-device wrapper path and the checked-in reference pass
+Icarus, Verilator, and Yosys validation. Real Qwen 7B trials are recorded in
+`results/real_trials.jsonl`; they currently show protocol failures after repair
+despite passing compile, lint, and synthesis. Those candidates are not promoted
+as verified examples. A physical board driver or FPGA target is not included in
+this repository; hardware validation currently means synthesizability and
+open-drain RTL checks, while the I2C electrical behavior is exercised by the
+BFM testbench.

@@ -1,0 +1,15 @@
+{
+  "created_at": 1791991797.2732985,
+  "detail": "No ACK was seen after the address byte -- the slave never pulled SDA low on the 9th clock of the address phase. No ACK was seen after the data byte -- the slave never pulled SDA low on the 9th clock of the data phase. The address byte captured on the bus did not match the expected 0xA0 (0x50 write). The data byte captured on the bus did not match the required 0x3C payload. tb_done was never asserted -- the spec requires it to go high once the STOP condition has been issued.",
+  "failed_checks": [
+    "address_ack",
+    "data_ack",
+    "correct_address",
+    "correct_data",
+    "tb_done"
+  ],
+  "model": "qwen2.5-coder:7b",
+  "sha256": "9195a4dc384daa9ffca105b7dba4544851071cd5757a71ecb4047f030457d185",
+  "stage": "simulate",
+  "verified_pass": false
+}

@@ -56,6 +56,7 @@ MUTANTS = {
     "no_stop": (("sda_oe <= 0; // release SDA while SCL high -> STOP condition",
                  "sda_oe <= 1; // MUTANT: keep SDA low, never STOP"), "stop"),
     "wrong_address": (("localparam ADDR_BYTE = 8'hA0;", "localparam ADDR_BYTE = 8'hA2;"), "address_ack"),
+    "wrong_data": (("localparam DATA_BYTE = 8'h3C;", "localparam DATA_BYTE = 8'h00;"), "correct_data"),
     "no_start": (("sda_oe   <= 1; // drive SDA low: START condition",
                   "sda_oe   <= 0; // MUTANT: no START"), "start"),
 }

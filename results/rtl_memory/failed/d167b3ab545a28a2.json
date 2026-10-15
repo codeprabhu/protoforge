@@ -1,0 +1,9 @@
+{
+  "created_at": 1791994238.7407477,
+  "detail": "generated/top_glue.v:1: warning: macro verilog undefined (and assumed null) at this point.\ngenerated/top_glue.v:1: syntax error\nI give up.\n",
+  "failed_checks": [],
+  "model": "qwen2.5-coder:7b",
+  "sha256": "d167b3ab545a28a2727e4a8b10b43fca1875924a7ab2180373e4c22eb66e39c8",
+  "stage": "compile",
+  "verified_pass": false
+}

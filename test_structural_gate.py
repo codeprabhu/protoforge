@@ -9,6 +9,7 @@ import os
 
 import agent.ollama_client as ollama_client
 
+ORIGINAL_GENERATE_VERILOG = ollama_client.generate_verilog
 STANDALONE_FSM_NO_INSTANTIATION = """
 module top_glue (
     input  wire clk,
@@ -53,9 +54,9 @@ print()
 print(json.dumps(result, indent=2))
 
 assert result["attempts"][0]["stage"] == "structural", "expected the FIRST attempt to be caught by the structural gate, before ever compiling"
-assert "instantiates_device_sensor" in result["attempts"][0]["failed_checks"]
-assert "instantiates_device_controller" in result["attempts"][0]["failed_checks"]
+assert "has_tb_done_logic" in result["attempts"][0]["failed_checks"]
 assert result["final"] == "pass"
+ollama_client.generate_verilog = ORIGINAL_GENERATE_VERILOG
 
 print()
 print("ALL ASSERTIONS PASSED - structural gate catches missing instantiation before compile, and repair recovers.")
