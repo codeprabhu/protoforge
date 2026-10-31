@@ -47,10 +47,25 @@ def _snapshot(code: str, stage: str, failed_checks: list[str] | None = None) -> 
 
 
 def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None = None,
-             temperature: float = 0.0) -> dict:
+             temperature: float = 0.0,
+             compile_fn=None,
+             hardware_check_fn=None,
+             sim_fn=None,
+             judge_fn=None,
+             struct_check_fn=None,
+             generate_fn=None,
+             repair_fn=None) -> dict:
     """Run one model attempt with bounded automatic repair and verified memory."""
     started = time.time()
     selected_model = model or DEFAULT_MODEL
+    _compile = compile_fn or compile_verilog
+    _hardware_check = hardware_check_fn or run_hardware_checks
+    _sim = sim_fn or run_simulation
+    _judge = judge_fn or judge
+    _struct_check = struct_check_fn or structural_checks
+    _generate = generate_fn or generate_multi_device_glue_rtl
+    _repair = repair_fn or repair_rtl
+
     log = {
         "timestamp": started,
         "model": selected_model,
@@ -64,10 +79,20 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
         "attempts": [],
     }
 
-    generate_multi_device_glue_rtl(
-        DEVICE_PATHS, SPEC, out_path=TOP, model=model,
-        temperature=temperature, seed=seed,
-    )
+    try:
+        _generate(
+            DEVICE_PATHS, SPEC, out_path=TOP, model=model,
+            temperature=temperature, seed=seed,
+        )
+    except Exception as exc:
+        log["final"] = "generation_failed"
+        log["generation_error"] = str(exc)
+        return log
+
+    if not os.path.exists(TOP) or not open(TOP, encoding="utf-8").read().strip():
+        log["final"] = "generation_failed"
+        log["generation_error"] = "Empty or missing RTL file after generation"
+        return log
 
     for attempt in range(max(0, int(max_repairs)) + 1):
         # A small increase per repair avoids identical repeated samples while
@@ -77,7 +102,7 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
 
         # Cheap semantic/synthesis-shape checks first; do not spend a compile
         # or simulation cycle on an answer that ignores the physical bus rules.
-        struct = structural_checks(code, REQUIRED_INSTANCES)
+        struct = _struct_check(code, REQUIRED_INSTANCES)
         if not struct["pass"]:
             log["attempts"].append({
                 "attempt": attempt,
@@ -88,17 +113,17 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
             })
             if attempt < max_repairs:
                 detail = explain_structural_failures(struct["failed_checks"], REQUIRED_INSTANCES)
-                repair_rtl(code, "is missing required structure", detail, out_path=TOP,
-                           model=model, temperature=repair_temperature, seed=seed,
-                           expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
-                           device_paths=DEVICE_PATHS)
+                _repair(code, "is missing required structure", detail, out_path=TOP,
+                        model=model, temperature=repair_temperature, seed=seed,
+                        expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
+                        device_paths=DEVICE_PATHS)
                 continue
             log["final"] = "structural_failed"
             record_failed_example(code, selected_model, "structural", struct["failed_checks"],
                                   explain_structural_failures(struct["failed_checks"], REQUIRED_INSTANCES))
             break
 
-        compile_result = compile_verilog([*DEVICE_PATHS, TOP, TB], out=SIM_OUT)
+        compile_result = _compile([*DEVICE_PATHS, TOP, TB], out=SIM_OUT)
         if not compile_result["success"]:
             log["attempts"].append({
                 "attempt": attempt,
@@ -114,16 +139,16 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
             if attempt < max_repairs:
                 context = extract_error_context(TOP, code, compile_result["stderr"])
                 detail = f"Compiler error context (only the lines that actually failed):\n\n{context}"
-                repair_rtl(code, "failed to compile", detail, out_path=TOP,
-                           model=model, temperature=repair_temperature, seed=seed,
-                           expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
-                           device_paths=DEVICE_PATHS)
+                _repair(code, "failed to compile", detail, out_path=TOP,
+                        model=model, temperature=repair_temperature, seed=seed,
+                        expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
+                        device_paths=DEVICE_PATHS)
                 continue
             log["final"] = "compile_failed"
             record_failed_example(code, selected_model, "compile", detail=compile_result["stderr"])
             break
 
-        hardware = run_hardware_checks([*DEVICE_PATHS, TOP])
+        hardware = _hardware_check([*DEVICE_PATHS, TOP])
         log_attempt_hardware = {
             "hardware_success": hardware.get("success", False),
             "hardware_stage": hardware.get("stage"),
@@ -143,7 +168,7 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
                 break
             if attempt < max_repairs:
                 detail = "Hardware lint/synthesis failed:\n" + str(hardware)
-                repair_rtl(code, "failed hardware lint or synthesis", detail,
+                _repair(code, "failed hardware lint or synthesis", detail,
                            out_path=TOP, model=model,
                            temperature=repair_temperature, seed=seed,
                            expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
@@ -154,7 +179,7 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
                                   [hardware.get("stage", "hardware")], str(hardware))
             break
 
-        sim = run_simulation(
+        sim = _sim(
             SIM_OUT,
             plusargs=[f"+I2C_ADDR={PROTOCOL.address_hex}", f"+I2C_DATA={PROTOCOL.data_hex}"],
         )
@@ -171,7 +196,7 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
             break
 
         result = parse_result_line(sim.get("stdout", ""))
-        verdict = judge(result, expected_addr=PROTOCOL.address_hex,
+        verdict = _judge(result, expected_addr=PROTOCOL.address_hex,
                         expected_data=PROTOCOL.data_hex)
         failed_checks = list(verdict.get("failed_checks") or [])
         if verdict["pass"] and not sim.get("success", False):
@@ -200,7 +225,7 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
             break
         if attempt < max_repairs:
             detail = f"compiled but failed protocol checks: {explain_failures(failed_checks)}"
-            repair_rtl(code, "compiled but failed protocol checks", detail, out_path=TOP,
+            _repair(code, "compiled but failed protocol checks", detail, out_path=TOP,
                        model=model, temperature=repair_temperature, seed=seed,
                        expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
                        device_paths=DEVICE_PATHS)

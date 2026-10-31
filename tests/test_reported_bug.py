@@ -1,18 +1,9 @@
-"""
-Reproduces the exact bug reported live: a generated top_glue using
-`#10 { a <= 0, b <= 1 }` inside a clocked always block. Confirms the
-structural gate catches it on attempt 0 (before ever calling iverilog)
-and that repair recovers.
-"""
-import json
-import os
+"""Test that live reported bug with delay statements inside clocked always block is caught and repaired."""
 
+import pytest
 import agent.ollama_client as ollama_client
+import agent_core.agent as agent
 
-ORIGINAL_GENERATE_VERILOG = ollama_client.generate_verilog
-# The exact code the user's real Ollama run produced (trimmed of surrounding
-# prose) -- embedded directly so this test is self-contained and doesn't
-# depend on any external fixture file.
 USER_REPORTED_BUG = """
 module top_glue (
     input  wire clk,
@@ -116,37 +107,26 @@ assign scl = scl_reg;
 endmodule
 """
 
-GOOD = open("protocols/i2c/reference/good_master_reset_safe.v").read()
 
-call_count = {"n": 0}
+def test_reported_bug_structural_gate(tmp_path, monkeypatch):
+    good = open("protocols/i2c/reference/good_master_reset_safe.v").read()
+    call_count = {"n": 0}
 
+    def fake_generate_verilog(prompt, model=None, temperature=None):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return f"```verilog\n{USER_REPORTED_BUG}\n```"
+        else:
+            return f"```verilog\n{good}\n```"
 
-def fake_generate_verilog(prompt, model=None, temperature=None):
-    call_count["n"] += 1
-    if call_count["n"] == 1:
-        print("[stub] first call -> returning the exact user-reported buggy generation")
-        return f"```verilog\n{USER_REPORTED_BUG}\n```"
-    else:
-        print(f"[stub] call #{call_count['n']} (repair) -> returning GOOD master")
-        return f"```verilog\n{GOOD}\n```"
+    monkeypatch.setattr(ollama_client, "generate_verilog", fake_generate_verilog)
+    monkeypatch.setattr(agent, "RESULTS_LOG", str(tmp_path / "runs.jsonl"))
+    monkeypatch.setattr(agent, "TOP", str(tmp_path / "top_glue.v"))
+    monkeypatch.setattr(agent, "SIM_OUT", str(tmp_path / "sim.out"))
 
+    result = agent.run_once(model="stub-model")
 
-ollama_client.generate_verilog = fake_generate_verilog
-
-from agent_core import agent  # noqa: E402
-
-if os.path.exists(agent.RESULTS_LOG):
-    os.remove(agent.RESULTS_LOG)
-
-result = agent.run_once(model="stub-model")
-print()
-print(json.dumps(result, indent=2))
-
-assert result["attempts"][0]["stage"] == "structural"
-assert "no_delay_statements" in result["attempts"][0]["failed_checks"]
-assert "no_brace_statement_blocks" in result["attempts"][0]["failed_checks"]
-assert result["final"] == "pass"
-ollama_client.generate_verilog = ORIGINAL_GENERATE_VERILOG
-
-print()
-print("ALL ASSERTIONS PASSED - the exact reported bug is now caught pre-compile, and repair recovers.")
+    assert result["attempts"][0]["stage"] == "structural"
+    assert "no_delay_statements" in result["attempts"][0]["failed_checks"]
+    assert "no_brace_statement_blocks" in result["attempts"][0]["failed_checks"]
+    assert result["final"] == "pass"
