@@ -17,6 +17,10 @@ from tools.hardware_checks import run_hardware_checks
 from tools.verilog_parser import parse_verilog_file
 from tools.i2c_spec import parse_i2c_spec
 
+from core.schemas import Task
+from core.orchestrator import Orchestrator
+from domains.i2c.adapter import I2CDomainAdapter
+
 DEFAULT_DEVICE_PATHS = ["devices/device_sensor.v", "devices/device_controller.v"]
 DEVICE_PATHS = [
     path.strip()
@@ -55,198 +59,44 @@ def run_once(model: str = None, max_repairs: int = MAX_REPAIRS, seed: int | None
              struct_check_fn=None,
              generate_fn=None,
              repair_fn=None) -> dict:
-    """Run one model attempt with bounded automatic repair and verified memory."""
-    started = time.time()
-    selected_model = model or DEFAULT_MODEL
-    _compile = compile_fn or compile_verilog
-    _hardware_check = hardware_check_fn or run_hardware_checks
-    _sim = sim_fn or run_simulation
-    _judge = judge_fn or judge
-    _struct_check = struct_check_fn or structural_checks
-    _generate = generate_fn or generate_multi_device_glue_rtl
-    _repair = repair_fn or repair_rtl
-
-    log = {
-        "timestamp": started,
-        "model": selected_model,
-        "temperature_policy": f"generation={temperature}; repair increases slightly per attempt",
-        "generation_temperature": temperature,
-        "seed": DEFAULT_SEED if seed is None else seed,
-        "retrieval_enabled": os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower() not in {"1", "true", "yes", "on"},
-        "max_repairs": max(0, int(max_repairs)),
-        "protocol": {"address": PROTOCOL.address_hex, "data": PROTOCOL.data_hex},
-        "rtl_memory_before_run": memory_summary(),
-        "attempts": [],
-    }
-
-    try:
-        _generate(
-            DEVICE_PATHS, SPEC, out_path=TOP, model=model,
-            temperature=temperature, seed=seed,
-        )
-    except Exception as exc:
-        log["final"] = "generation_failed"
-        log["generation_error"] = str(exc)
-        return log
-
-    if not os.path.exists(TOP) or not open(TOP, encoding="utf-8").read().strip():
-        log["final"] = "generation_failed"
-        log["generation_error"] = "Empty or missing RTL file after generation"
-        return log
-
-    for attempt in range(max(0, int(max_repairs)) + 1):
-        # A small increase per repair avoids identical repeated samples while
-        # keeping the initial generation deterministic.
-        repair_temperature = min(0.15 + 0.15 * attempt, 0.45)
-        code = open(TOP, encoding="utf-8").read()
-
-        # Cheap semantic/synthesis-shape checks first; do not spend a compile
-        # or simulation cycle on an answer that ignores the physical bus rules.
-        struct = _struct_check(code, REQUIRED_INSTANCES)
-        if not struct["pass"]:
-            log["attempts"].append({
-                "attempt": attempt,
-                "stage": "structural",
-                "success": False,
-                "failed_checks": struct["failed_checks"],
-                **_snapshot(code, "structural", struct["failed_checks"]),
-            })
-            if attempt < max_repairs:
-                detail = explain_structural_failures(struct["failed_checks"], REQUIRED_INSTANCES)
-                _repair(code, "is missing required structure", detail, out_path=TOP,
-                        model=model, temperature=repair_temperature, seed=seed,
-                        expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
-                        device_paths=DEVICE_PATHS)
-                continue
-            log["final"] = "structural_failed"
-            record_failed_example(code, selected_model, "structural", struct["failed_checks"],
-                                  explain_structural_failures(struct["failed_checks"], REQUIRED_INSTANCES))
-            break
-
-        compile_result = _compile([*DEVICE_PATHS, TOP, TB], out=SIM_OUT)
-        if not compile_result["success"]:
-            log["attempts"].append({
-                "attempt": attempt,
-                "stage": "compile",
-                "success": False,
-                "stderr": compile_result["stderr"],
-                **_snapshot(code, "compile"),
-            })
-            if compile_result.get("tool_missing"):
-                log["final"] = "tool_missing"
-                log["tool_error"] = compile_result["stderr"]
-                break
-            if attempt < max_repairs:
-                context = extract_error_context(TOP, code, compile_result["stderr"])
-                detail = f"Compiler error context (only the lines that actually failed):\n\n{context}"
-                _repair(code, "failed to compile", detail, out_path=TOP,
-                        model=model, temperature=repair_temperature, seed=seed,
-                        expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
-                        device_paths=DEVICE_PATHS)
-                continue
-            log["final"] = "compile_failed"
-            record_failed_example(code, selected_model, "compile", detail=compile_result["stderr"])
-            break
-
-        hardware = _hardware_check([*DEVICE_PATHS, TOP])
-        log_attempt_hardware = {
-            "hardware_success": hardware.get("success", False),
-            "hardware_stage": hardware.get("stage"),
+    """Run one model attempt with bounded automatic repair and verified memory via domain orchestrator."""
+    adapter = I2CDomainAdapter(
+        device_paths=DEVICE_PATHS,
+        tb_path=TB,
+        spec_path=SPEC,
+        required_instances=REQUIRED_INSTANCES,
+    )
+    orchestrator = Orchestrator(adapter)
+    task = Task(
+        task_id=f"i2c-{int(time.time()*1000)}",
+        domain="i2c",
+        description="Generate and verify I2C multi-device glue RTL",
+        metadata={
+            "target_file": TOP,
+            "sim_out": SIM_OUT,
+            "spec_path": SPEC,
+            "address_hex": PROTOCOL.address_hex,
+            "data_hex": PROTOCOL.data_hex,
+            "rtl_memory_before_run": memory_summary(),
         }
-        if not hardware.get("success", False):
-            log["attempts"].append({
-                "attempt": attempt,
-                "stage": "hardware",
-                "success": False,
-                "failed_checks": [hardware.get("stage", "hardware")],
-                "hardware": hardware,
-                **_snapshot(code, "hardware"),
-            })
-            if hardware.get("stage", "").endswith("tool_missing"):
-                log["final"] = "tool_missing"
-                log["tool_error"] = hardware.get("stage")
-                break
-            if attempt < max_repairs:
-                detail = "Hardware lint/synthesis failed:\n" + str(hardware)
-                _repair(code, "failed hardware lint or synthesis", detail,
-                           out_path=TOP, model=model,
-                           temperature=repair_temperature, seed=seed,
-                           expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
-                           device_paths=DEVICE_PATHS)
-                continue
-            log["final"] = "hardware_failed"
-            record_failed_example(code, selected_model, "hardware",
-                                  [hardware.get("stage", "hardware")], str(hardware))
-            break
-
-        sim = _sim(
-            SIM_OUT,
-            plusargs=[f"+I2C_ADDR={PROTOCOL.address_hex}", f"+I2C_DATA={PROTOCOL.data_hex}"],
-        )
-        if sim.get("tool_missing"):
-            log["attempts"].append({
-                "attempt": attempt,
-                "stage": "simulation_tool_missing",
-                "success": False,
-                "stderr": sim.get("stderr", ""),
-                **_snapshot(code, "simulation_tool_missing"),
-            })
-            log["final"] = "tool_missing"
-            log["tool_error"] = sim.get("stderr", "")
-            break
-
-        result = parse_result_line(sim.get("stdout", ""))
-        verdict = _judge(result, expected_addr=PROTOCOL.address_hex,
-                        expected_data=PROTOCOL.data_hex)
-        failed_checks = list(verdict.get("failed_checks") or [])
-        if verdict["pass"] and not sim.get("success", False):
-            failed_checks.append("simulator_nonzero_exit")
-        simulation_pass = verdict["pass"] and sim.get("success", False)
-        log["attempts"].append({
-            "attempt": attempt,
-            "stage": "simulate",
-            "success": simulation_pass,
-            "failed_checks": failed_checks,
-            "raw": result,
-            "simulator_success": sim.get("success"),
-            "simulator_stderr": sim.get("stderr", "")[:2000],
-            **log_attempt_hardware,
-            **_snapshot(code, "simulate", failed_checks),
-        })
-
-        if simulation_pass:
-            log["final"] = "pass"
-            artifact = record_passing_example(
-                code,
-                model=selected_model,
-                metadata={"protocol": "i2c-v1", "checks": verdict["raw"]},
-            )
-            log["verified_example"] = str(artifact)
-            break
-        if attempt < max_repairs:
-            detail = f"compiled but failed protocol checks: {explain_failures(failed_checks)}"
-            _repair(code, "compiled but failed protocol checks", detail, out_path=TOP,
-                       model=model, temperature=repair_temperature, seed=seed,
-                       expected_addr=PROTOCOL.address_hex, expected_data=PROTOCOL.data_hex,
-                       device_paths=DEVICE_PATHS)
-            continue
-
-        log["final"] = "sim_checks_failed"
-        record_failed_example(code, selected_model, "simulate", failed_checks,
-                              explain_failures(failed_checks))
-        break
-
-    log["first_attempt_pass"] = bool(
-        log["attempts"] and log["attempts"][0].get("success", False)
     )
-    log["recovered_after_repair"] = bool(
-        log.get("final") == "pass" and len(log["attempts"]) > 1
+    return orchestrator.execute_task(
+        task,
+        max_repairs=max_repairs,
+        model=model or DEFAULT_MODEL,
+        seed=seed,
+        temperature=temperature,
+        results_log_path=RESULTS_LOG,
+        compile_fn=compile_fn or compile_verilog,
+        hardware_check_fn=hardware_check_fn or run_hardware_checks,
+        sim_fn=sim_fn or run_simulation,
+        judge_fn=judge_fn or judge,
+        struct_check_fn=struct_check_fn or structural_checks,
+        generate_fn=generate_fn or generate_multi_device_glue_rtl,
+        repair_fn=repair_fn or repair_rtl,
+        on_success=record_passing_example,
+        on_failure=record_failed_example,
     )
-    log["elapsed_sec"] = round(time.time() - started, 3)
-    os.makedirs(os.path.dirname(RESULTS_LOG) or ".", exist_ok=True)
-    with open(RESULTS_LOG, "a", encoding="utf-8") as f:
-        f.write(json.dumps(log, sort_keys=True) + "\n")
-    return log
 
 
 if __name__ == "__main__":
