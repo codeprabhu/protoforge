@@ -43,6 +43,9 @@ class Config:
     seed: int = ollama_client.DEFAULT_SEED
     temperature: float = ollama_client.DEFAULT_TEMPERATURE
     retrieval: bool = True
+    # Regex cleanup/normalisation of the model fragment. Disable to measure
+    # how much of a pass rate depends on the deterministic patcher.
+    patcher: bool = True
     output_root: str = DEFAULT_OUTPUT_ROOT
     results_log: str = DEFAULT_RESULTS_LOG
     trace_dir: str = DEFAULT_TRACE_DIR
@@ -70,6 +73,7 @@ class Config:
                 os.getenv("PROTOFORGE_TEMPERATURE", str(ollama_client.DEFAULT_TEMPERATURE))
             ),
             "retrieval": not _env_flag("PROTOFORGE_NO_RETRIEVAL", False),
+            "patcher": not _env_flag("PROTOFORGE_NO_PATCHER", False),
             "output_root": os.getenv("PROTOFORGE_OUTPUT_ROOT", DEFAULT_OUTPUT_ROOT),
             "results_log": os.getenv("PROTOFORGE_RESULTS_LOG", DEFAULT_RESULTS_LOG),
             "trace_dir": os.getenv("PROTOFORGE_TRACE_DIR", DEFAULT_TRACE_DIR),
@@ -97,6 +101,7 @@ class Config:
             "seed": self.seed,
             "temperature": self.temperature,
             "retrieval": self.retrieval,
+            "patcher": self.patcher,
             "output_root": self.output_root,
             "results_log": self.results_log,
             "trace_dir": self.trace_dir,

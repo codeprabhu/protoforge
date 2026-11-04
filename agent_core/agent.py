@@ -153,6 +153,7 @@ def run_once(
         run_dir=str(paths.run_dir),
         run_id=paths.run_id,
         retrieval=cfg.retrieval,
+        patcher=cfg.patcher,
         event_sink=event_sink,
         compile_fn=hooks.get("compile_fn") or compile_verilog,
         hardware_check_fn=hooks.get("hardware_check_fn") or run_hardware_checks,

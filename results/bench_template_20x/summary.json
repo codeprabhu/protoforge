@@ -1,0 +1,51 @@
+{
+  "base_seed": 42,
+  "cases": [
+    "c01-default-1byte",
+    "c02-alt-address-1byte",
+    "c03-zero-payload",
+    "c04-all-ones-payload",
+    "c05-low-address",
+    "c06-two-byte",
+    "c07-two-byte-alt",
+    "c08-three-byte",
+    "c09-single-device",
+    "c10-three-devices",
+    "c11-three-devices-two-byte",
+    "c12-top-address"
+  ],
+  "configs": {
+    "template": {
+      "cases": 12,
+      "distinct_first_designs": 12,
+      "first_attempts_recorded": 240,
+      "median_latency_sec": 0.086,
+      "median_tokens_per_run": 0.0,
+      "outcomes": {
+        "pass": 240
+      },
+      "pass_after_repair": 240,
+      "pass_after_repair_ci95": [
+        0.9842,
+        1.0
+      ],
+      "pass_after_repair_rate": 1.0,
+      "pass_at_1": 240,
+      "pass_at_1_ci95": [
+        0.9842,
+        1.0
+      ],
+      "pass_at_1_rate": 1.0,
+      "recovered_by_repair": 0,
+      "runs": 240,
+      "samples": 20,
+      "total_tokens": 0
+    }
+  },
+  "max_repairs": 2,
+  "model": "qwen2.5-coder:7b",
+  "retrieval_memory_frozen": true,
+  "rows": 240,
+  "samples_per_case": 20,
+  "temperature": 0.25
+}

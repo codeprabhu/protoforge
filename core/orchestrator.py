@@ -63,6 +63,7 @@ class Orchestrator:
         seed: Optional[int],
         repair_fn: Optional[Callable],
         retrieval: bool,
+        patcher: bool = True,
         event_sink: Optional[Callable] = None,
     ):
         repaired = self.domain.repair_candidate(
@@ -73,6 +74,7 @@ class Orchestrator:
             seed=seed,
             repair_fn=repair_fn,
             retrieval=retrieval,
+            patcher=patcher,
         )
         metadata = getattr(repaired, "metadata", {}) or {}
         _emit(
@@ -127,6 +129,7 @@ class Orchestrator:
         results_log_path: Optional[str] = None,
         run_dir: Optional[str] = None,
         retrieval: bool = True,
+        patcher: bool = True,
         run_id: Optional[str] = None,
         event_sink: Optional[Callable] = None,
         # Injection hooks for mocking / tests
@@ -183,6 +186,7 @@ class Orchestrator:
                 seed=seed,
                 generate_fn=generate_fn,
                 retrieval=retrieval,
+                patcher=patcher,
             )
             task.candidate_patch = candidate
             metadata = getattr(candidate, "metadata", {}) or {}
@@ -263,7 +267,7 @@ class Orchestrator:
                         candidate, [struct_val],
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
-                        event_sink=event_sink,
+                        patcher=patcher, event_sink=event_sink,
                     )
                     continue
                 log["final"] = outcomes.STRUCTURAL_FAILED
@@ -310,7 +314,7 @@ class Orchestrator:
                         candidate, [compile_val],
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
-                        event_sink=event_sink,
+                        patcher=patcher, event_sink=event_sink,
                     )
                     continue
                 log["final"] = outcomes.COMPILE_FAILED
@@ -345,7 +349,7 @@ class Orchestrator:
                         candidate, [hw_val],
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
-                        event_sink=event_sink,
+                        patcher=patcher, event_sink=event_sink,
                     )
                     continue
                 log["final"] = outcomes.HARDWARE_FAILED
@@ -420,7 +424,7 @@ class Orchestrator:
                     candidate, [*val_results, verdict],
                     model=selected_model, temperature=repair_temperature,
                     seed=seed, repair_fn=repair_fn, retrieval=retrieval,
-                    event_sink=event_sink,
+                    patcher=patcher, event_sink=event_sink,
                 )
                 continue
 

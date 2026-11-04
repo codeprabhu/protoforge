@@ -193,6 +193,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
         temperature = kwargs.get("temperature", 0.0)
         seed = kwargs.get("seed")
         retrieval = kwargs.get("retrieval", True)
+        patcher = kwargs.get("patcher", True)
 
         trace: Dict[str, Any] = {}
         generated = generate_fn(
@@ -202,6 +203,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
             temperature=temperature,
             seed=seed,
             retrieval=retrieval,
+            patcher=patcher,
             trace=trace,
         )
         content = _coerce_generated_code(generated)
@@ -336,6 +338,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
         temperature = kwargs.get("temperature", 0.3)
         seed = kwargs.get("seed")
         retrieval = kwargs.get("retrieval", True)
+        patcher = kwargs.get("patcher", True)
 
         spec = parse_i2c_spec(self.spec_path)
         latest_failure = failed_results[-1]
@@ -354,6 +357,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
             expected_data=spec.data_hex,
             device_paths=self.device_paths,
             retrieval=retrieval,
+            patcher=patcher,
             trace=trace,
         )
 

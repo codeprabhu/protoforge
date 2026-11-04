@@ -11,3 +11,6 @@ results/runs/
 results/traces/
 results/replay_v1/**/*.vvp
 results/batch_summary.json
+# Benchmark raw attempt/compiled artifacts; CSV/summary/report stay tracked.
+results/bench*/runs/
+results/bench*/traces/

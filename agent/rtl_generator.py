@@ -246,6 +246,21 @@ endmodule
 '''
 
 
+def wrap_raw_fragment(device_paths: list[str] | None, raw_output: str) -> str:
+    """Put an unpatched model response behind the deterministic wrapper.
+
+    This is the ablation path: the fixed top-level ports, device instances and
+    open-drain drivers are still supplied by the harness, but the response is
+    not cleaned, coerced or scaffold-normalised. It measures how much of the
+    pass rate depends on the regex patcher.
+    """
+    if not device_paths:
+        return raw_output
+    blocks = build_device_instance_blocks(device_paths)
+    instance_code = "\n\n".join(block["code"] for block in blocks)
+    return _assemble_multi_fragment(instance_code, raw_output)
+
+
 def normalize_model_rtl(generated: str, device_paths: list[str] | None = None,
                         address_hex: str = "a0", data_hex: str = "3c") -> str:
     """Put model behaviour behind the deterministic wrapper used by generation.
@@ -489,6 +504,7 @@ def generate_multi_device_glue_rtl(
     temperature: float = 0.0,
     seed: Optional[int] = None,
     retrieval: bool = True,
+    patcher: bool = True,
     out_path: Optional[str] = None,
     trace: Optional[Dict[str, Any]] = None,
 ) -> str:
@@ -524,10 +540,15 @@ def generate_multi_device_glue_rtl(
     raw_output, model_metadata = _invoke_model(
         prompt, model=model, temperature=temperature, seed=seed
     )
-    cleaned = clean_rtl(raw_output)
-    rtl = normalize_model_rtl(
-        cleaned, device_paths, parsed_spec.address_hex, parsed_spec.data_hex
-    )
+    if patcher:
+        cleaned = clean_rtl(raw_output)
+        rtl = normalize_model_rtl(
+            cleaned, device_paths, parsed_spec.address_hex, parsed_spec.data_hex
+        )
+    else:
+        # Ablation: keep the model response verbatim inside the fixed wrapper.
+        cleaned = raw_output
+        rtl = wrap_raw_fragment(device_paths, raw_output)
     if out_path:
         save_file(out_path, rtl)
     _record_trace(
@@ -556,6 +577,7 @@ def repair_rtl(
     expected_data="3c",
     device_paths=None,
     retrieval: bool = True,
+    patcher: bool = True,
     out_path: Optional[str] = None,
     trace: Optional[Dict[str, Any]] = None,
 ) -> str:
@@ -578,8 +600,12 @@ def repair_rtl(
     raw_output, model_metadata = _invoke_model(
         prompt, model=model, temperature=temperature, seed=seed
     )
-    cleaned = clean_rtl(raw_output)
-    fixed = normalize_model_rtl(cleaned, device_paths, expected_addr, expected_data)
+    if patcher:
+        cleaned = clean_rtl(raw_output)
+        fixed = normalize_model_rtl(cleaned, device_paths, expected_addr, expected_data)
+    else:
+        cleaned = raw_output
+        fixed = wrap_raw_fragment(device_paths, raw_output)
     if out_path:
         save_file(out_path, fixed)
     _record_trace(

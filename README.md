@@ -100,6 +100,22 @@ later phases and should not be assumed to run during a generation:
   two-byte reference that passes. The one-byte golden is correctly rejected
   against the two-byte spec (`correct_data`, `sda_stable`, `byte_count`).
 
+## Changes in iteration 7 (benchmark runner)
+
+- **Case set:** `benchmarks/cases.json` has 12 cases varying the 7-bit address,
+  the 1/2/3-byte payload and the 1/2/3-device list. `tools/make_spec.py` turns
+  a case into a parseable spec.
+- **Runner:** `python -m bench.run` loops cases and samples, writes one CSV row
+  per run (flushed immediately), and aggregates pass@1, pass-after-repair,
+  distinct first designs, latency, token counts and Wilson 95% CIs.
+- **Ablations:** retrieval on/off and the regex patcher on/off are real
+  switches (`PROTOFORGE_NO_PATCHER` / `Config.patcher`). With the patcher off,
+  the deterministic wrapper is still supplied but the model response is embedded
+  verbatim. The 2x2 shares the on/on cell.
+- **Template upper bound:** 240/240 template runs pass across all 12 cases.
+- **Measured table:** `docs/BASELINE.md` records the configuration, commit,
+  model digest and the real-model matrix.
+
 ## Run it
 
 1. Install Icarus Verilog (`iverilog` and `vvp`) and Ollama.
