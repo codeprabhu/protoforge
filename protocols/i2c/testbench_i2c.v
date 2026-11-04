@@ -55,6 +55,7 @@ module testbench_i2c;
     integer plusarg_dummy;
     integer saw_ack_addr = 0;
     integer saw_ack_data = 0;
+    integer sda_glitches = 0;   // SDA changed while SCL was high outside a legal START/STOP
     reg in_transaction = 0;
 
     // BFM slave ACK driver: pulls SDA low during the ack clock cell when
@@ -105,6 +106,10 @@ module testbench_i2c;
         scl_d <= scl;
         if (tb_done) saw_done = 1;
         if (scl && scl_d && sda_d && !sda) begin
+            // A falling SDA while SCL is high is only a legal START when the
+            // bus is idle. A repeated START (or any mid-byte glitch) is
+            // counted separately so the judge can reject it explicitly.
+            if (in_transaction) sda_glitches = sda_glitches + 1;
             saw_start = 1;
             n_start = n_start + 1;
             in_transaction = 1;
@@ -113,6 +118,9 @@ module testbench_i2c;
             $display("EVENT:START:%0t", $time);
         end
         if (scl && scl_d && !sda_d && sda) begin
+            // A rising SDA while SCL is high is only a legal STOP after the
+            // data byte (byte_count >= 2) and while a transaction is active.
+            if (!in_transaction || byte_count < 2) sda_glitches = sda_glitches + 1;
             saw_stop = 1;
             n_stop = n_stop + 1;
             in_transaction = 0;
@@ -151,9 +159,9 @@ module testbench_i2c;
 
         #50; // let any trailing STOP condition settle before we sample
 
-        $display("RESULT:saw_start=%0d saw_stop=%0d saw_ack_addr=%0d saw_ack_data=%0d addr=%02h data=%02h tb_done=%0d starts=%0d stops=%0d",
+        $display("RESULT:saw_start=%0d saw_stop=%0d saw_ack_addr=%0d saw_ack_data=%0d addr=%02h data=%02h tb_done=%0d starts=%0d stops=%0d sda_glitches=%0d bytes=%0d",
                   saw_start, saw_stop, saw_ack_addr, saw_ack_data, captured_addr, captured_data,
-                  (tb_done || saw_done) ? 1 : 0, n_start, n_stop);
+                  (tb_done || saw_done) ? 1 : 0, n_start, n_stop, sda_glitches, byte_count);
         $finish;
     end
 

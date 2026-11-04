@@ -35,6 +35,12 @@ def _run(command: list[str], timeout: float) -> dict:
     }
 
 
+def _warning_count(result: dict) -> int:
+    """Count Verilator ``%Warning`` lines in either captured stream."""
+    text = f"{result.get('stdout', '')}\n{result.get('stderr', '')}"
+    return sum(1 for line in text.splitlines() if "%Warning" in line)
+
+
 def run_hardware_checks(
     filepaths: Iterable[str], top: str = "top_glue", timeout: float = 30.0
 ) -> dict:
@@ -44,19 +50,24 @@ def run_hardware_checks(
         ["verilator", "--lint-only", "-Wno-fatal", "--top-module", top] + paths
     )
     lint = _run(verilator, timeout)
+    warnings = _warning_count(lint)
     if lint.get("tool_missing"):
-        return {"success": False, "stage": "lint_tool_missing", "lint": lint}
+        return {"success": False, "stage": "lint_tool_missing", "warning_count": 0, "lint": lint}
     if not lint["success"]:
-        return {"success": False, "stage": "lint", "lint": lint}
+        return {"success": False, "stage": "lint", "warning_count": warnings, "lint": lint}
 
     yosys_script = "read_verilog -sv " + " ".join(paths)
     yosys_script += f"; hierarchy -top {top}; proc; opt; check; stat"
     synthesis = _run(["yosys", "-q", "-p", yosys_script], timeout)
     if synthesis.get("tool_missing"):
-        return {"success": False, "stage": "synthesis_tool_missing", "lint": lint, "synthesis": synthesis}
+        return {
+            "success": False, "stage": "synthesis_tool_missing",
+            "warning_count": warnings, "lint": lint, "synthesis": synthesis,
+        }
     return {
         "success": bool(synthesis["success"]),
         "stage": "synthesis" if not synthesis["success"] else "passed",
+        "warning_count": warnings,
         "lint": lint,
         "synthesis": synthesis,
     }

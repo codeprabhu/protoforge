@@ -66,6 +66,23 @@ later phases and should not be assumed to run during a generation:
   `stage_finished` and `run_finished` through the existing `EventStore`
   (`results/traces/<run_id>.json`).
 
+## Changes in iteration 5 (oracle-v1)
+
+- **SDA stability check:** the testbench counts SDA transitions while SCL is
+  high outside a legal START/STOP and reports `sda_glitches`; the judge fails
+  designs with a non-zero count (`sda_stable`).
+- **Byte-count check:** the testbench reports completed `bytes`; the judge
+  requires exactly one address byte plus the expected data bytes
+  (`byte_count`), rejecting extra or missing bytes.
+- **More mutants:** LSB-first, SDA-while-SCL-high, third byte, and skipped ACK
+  clock mutants are rejected, with the skipped-ACK case diagnosed downstream
+  (documented in `docs/ORACLE.md`).
+- **Plusarg coverage:** the testbench is exercised with three address/data
+  pairs via `+I2C_ADDR`/`+I2C_DATA`, and a mismatched pair is rejected.
+- **Warnings visible:** Verilator warning count is recorded in the hardware
+  stage without failing yet; `docs/ORACLE.md` lists the warning classes that
+  should fail once the policy is validated.
+
 ## Run it
 
 1. Install Icarus Verilog (`iverilog` and `vvp`) and Ollama.

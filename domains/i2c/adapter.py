@@ -272,7 +272,10 @@ class I2CDomainAdapter(BaseDomainAdapter):
             tool_missing=sim_tool_missing,
             stdout=sim_res.get("stdout", ""),
             stderr=sim_res.get("stderr", ""),
-            metadata={"raw": parse_result_line(sim_res.get("stdout", ""))},
+            metadata={
+                "raw": parse_result_line(sim_res.get("stdout", "")),
+                "spec_path": kwargs.get("spec_path") or self.spec_path,
+            },
         )
         results.append(sim_val)
         return results
@@ -287,7 +290,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
             return ValidationResult(stage="judge", passed=False, failed_checks=["simulation_failed"], diagnostics="Simulation failed or was not run")
 
         raw_result = sim_val.metadata.get("raw", {})
-        spec = parse_i2c_spec(self.spec_path)
+        spec = parse_i2c_spec(sim_val.metadata.get("spec_path") or self.spec_path)
         judge_fn = kwargs.get("judge_fn", judge)
         verdict = judge_fn(raw_result, expected_addr=spec.address_hex, expected_data=spec.data_hex)
         failed_checks = list(verdict.get("failed_checks") or [])
@@ -295,7 +298,11 @@ class I2CDomainAdapter(BaseDomainAdapter):
             stage="judge",
             passed=verdict.get("pass", False),
             failed_checks=failed_checks,
-            diagnostics=explain_failures(failed_checks) if failed_checks else "",
+            diagnostics=explain_failures(
+                failed_checks,
+                expected_addr=spec.address_hex,
+                expected_data=spec.data_hex,
+            ) if failed_checks else "",
             metadata=verdict,
         )
 
@@ -379,6 +386,30 @@ class I2CDomainAdapter(BaseDomainAdapter):
                 "name": "repeated_start",
                 "fault": "Master issues spurious repeated START",
                 "expected_failed_check": "single_start",
+            },
+            {
+                "id": "I2C-MUT-007",
+                "name": "lsb_first",
+                "fault": "Master transmits each byte least-significant bit first",
+                "expected_failed_check": "address_ack",
+            },
+            {
+                "id": "I2C-MUT-008",
+                "name": "sda_glitch",
+                "fault": "Master changes SDA while SCL is high during a data bit",
+                "expected_failed_check": "sda_stable",
+            },
+            {
+                "id": "I2C-MUT-009",
+                "name": "third_byte",
+                "fault": "Master sends a third data byte before STOP",
+                "expected_failed_check": "byte_count",
+            },
+            {
+                "id": "I2C-MUT-010",
+                "name": "skip_ack",
+                "fault": "Master omits the address ACK clock cell",
+                "expected_failed_check": "data_ack",
             },
         ]
 

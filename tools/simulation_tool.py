@@ -7,6 +7,7 @@ RESULT_RE = re.compile(
     r"RESULT:saw_start=(\d) saw_stop=(\d) saw_ack_addr=(\d) saw_ack_data=(\d) "
     r"addr=([0-9a-fA-F]+) data=([0-9a-fA-F]+)"
     r"(?: tb_done=(\d) starts=(\d+) stops=(\d+))?"
+    r"(?: sda_glitches=(\d+) bytes=(\d+))?"
 )
 
 
@@ -61,10 +62,13 @@ def parse_result_line(stdout: str) -> dict:
             "raw_stdout": stdout or "",
         }
 
-    saw_start, saw_stop, saw_ack_addr, saw_ack_data, addr, data, tb_done, starts, stops = m.groups()
+    saw_start, saw_stop, saw_ack_addr, saw_ack_data, addr, data, tb_done, starts, stops, \
+        sda_glitches, byte_count = m.groups()
     extra = {}
     if tb_done is not None:  # newer testbench; older RESULT lines omit these
         extra = {"tb_done": int(tb_done), "starts": int(starts), "stops": int(stops)}
+    if sda_glitches is not None:  # even newer testbench; keep old lines parseable
+        extra.update({"sda_glitches": int(sda_glitches), "bytes": int(byte_count)})
     return {
         **extra,
         "parsed": True,
