@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from typing import Any, Dict, List, Optional
-from core.trace_schema import RunTrace, TraceEvent
+from core.trace_schema import RunTrace
 from core.trace_serializer import trace_to_json, trace_from_json, export_timeline
 
 

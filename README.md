@@ -14,12 +14,11 @@ main.py / agent_core.agent
 ```
 
 These modules are **not** wired into the live loop yet; they are kept for
-later phases and should not be assumed to run during a generation:
+later phases and should not be assumed to run during a generation. (The old
+rule-based specialist agents and task graph were removed; see git history on
+`v1-stabilize` if you want them back.)
 
-- `agents/` — the specialist roles (spec analyst, planner, reviewer, ...).
-  The multi-agent workflow is archived until Phase 9.
 - `ui/dashboard.py` — trace rendering; there are no live traces to render yet.
-- `core/task_graph.py` — state machine used only by the archived multi-agent flow.
 - `indexing/`, `mutations/`, `mcp_server/` — repository indexing, mutation
   catalogues, and the MCP surface are available tools, not part of the
   generation loop.

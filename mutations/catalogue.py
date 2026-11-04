@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict
 from mutations.schema import Mutation, MutationCatalogue
 
 I2C_CATALOGUE = MutationCatalogue(

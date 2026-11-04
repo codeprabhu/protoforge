@@ -29,12 +29,6 @@ class ModuleInfo:
     ports: List[Port] = field(default_factory=list)
     raw_source: str = ""
 
-    def interface_summary(self) -> str:
-        lines = [f"module {self.name}("]
-        for p in self.ports:
-            lines.append(f"    {p.as_str()},")
-        lines.append(");")
-        return "\n".join(lines)
 
 
 MODULE_HEADER_RE = re.compile(

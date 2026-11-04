@@ -145,7 +145,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
             if not os.path.exists(p):
                 continue
             with open(p, encoding="utf-8") as f:
-                content = f.read()
+                f.read()
             try:
                 mod_info = parse_verilog_file(p)
                 symbol_name = mod_info.name
@@ -295,7 +295,6 @@ class I2CDomainAdapter(BaseDomainAdapter):
         """Evaluate simulation protocol output against I2C testbench oracles."""
         sim_val = next((r for r in validation_results if r.stage == "simulation"), None)
         if not sim_val or not sim_val.passed:
-            failed = []
             if sim_val and sim_val.tool_missing:
                 return ValidationResult(stage="judge", passed=False, tool_missing=True, diagnostics="Simulation tool missing")
             return ValidationResult(stage="judge", passed=False, failed_checks=["simulation_failed"], diagnostics="Simulation failed or was not run")

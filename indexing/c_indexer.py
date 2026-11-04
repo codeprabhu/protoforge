@@ -2,13 +2,8 @@
 
 from __future__ import annotations
 
-import os
 import re
-import shutil
-import subprocess
-import json
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -50,7 +45,6 @@ class CIndexer:
                 content = f.read()
 
         symbols: List[CSymbolInfo] = []
-        lines = content.splitlines(keepends=True)
 
         # 1. Struct indexing
         struct_re = re.compile(r"struct\s+(\w+)\s*\{([^}]*)\}\s*;", re.MULTILINE)

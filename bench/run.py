@@ -29,7 +29,7 @@ import statistics
 import sys
 import time
 from pathlib import Path
-from typing import Any, Callable, Iterable
+from typing import Any, Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -298,13 +298,6 @@ def _markdown_table(summary: dict[str, Any]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def write_csv(rows: list[dict[str, Any]], path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open("w", newline="", encoding="utf-8") as handle:
-        writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore")
-        writer.writeheader()
-        for row in rows:
-            writer.writerow(row)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
