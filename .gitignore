@@ -10,3 +10,4 @@ generated/*.vcd
 results/runs/
 results/traces/
 results/replay_v1/**/*.vvp
+results/batch_summary.json
