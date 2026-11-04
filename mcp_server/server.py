@@ -6,7 +6,6 @@ from tools.simulation_tool import run_simulation, parse_result_line
 from tools.judge import judge, explain_failures
 from agent_core.agent import run_once
 from core.event_store import EventStore
-from core.trace_serializer import export_timeline
 
 mcp = FastMCP("ProtoForge")
 _event_store = EventStore()

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
@@ -52,7 +51,6 @@ class VerilogIndexer:
                 content = f.read()
 
         modules: List[VerilogModuleInfo] = []
-        lines = content.splitlines(keepends=True)
 
         mod_starts = list(re.finditer(r"^\s*module\s+(\w+)", content, re.MULTILINE))
         for i, m_start in enumerate(mod_starts):

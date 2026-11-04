@@ -15,7 +15,7 @@ def compile_verilog(filepaths: Union[str, List[str]], out: str = "generated/sim.
             text=True,
             timeout=timeout,
         )
-    except FileNotFoundError as exc:
+    except FileNotFoundError:
         return {
             "success": False,
             "stdout": "",

@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-import json
-from typing import Any, Dict, List
+from typing import Any, Dict
 from core.trace_schema import RunTrace
 from core.trace_serializer import export_timeline
 

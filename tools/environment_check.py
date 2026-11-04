@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import json
-import os
 import shutil
 import subprocess
 import sys
 import urllib.error
 import urllib.request
-from typing import Any, Dict
+from typing import Any
 
 
 def get_command_version(cmd: str, version_flag: str = "--version") -> str | None:

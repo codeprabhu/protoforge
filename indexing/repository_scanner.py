@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Dict, List, Set
 from pydantic import BaseModel, Field
 
@@ -72,7 +71,7 @@ class RepositoryScanner:
 
             for f in files:
                 rel_path = os.path.normpath(os.path.join(rel_root, f)) if rel_root != "." else f
-                full_path = os.path.join(root, f)
+                os.path.join(root, f)
 
                 if is_generated:
                     result.generated_files.append(rel_path)

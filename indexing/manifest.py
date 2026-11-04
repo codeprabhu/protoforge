@@ -4,14 +4,12 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
-from typing import Optional
 
 from indexing.repository_scanner import RepositoryScanner
 from indexing.semantic_chunker import SemanticChunker
 from indexing.c_indexer import CIndexer
 from indexing.verilog_indexer import VerilogIndexer
-from indexing.dependency_graph import DependencyGraph, SymbolNode, DependencyEdge
+from indexing.dependency_graph import DependencyGraph, SymbolNode
 
 
 def save_manifest(graph: DependencyGraph, path: str) -> None:
@@ -32,7 +30,7 @@ def build_repo_graph(root_dir: str = ".") -> DependencyGraph:
     """Scan and index an entire repository into a unified DependencyGraph."""
     scanner = RepositoryScanner(root_dir=root_dir)
     scan = scanner.scan()
-    chunker = SemanticChunker()
+    SemanticChunker()
     c_indexer = CIndexer()
     v_indexer = VerilogIndexer()
     graph = DependencyGraph()

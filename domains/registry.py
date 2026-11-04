@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Dict, List, Optional
+from typing import Dict, List
 from domains.base import BaseDomainAdapter
 
 _REGISTRY: Dict[str, BaseDomainAdapter] = {}
@@ -18,22 +18,22 @@ def get_domain(name: str) -> BaseDomainAdapter:
     if name not in _REGISTRY:
         if name == "i2c":
             try:
-                import domains.i2c.adapter
+                pass
             except ImportError:
                 pass
         elif name == "pcie_linux":
             try:
-                import domains.pcie_linux.adapter
+                pass
             except ImportError:
                 pass
         elif name == "spi":
             try:
-                import domains.spi.adapter
+                pass
             except ImportError:
                 pass
         elif name == "uart":
             try:
-                import domains.uart.adapter
+                pass
             except ImportError:
                 pass
 
@@ -46,12 +46,9 @@ def list_domains() -> List[str]:
     """List all registered domain names."""
     if "i2c" not in _REGISTRY:
         try:
-            import domains.i2c.adapter
+            pass
         except ImportError:
             pass
     return list(_REGISTRY.keys())
 
 
-def clear_registry() -> None:
-    """Clear all registered domains (primarily for testing)."""
-    _REGISTRY.clear()

@@ -209,7 +209,7 @@ def retrieve_rtl_context(
 def memory_summary(memory_dir: str | Path | None = None) -> dict:
     """Return a simple count useful for logs and CLI diagnostics."""
     root = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
-    passing_dir = root / "passing"
+    root / "passing"
     learned = len(_load_successful_examples(root)) - int(DEFAULT_REFERENCE.is_file())
     learned = max(learned, 0)
     return {"seed_examples": int(DEFAULT_REFERENCE.is_file()), "learned_passing_examples": learned}
