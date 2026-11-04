@@ -1,9 +1,10 @@
-.venv
-generated
-*.out
-__pycache__
-resultsresults/rtl_memory/
-generated/*.vcd
-.pytest_cache/
+.venv/
+generated/
 __pycache__/
 *.py[cod]
+.pytest_cache/
+*.out
+generated/*.vcd
+
+# Raw per-run attempt artifacts; summaries (results/runs.jsonl) stay tracked.
+results/runs/

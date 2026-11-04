@@ -115,14 +115,19 @@ def retrieve_rtl_context(
     max_examples: int = 1,
     max_chars: int = 10000,
     memory_dir: str | Path | None = None,
+    enabled: bool | None = None,
 ) -> str:
     """Retrieve the most relevant verified examples and return prompt-ready text.
 
-    Set PROTOFORGE_NO_RETRIEVAL=1 to disable retrieval (ablation). The seed
-    example is derived from the known-good oracle, so with retrieval on a pass
-    partly measures copying it; with retrieval off it measures generation.
+    ``enabled=False`` disables retrieval for an ablation. When ``enabled`` is
+    ``None`` the legacy ``PROTOFORGE_NO_RETRIEVAL`` environment variable is
+    consulted, so direct callers keep working; the live pipeline passes the
+    value from ``Config`` explicitly. The seed example is derived from the
+    known-good oracle, so with retrieval on a pass partly measures copying it.
     """
-    if os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower() in {"1", "true", "yes", "on"}:
+    if enabled is None:
+        enabled = os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower() not in {"1", "true", "yes", "on"}
+    if not enabled:
         return "Retrieval is disabled for this run; no reference examples are provided. Work only from the spec above."
     root = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
     examples = _load_successful_examples(root)

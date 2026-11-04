@@ -15,6 +15,7 @@ import hashlib
 import json
 import os
 import time
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 from core import outcomes
@@ -49,6 +50,7 @@ class Orchestrator:
         temperature: float,
         seed: Optional[int],
         repair_fn: Optional[Callable],
+        retrieval: bool,
     ):
         return self.domain.repair_candidate(
             candidate,
@@ -57,7 +59,30 @@ class Orchestrator:
             temperature=temperature,
             seed=seed,
             repair_fn=repair_fn,
+            retrieval=retrieval,
         )
+
+    @staticmethod
+    def _stage_attempt(candidate, attempt: int, run_dir: Optional[str], default_sim_out: str):
+        """Write the attempt's source (and prompt) under its own run directory.
+
+        Returns the simulator output path. Writing happens here, immediately
+        before the gates run, so every attempt on disk matches what was
+        actually compiled and simulated.
+        """
+        if not run_dir:
+            return default_sim_out
+        directory = Path(run_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        code_path = directory / f"attempt_{attempt}.v"
+        code_path.write_text(candidate.full_content or "", encoding="utf-8")
+        candidate.target_file = str(code_path)
+        prompt = candidate.metadata.get("prompt")
+        if prompt:
+            (directory / f"attempt_{attempt}_prompt.txt").write_text(
+                prompt, encoding="utf-8"
+            )
+        return str(directory / f"attempt_{attempt}.vvp")
 
     def execute_task(
         self,
@@ -67,6 +92,8 @@ class Orchestrator:
         seed: Optional[int] = None,
         temperature: float = 0.0,
         results_log_path: Optional[str] = None,
+        run_dir: Optional[str] = None,
+        retrieval: bool = True,
         # Injection hooks for mocking / tests
         compile_fn: Optional[Callable] = None,
         hardware_check_fn: Optional[Callable] = None,
@@ -94,8 +121,7 @@ class Orchestrator:
             "temperature_policy": f"generation={temperature}; repair increases slightly per attempt",
             "generation_temperature": temperature,
             "seed": seed,
-            "retrieval_enabled": os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower()
-            not in {"1", "true", "yes", "on"},
+            "retrieval_enabled": retrieval,
             "max_repairs": repair_budget,
             "protocol": context.get(
                 "protocol",
@@ -119,6 +145,7 @@ class Orchestrator:
                 temperature=temperature,
                 seed=seed,
                 generate_fn=generate_fn,
+                retrieval=retrieval,
             )
             task.candidate_patch = candidate
         except Exception as exc:  # model/runtime failure is a known outcome
@@ -137,6 +164,12 @@ class Orchestrator:
         for attempt in range(repair_budget + 1):
             repair_temperature = min(0.15 + 0.15 * attempt, 0.45)
             code = candidate.full_content or ""
+            sim_out = self._stage_attempt(
+                candidate,
+                attempt,
+                run_dir,
+                task.metadata.get("sim_out", "generated/top_sim.vvp"),
+            )
 
             # Structural gate
             if struct_check_fn:
@@ -163,7 +196,7 @@ class Orchestrator:
                     candidate = self._repair(
                         candidate, [struct_val],
                         model=selected_model, temperature=repair_temperature,
-                        seed=seed, repair_fn=repair_fn,
+                        seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                     )
                     continue
                 log["final"] = outcomes.STRUCTURAL_FAILED
@@ -171,7 +204,8 @@ class Orchestrator:
 
             # Compile, hardware, simulate
             test_kwargs = {
-                "sim_out": task.metadata.get("sim_out", "generated/top_sim.vvp"),
+                "sim_out": sim_out,
+                "spec_path": task.metadata.get("spec_path", context.get("spec_path")),
                 "compile_fn": compile_fn,
                 "hardware_check_fn": hardware_check_fn,
                 "sim_fn": sim_fn,
@@ -198,7 +232,7 @@ class Orchestrator:
                     candidate = self._repair(
                         candidate, [compile_val],
                         model=selected_model, temperature=repair_temperature,
-                        seed=seed, repair_fn=repair_fn,
+                        seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                     )
                     continue
                 log["final"] = outcomes.COMPILE_FAILED
@@ -222,7 +256,7 @@ class Orchestrator:
                     candidate = self._repair(
                         candidate, [hw_val],
                         model=selected_model, temperature=repair_temperature,
-                        seed=seed, repair_fn=repair_fn,
+                        seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                     )
                     continue
                 log["final"] = outcomes.HARDWARE_FAILED
@@ -279,7 +313,7 @@ class Orchestrator:
                 candidate = self._repair(
                     candidate, [*val_results, verdict],
                     model=selected_model, temperature=repair_temperature,
-                    seed=seed, repair_fn=repair_fn,
+                    seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                 )
                 continue
 

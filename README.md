@@ -121,12 +121,11 @@ Fast tests that do not require Ollama or Icarus Verilog:
 python -m pytest -q tests
 ```
 
-This covers structural checks, result parsing, verified-example memory behavior, and a mocked end-to-end repair cycle. The real model/compiler/simulator path still needs Ollama and Icarus installed:
+This covers structural checks, result parsing, verified-example memory behavior, per-run isolation, and both mocked and real-simulator end-to-end repair cycles. The real model/compiler/simulator path needs Ollama and Icarus installed:
 
 ```bash
-python manual_agent_integration.py
-python manual_structural_gate.py
-python manual_reported_bug.py
+python -m pytest -q tests          # real-sim tests run when iverilog/vvp exist
+python -m agent_core.agent         # one real model run
 ```
 
 ## Current validation status

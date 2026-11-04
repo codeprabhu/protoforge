@@ -1,12 +1,15 @@
-"""Thin Ollama client with stable, configurable defaults for RTL generation."""
+"""Thin Ollama client with stable, configurable defaults for RTL generation.
 
-import os
+Defaults are constants; environment overrides are applied once in
+``agent_core.config.Config.from_env`` so importing this module has no side
+effects and no hidden global state.
+"""
 
-DEFAULT_MODEL = os.getenv("PROTOFORGE_MODEL", "qwen2.5-coder:7b")
-DEFAULT_TEMPERATURE = float(os.getenv("PROTOFORGE_TEMPERATURE", "0"))
-DEFAULT_SEED = int(os.getenv("PROTOFORGE_SEED", "42"))
-DEFAULT_NUM_CTX = int(os.getenv("PROTOFORGE_NUM_CTX", "8192"))
-DEFAULT_NUM_PREDICT = int(os.getenv("PROTOFORGE_NUM_PREDICT", "4096"))
+DEFAULT_MODEL = "qwen2.5-coder:7b"
+DEFAULT_TEMPERATURE = 0.0
+DEFAULT_SEED = 42
+DEFAULT_NUM_CTX = 8192
+DEFAULT_NUM_PREDICT = 4096
 
 
 def generate_verilog(

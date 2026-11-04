@@ -1,29 +1,24 @@
-"""Integration test for agent_core.agent.run_once() using stubbed model."""
+"""Integration test for agent_core.agent.run_once() using a stubbed model."""
 
-import pytest
 import agent.ollama_client as ollama_client
 import agent_core.agent as agent
 
 
-def test_agent_integration_repair_loop(tmp_path, monkeypatch):
+def test_agent_integration_repair_loop(run_config, monkeypatch):
     broken = open("protocols/i2c/reference/broken_master_no_stop_reset_safe.v").read()
     good = open("protocols/i2c/reference/good_master_reset_safe.v").read()
 
     call_count = {"n": 0}
 
-    def fake_generate_verilog(prompt, model=None, temperature=None):
+    def fake_generate_verilog(prompt, **kwargs):
         call_count["n"] += 1
         if call_count["n"] == 1:
             return f"```verilog\n{broken}\n```"
-        else:
-            return f"```verilog\n{good}\n```"
+        return f"```verilog\n{good}\n```"
 
     monkeypatch.setattr(ollama_client, "generate_verilog", fake_generate_verilog)
-    monkeypatch.setattr(agent, "RESULTS_LOG", str(tmp_path / "runs.jsonl"))
-    monkeypatch.setattr(agent, "TOP", str(tmp_path / "top_glue.v"))
-    monkeypatch.setattr(agent, "SIM_OUT", str(tmp_path / "sim.out"))
 
-    result = agent.run_once(model="stub-model")
+    result = agent.run_once(model="stub-model", config=run_config)
 
     assert result["final"] == "pass", "expected the repair loop to recover and pass"
     assert len(result["attempts"]) == 2, "expected exactly 2 attempts: 1 failure + 1 pass"

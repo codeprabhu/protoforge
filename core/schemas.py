@@ -38,7 +38,7 @@ class CandidatePatch(BaseModel):
     requirements_addressed: List[str] = Field(default_factory=list)
     author_role: str = "implementer"
     patch_hash: str = ""
-
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 class ValidationResult(BaseModel):
     """Structured result of a verification or validation step."""
