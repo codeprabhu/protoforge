@@ -1,0 +1,356 @@
+You are generating only the behavior-bearing control fragment for a fixed
+Verilog-2001 I2C wrapper. The harness already declares clk, rst_n, tb_start,
+tb_done, the open-drain sda/scl drivers, and every device instance below.
+Do not output a module header, module instances, bus assignments, or endmodule.
+
+Devices and their generated internal signals:
+Device A (device_sensor) is instantiated as `u_device_a`:
+  reg_write -> a_reg_write
+  reg_addr -> a_reg_addr
+  reg_wdata -> a_reg_wdata
+  reg_rdata -> a_reg_rdata
+  data_ready -> a_data_ready
+
+Device B (device_controller) is instantiated as `u_device_b`:
+  start -> b_start
+  rw -> b_rw
+  target_addr -> b_target_addr
+  write_data -> b_write_data
+  read_data -> b_read_data
+  busy -> b_busy
+  done -> b_done
+
+Implement the transaction required by this protocol specification:
+# I2C protocol spec (v1, master-only, single-slave, no clock stretching, no multi-master)
+
+## Top-level contract
+
+Every generated glue module MUST be named `top_glue` and expose EXACTLY
+this port list, regardless of what's inside:
+
+```verilog
+module top_glue (
+    input  wire clk,
+    input  wire rst_n,
+    inout  wire sda,
+    inout  wire scl,
+    input  wire tb_start,
+    output wire tb_done
+);
+```
+
+This is fixed so one hand-written testbench (`testbench_i2c.v`) works
+against every generation attempt without ever being edited.
+
+## Physical rules
+
+- Two wires: SDA (data), SCL (clock), both open-drain with pull-ups
+  (model as `inout wire` with tri-state drivers in simulation; resistors
+  are not modeled in RTL sim -- assume ideal high when released).
+- SDA must only change while SCL is LOW. Changing SDA while SCL is HIGH is
+  reserved for START/STOP conditions only.
+
+## Transaction primitives
+
+1. START condition: SDA falls while SCL is HIGH.
+2. STOP condition: SDA rises while SCL is HIGH.
+3. Address phase: master sends 7-bit address + 1 R/W bit (MSB first), 8 clock pulses.
+4. ACK/NACK: 9th clock pulse. Receiver pulls SDA low = ACK. SDA stays high = NACK.
+5. Data phase: 8 bits, MSB first, followed by another ACK/NACK clock pulse.
+6. Repeated START: not required for v1.
+
+## v1 required transaction (this is what the testbench checks)
+
+Master (top_glue's I2C logic) writes ONE byte, `0x3C`, to slave address 0x50:
+
+```
+START -> [0x50 << 1 | 0] -> ACK -> [0x3C] -> ACK -> STOP
+```
+
+`tb_start` pulses high for one cycle to kick off this transaction.
+`tb_done` must go high once the STOP condition has been issued.
+
+## Explicitly out of scope for v1
+
+- Clock stretching
+- Multi-master / arbitration
+- Repeated START
+- 10-bit addressing
+
+
+The local device ports are not the I2C bus. The FSM must directly create all
+START, address, data, ACK and STOP transitions on sda/scl. Keep each device
+interface correctly driven according to its port direction; never invent a
+port or rename a generated signal.
+
+Implementation constraints:
+
+IMPORTANT:
+
+The testbench only observes the external SDA and SCL wires.
+
+Driving internal device signals such as:
+
+    a_reg_write
+    a_reg_addr
+    a_reg_wdata
+    b_start
+    b_target_addr
+    b_write_data
+
+DOES NOT perform an I2C transaction.
+
+The generated FSM itself must directly generate:
+
+    START
+    Address byte 0xA0
+    ACK cycle
+    Data byte
+    ACK cycle
+    STOP
+
+on the SDA and SCL wires.
+
+The protocol spec requires:
+
+    START -> 0xA0 -> ACK -> DATA -> ACK -> STOP
+
+I2C is an open-drain bus.
+
+Create:
+
+    reg sda_drive_low;
+    reg scl_drive_low;
+
+and drive the bus using:
+
+    assign sda = sda_drive_low ? 1'b0 : 1'bz;
+    assign scl = scl_drive_low ? 1'b0 : 1'bz;
+
+Never assign directly to SDA or SCL inside an always block.
+
+ILLEGAL:
+
+    sda <= 1'b0;
+    scl <= 1'b1;
+
+LEGAL:
+
+    sda_drive_low <= 1'b1;
+    scl_drive_low <= 1'b0;
+
+Use a clocked, explicit FSM with these behaviors/states (names may differ only
+when the phases are unambiguously represented):
+
+    IDLE -> START -> START_HOLD -> address bits -> address ACK
+         -> data bits -> data ACK -> STOP -> DONE
+
+Use separate low/high clock phases for each bit and ACK. Keep SCL released
+(high) while setting up the START and STOP transitions. A counter must hold
+each SCL half-period long enough for the testbench to observe it. Drive both
+bus lines open-drain using internal *_drive_low registers and tri-state assigns.
+
+NEVER use # delays, wait statements, or initial blocks. Do not use SystemVerilog
+syntax: target plain Verilog-2001. Never use curly braces for statement grouping.
+
+
+The fragment must contain declarations for its own state and one synthesizable
+clocked always block. The harness already owns sda_drive_low and scl_drive_low:
+do not declare them again. Return only plain Verilog-2001 declarations and the
+always block, with no markdown or prose.
+
+Verified context:
+localparam HALF = 4;
+localparam DATA_BYTE = 8'h3C;
+localparam ADDR_BYTE = 8'hA0;
+    localparam IDLE       = 0,
+               START      = 1,
+               START_HOLD = 10,
+               BIT_LOW    = 2,
+               BIT_HIGH   = 3,
+               ACK_LOW    = 4,
+               ACK_HIGH   = 5,
+               NEXT_BYTE  = 6,
+               STOP_LOW   = 7,
+               STOP_HIGH  = 8,
+               DONE       = 9;
+
+    reg [3:0] state;
+    reg [2:0] bit_idx;
+    reg [1:0] byte_idx; // 0 = address, 1 = data
+    reg [7:0] cur_byte;
+    reg [7:0] half_cnt;
+    task automatic advance_half;
+        begin
+            if (half_cnt == HALF - 1) half_cnt <= 0;
+            else half_cnt <= half_cnt + 1;
+        end
+    endtask
+
+    wire half_done = (half_cnt == HALF - 1);
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state         <= IDLE;
+            sda_drive_low        <= 0;
+            scl_drive_low        <= 0;
+            tb_done       <= 0;
+            half_cnt      <= 0;
+            bit_idx       <= 0;
+            byte_idx      <= 0;
+            cur_byte      <= 8'h00;
+            a_reg_write   <= 1'b0;
+            a_reg_addr    <= 8'h00;
+            a_reg_wdata   <= 8'h00;
+            b_start       <= 1'b0;
+            b_rw          <= 1'b0;
+            b_target_addr <= 8'h00;
+            b_write_data  <= 8'h00;
+        end else begin
+            case (state)
+
+                IDLE: begin
+                    sda_drive_low  <= 0;
+                    scl_drive_low  <= 0;
+                    tb_done <= 0;
+                    if (tb_start) begin
+                        cur_byte <= ADDR_BYTE;
+                        byte_idx <= 0;
+                        state    <= START;
+                        half_cnt <= 0;
+                    end
+                end
+
+                // SCL held high (released) while SDA falls -> START condition
+                START: begin
+                    scl_drive_low <= 0; // SCL released/high
+                    if (half_done) begin
+                        sda_drive_low   <= 1; // drive SDA low: START condition
+                        state    <= START_HOLD;
+                        half_cnt <= 0;
+                        // NOTE: scl_drive_low intentionally NOT changed this cycle --
+                        // SCL must stay high for a full period after SDA
+                        // falls, or the fall looks simultaneous with SCL
+                        // dropping and no valid START window ever exists.
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                // Hold SDA low with SCL still high for one more full period
+                // so the START condition has an observable high-SCL window,
+                // then begin clocking the first bit.
+                START_HOLD: begin
+                    scl_drive_low <= 0; // SCL still released/high
+                    if (half_done) begin
+                        half_cnt <= 0;
+                        scl_drive_low   <= 1; // now pull SCL low to begin bit clocking
+                        bit_idx  <= 3'd7;
+                        state    <= BIT_LOW;
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                // SCL low: set up the current bit's SDA value (safe to change)
+                BIT_LOW: begin
+                    scl_drive_low <= 1; // SCL low
+                    sda_drive_low <= cur_byte[bit_idx] ? 1'b0 : 1'b1; // 1=release(high),0=drive low -> invert
+                    if (half_done) begin
+                        half_cnt <= 0;
+                        scl_drive_low   <= 0; // release SCL -> rising edge, bit visible
+                        state    <= BIT_HIGH;
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                // SCL high: hold bit value, then move to next bit or ack
+                BIT_HIGH: begin
+                    scl_drive_low <= 0;
+                    if (half_done) begin
+                        half_cnt <= 0;
+                        scl_drive_low   <= 1; // pull SCL low again (falling edge)
+                        if (bit_idx == 0) begin
+                            sda_drive_low <= 0; // release SDA for slave to drive ACK
+                            state  <= ACK_LOW;
+                        end else begin
+                            bit_idx <= bit_idx - 1;
+                            state   <= BIT_LOW;
+                        end
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                // SCL low during ack setup: keep SDA released
+                ACK_LOW: begin
+                    scl_drive_low <= 1;
+                    sda_drive_low <= 0; // released, let slave drive ack
+                    if (half_done) begin
+                        half_cnt <= 0;
+                        scl_drive_low   <= 0; // release SCL -> rising edge, sample ack
+                        state    <= ACK_HIGH;
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                ACK_HIGH: begin
+                    scl_drive_low <= 0;
+                    // (a stricter master would sample sda here and branch on NACK;
+                    //  v1 assumes ACK is always given, per spec.md scope)
+                    if (half_done) begin
+                        half_cnt <= 0;
+                        scl_drive_low   <= 1; // pull SCL low again
+                        state    <= NEXT_BYTE;
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                NEXT_BYTE: begin
+                    if (byte_idx == 0) begin
+                        cur_byte <= DATA_BYTE;
+                        byte_idx <= 1;
+                        bit_idx  <= 3'd7;
+                        state    <= BIT_LOW;
+                    end else begin
+                        state <= STOP_LOW;
+                    end
+                end
+
+                // Ensure SDA is low while SCL is low, then release SCL,
+                // then release SDA while SCL is high -> STOP condition.
+                STOP_LOW: begin
+                    scl_drive_low <= 1;
+                    sda_drive_low <= 1; // drive SDA low
+                    if (half_done) begin
+                        half_cnt <= 0;
+                        scl_drive_low   <= 0; // release SCL -> goes high
+                        state    <= STOP_HIGH;
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                STOP_HIGH: begin
+                    scl_drive_low <= 0;
+                    if (half_done) begin
+                        sda_drive_low <= 0; // release SDA while SCL high -> STOP condition
+                        state  <= DONE;
+                    end else begin
+                        advance_half;
+                    end
+                end
+
+                DONE: begin
+                    tb_done <= 1;
+                end
+
+                default: state <= IDLE;
+            endcase
+        end
+    end
+    // Model-generated FSM fragment ends here.
+

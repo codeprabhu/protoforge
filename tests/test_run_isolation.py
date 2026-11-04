@@ -26,11 +26,13 @@ def test_two_runs_do_not_overwrite_each_others_candidate(tmp_path):
     cfg_a = Config(
         output_root=str(tmp_path / "run-a"),
         results_log=str(tmp_path / "a.jsonl"),
+        trace_dir=str(tmp_path / "traces-a"),
         seed=1,
     )
     cfg_b = Config(
         output_root=str(tmp_path / "run-b"),
         results_log=str(tmp_path / "b.jsonl"),
+        trace_dir=str(tmp_path / "traces-b"),
         seed=2,
     )
     common = dict(

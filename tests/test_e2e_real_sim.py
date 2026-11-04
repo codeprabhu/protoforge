@@ -39,6 +39,7 @@ def _run(tmp_path, monkeypatch, outputs, max_repairs=2):
     config = Config(
         output_root=str(tmp_path / "runs"),
         results_log=str(tmp_path / "runs.jsonl"),
+        trace_dir=str(tmp_path / "traces"),
     )
     return pipeline.run_once(model="stub", max_repairs=max_repairs, config=config), prompts
 

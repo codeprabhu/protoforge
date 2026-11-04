@@ -84,7 +84,7 @@ def format_summary(s: dict) -> str:
         f"Other outcomes:         {s['other_outcomes']}",
         f"Distinct first designs: {s['distinct_first_attempts']}/{s['first_attempts_recorded']}",
         f"RTL memory:             {memory_summary()}",
-        "Full log:               results/runs.jsonl   Summary: results/batch_summary.json",
+        "Run index:              results/runs.jsonl   Summary: results/batch_summary.json",
     ]
     if s["first_attempts_recorded"] > 1 and s["distinct_first_attempts"] == 1:
         lines.insert(0, "NOTE: every first attempt was identical, so this batch is effectively ONE sample. "

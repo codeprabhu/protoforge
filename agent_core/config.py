@@ -21,6 +21,7 @@ DEFAULT_SPEC = "protocols/i2c/spec.md"
 DEFAULT_TB = "protocols/i2c/testbench_i2c.v"
 DEFAULT_OUTPUT_ROOT = "results/runs"
 DEFAULT_RESULTS_LOG = "results/runs.jsonl"
+DEFAULT_TRACE_DIR = "results/traces"
 
 
 def _env_flag(name: str, default: bool = False) -> bool:
@@ -44,6 +45,7 @@ class Config:
     retrieval: bool = True
     output_root: str = DEFAULT_OUTPUT_ROOT
     results_log: str = DEFAULT_RESULTS_LOG
+    trace_dir: str = DEFAULT_TRACE_DIR
     target_name: str = "top_glue.v"
 
     def __post_init__(self) -> None:
@@ -70,6 +72,7 @@ class Config:
             "retrieval": not _env_flag("PROTOFORGE_NO_RETRIEVAL", False),
             "output_root": os.getenv("PROTOFORGE_OUTPUT_ROOT", DEFAULT_OUTPUT_ROOT),
             "results_log": os.getenv("PROTOFORGE_RESULTS_LOG", DEFAULT_RESULTS_LOG),
+            "trace_dir": os.getenv("PROTOFORGE_TRACE_DIR", DEFAULT_TRACE_DIR),
         }
         values.update(overrides)
         return cls(**values)
@@ -96,6 +99,7 @@ class Config:
             "retrieval": self.retrieval,
             "output_root": self.output_root,
             "results_log": self.results_log,
+            "trace_dir": self.trace_dir,
             "target_name": self.target_name,
         }
         return data

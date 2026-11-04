@@ -1,0 +1,64 @@
+{
+  "attempt": 0,
+  "cleaned_code": "",
+  "code_sha256": "0317e94208229578aaba5490727760050e0a98f66aa7c6ce9ffc9ab82a51a134",
+  "duration_sec": 0.000512,
+  "final_code": "module top_glue (\n    input wire clk, input wire rst_n, inout wire sda, inout wire scl,\n    input wire tb_start, output reg tb_done\n);\n    always @(posedge clk) begin\n        sda <= 1'b0;\n        #10 tb_done <= 1'b1;\n    end\nendmodule\n",
+  "finished_at": 1793797270.7521005,
+  "model": "stub-replay",
+  "model_metadata": {},
+  "outcome": "structural_failed",
+  "prompt": "",
+  "raw_output": "",
+  "repair": false,
+  "retrieval": {},
+  "run_id": "case-structural",
+  "stages": [
+    {
+      "diagnostics": "",
+      "duration_sec": 0.000184,
+      "failed_checks": [
+        "no_delay_statements",
+        "open_drain_sda",
+        "open_drain_scl",
+        "no_procedural_bus_writes",
+        "instantiates_device_sensor",
+        "instantiates_device_controller"
+      ],
+      "metadata": {
+        "checks": {
+          "has_always_block": true,
+          "has_correct_top_port_directions": true,
+          "has_exact_top_ports": true,
+          "has_tb_done_logic": true,
+          "has_top_glue": true,
+          "instantiates_device_controller": false,
+          "instantiates_device_sensor": false,
+          "no_brace_statement_blocks": true,
+          "no_delay_statements": false,
+          "no_initial_blocks": true,
+          "no_markdown_escapes": true,
+          "no_procedural_bus_writes": false,
+          "no_wait_statements": true,
+          "open_drain_scl": false,
+          "open_drain_sda": false
+        },
+        "failed_checks": [
+          "no_delay_statements",
+          "open_drain_sda",
+          "open_drain_scl",
+          "no_procedural_bus_writes",
+          "instantiates_device_sensor",
+          "instantiates_device_controller"
+        ],
+        "pass": false
+      },
+      "passed": false,
+      "stage": "structural",
+      "stderr": "",
+      "stdout": "",
+      "tool_missing": false
+    }
+  ],
+  "started_at": 1793797270.751588
+}

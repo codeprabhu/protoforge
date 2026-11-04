@@ -8,3 +8,5 @@ generated/*.vcd
 
 # Raw per-run attempt artifacts; summaries (results/runs.jsonl) stay tracked.
 results/runs/
+results/traces/
+results/replay_v1/**/*.vvp

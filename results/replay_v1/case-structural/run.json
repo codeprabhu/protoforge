@@ -1,0 +1,33 @@
+{
+  "attempts": 1,
+  "config": {
+    "device_paths": [
+      "devices/device_sensor.v",
+      "devices/device_controller.v"
+    ],
+    "max_repairs": 0,
+    "model": "stub-replay",
+    "output_root": "/home/shrivathssp/Desktop/protoforge/results/replay_v1",
+    "results_log": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/index.jsonl",
+    "retrieval": true,
+    "seed": 42,
+    "spec_path": "protocols/i2c/spec.md",
+    "target_name": "top_glue.v",
+    "tb_path": "protocols/i2c/testbench_i2c.v",
+    "temperature": 0.0,
+    "trace_dir": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/traces"
+  },
+  "elapsed_sec": 0.001,
+  "final": "structural_failed",
+  "finished_at": 1793797270.7524805,
+  "first_attempt_pass": false,
+  "git_commit": "cb15497b98ee44d6ca2feb0a82b8d546b413fc5b",
+  "git_describe": "pre-cleanup-3-gcb15497-dirty",
+  "model": "stub-replay",
+  "model_digest": null,
+  "recovered_after_repair": false,
+  "run_id": "case-structural",
+  "seed": 42,
+  "started_at": 1793797270.7498283,
+  "temperature": 0.0
+}

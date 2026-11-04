@@ -13,4 +13,5 @@ def run_config(tmp_path):
     return Config(
         output_root=str(tmp_path / "runs"),
         results_log=str(tmp_path / "runs.jsonl"),
+        trace_dir=str(tmp_path / "traces"),
     )

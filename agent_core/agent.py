@@ -2,18 +2,28 @@
 
 Configuration is read once per call via :class:`agent_core.config.Config`, and
 every artifact for a run lives under its own ``results/runs/<run_id>/``
-directory, so two runs never overwrite each other.
+directory, so two runs never overwrite each other. Each run also writes a
+header (``run.json``), one attempt record per candidate, a one-line index entry
+in ``results/runs.jsonl``, and a minimal event trace.
 """
 
 from __future__ import annotations
 
 import json
+import subprocess
+import time
+from functools import lru_cache
+from pathlib import Path
 from typing import Any, Optional
 
+from agent.ollama_client import model_digest
 from agent.rtl_generator import generate_multi_device_glue_rtl, repair_rtl
 from agent_core.config import Config, RunPaths
-from core.schemas import Task
+from core import outcomes
+from core.event_store import EventStore
 from core.orchestrator import Orchestrator
+from core.schemas import Task
+from core.trace_schema import EventType, RunTrace
 from domains.i2c.adapter import I2CDomainAdapter
 from tools.compile_tool import compile_verilog
 from tools.hardware_checks import run_hardware_checks
@@ -21,6 +31,46 @@ from tools.judge import judge
 from tools.rtl_memory import memory_summary, record_failed_example, record_passing_example
 from tools.simulation_tool import run_simulation
 from tools.structural_checks import structural_checks
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+@lru_cache(maxsize=1)
+def _git_commit() -> Optional[str]:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+@lru_cache(maxsize=1)
+def _git_describe() -> Optional[str]:
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--always", "--dirty"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=3,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if result.returncode != 0:
+        return None
+    return result.stdout.strip() or None
+
+
+def _write_json(path: Path, payload: dict) -> None:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def run_once(
@@ -51,6 +101,20 @@ def run_once(
         cfg = cfg.with_overrides(**overrides)
 
     paths = RunPaths.create(cfg.output_root, run_id=run_id)
+    started = time.time()
+    header: dict[str, Any] = {
+        "run_id": paths.run_id,
+        "started_at": started,
+        "git_commit": _git_commit(),
+        "git_describe": _git_describe(),
+        "model": cfg.model,
+        "model_digest": model_digest(cfg.model),
+        "seed": cfg.seed,
+        "temperature": cfg.temperature,
+        "config": cfg.as_dict(),
+    }
+    _write_json(paths.run_header(), header)
+
     adapter = I2CDomainAdapter(
         device_paths=list(cfg.device_paths),
         tb_path=cfg.tb_path,
@@ -68,6 +132,17 @@ def run_once(
             "rtl_memory_before_run": memory_summary(),
         },
     )
+
+    trace = RunTrace(run_id=paths.run_id, task_id=task.task_id, domain="i2c")
+    trace.add_event(
+        EventType.RUN_STARTED,
+        model=cfg.model,
+        data={"config": cfg.as_dict(), "git_commit": header["git_commit"]},
+    )
+
+    def event_sink(event_type, data: dict) -> None:
+        trace.add_event(event_type, model=cfg.model, data=data)
+
     log = Orchestrator(adapter).execute_task(
         task,
         max_repairs=cfg.max_repairs,
@@ -76,7 +151,9 @@ def run_once(
         temperature=cfg.temperature,
         results_log_path=cfg.results_log,
         run_dir=str(paths.run_dir),
+        run_id=paths.run_id,
         retrieval=cfg.retrieval,
+        event_sink=event_sink,
         compile_fn=hooks.get("compile_fn") or compile_verilog,
         hardware_check_fn=hooks.get("hardware_check_fn") or run_hardware_checks,
         sim_fn=hooks.get("sim_fn") or run_simulation,
@@ -87,8 +164,35 @@ def run_once(
         on_success=hooks.get("on_success") or record_passing_example,
         on_failure=hooks.get("on_failure") or record_failed_example,
     )
+
     log["run_id"] = paths.run_id
     log["run_dir"] = str(paths.run_dir)
+
+    header.update({
+        "finished_at": time.time(),
+        "final": log.get("final"),
+        "attempts": len(log.get("attempts", [])),
+        "first_attempt_pass": bool(log.get("first_attempt_pass", False)),
+        "recovered_after_repair": bool(log.get("recovered_after_repair", False)),
+        "elapsed_sec": log.get("elapsed_sec"),
+    })
+    _write_json(paths.run_header(), header)
+
+    trace.end_time = time.time()
+    trace.status = "completed" if log.get("final") == outcomes.PASS else "failed"
+    trace.summary = {
+        "final": log.get("final"),
+        "attempts": len(log.get("attempts", [])),
+        "first_attempt_pass": bool(log.get("first_attempt_pass", False)),
+        "recovered_after_repair": bool(log.get("recovered_after_repair", False)),
+        "run_dir": str(paths.run_dir),
+    }
+    trace.add_event(
+        EventType.RUN_FINISHED,
+        model=cfg.model,
+        data={"final": log.get("final"), "run_dir": str(paths.run_dir)},
+    )
+    log["trace_path"] = EventStore(cfg.trace_dir).save_trace(trace)
     return log
 
 

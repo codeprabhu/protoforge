@@ -16,13 +16,42 @@ from typing import Any, Dict, List, Optional
 from agent import ollama_client
 from agent.rtl_cleaner import clean_rtl
 from tools.file_tool import save_file
-from tools.rtl_memory import retrieve_rtl_context
+from tools.rtl_memory import retrieve_rtl_examples
 from tools.verilog_parser import ModuleInfo, parse_verilog_file
 
 
 def generate_verilog(*args, **kwargs):
     """Indirection keeps model calls patchable in integration tests."""
     return ollama_client.generate_verilog(*args, **kwargs)
+
+
+def _invoke_model(
+    prompt: str,
+    *,
+    model: Optional[str] = None,
+    temperature: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> tuple[str, Dict[str, Any]]:
+    """Call the model and return ``(text, response_metadata)``.
+
+    The call goes through the module-level ``generate_verilog`` wrapper so
+    existing tests can patch either this module or ``ollama_client``. A patched
+    function that returns a plain string is accepted and yields empty metadata.
+    """
+    kwargs: Dict[str, Any] = {"with_metadata": True}
+    if model:
+        kwargs["model"] = model
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    if seed is not None:
+        kwargs["seed"] = seed
+    result = generate_verilog(prompt, **kwargs)
+    if isinstance(result, dict):
+        content = result.get("content", "")
+        metadata = {key: value for key, value in result.items() if key != "content"}
+        return content, metadata
+    return result, {}
+
 
 
 I2C_IMPLEMENTATION_RULES = """
@@ -434,16 +463,22 @@ def _record_trace(
     *,
     prompt: str,
     raw_output: str,
+    cleaned_code: str,
     retrieved_context: str,
+    retrieval: Dict[str, Any],
     device_paths: List[str],
+    model_metadata: Dict[str, Any],
 ) -> None:
     if trace is None:
         return
     trace.update({
         "prompt": prompt,
         "raw_output": raw_output,
+        "cleaned_code": cleaned_code,
         "retrieved_context": retrieved_context,
+        "retrieval": retrieval,
         "device_paths": list(device_paths),
+        "model_metadata": model_metadata,
     })
 
 
@@ -475,30 +510,30 @@ def generate_multi_device_glue_rtl(
             f"instantiated as `{block['instance_name']}`:\n"
             + _signal_map_summary(block["label"], block["signals"])
         )
-    retrieved_context = _behavior_context(retrieve_rtl_context(
+    retrieval_result = retrieve_rtl_examples(
         "I2C open-drain master FSM START address ACK data STOP Verilog-2001",
         max_examples=1, max_chars=10000, enabled=retrieval,
-    ))
+    )
+    retrieved_context = _behavior_context(retrieval_result["text"])
     prompt = MULTI_SMALL_MODEL_PROMPT.format(
         device_maps="\n\n".join(maps), protocol_spec=spec,
         implementation_rules=I2C_IMPLEMENTATION_RULES,
         retrieved_context=retrieved_context,
     )
     prompt = _specialize_protocol_prompt(prompt, parsed_spec.address_hex, parsed_spec.data_hex)
-    kwargs: Dict[str, Any] = {"temperature": temperature}
-    if seed is not None:
-        kwargs["seed"] = seed
-    if model:
-        kwargs["model"] = model
-    raw_output = generate_verilog(prompt, **kwargs)
+    raw_output, model_metadata = _invoke_model(
+        prompt, model=model, temperature=temperature, seed=seed
+    )
+    cleaned = clean_rtl(raw_output)
     rtl = normalize_model_rtl(
-        clean_rtl(raw_output), device_paths, parsed_spec.address_hex, parsed_spec.data_hex
+        cleaned, device_paths, parsed_spec.address_hex, parsed_spec.data_hex
     )
     if out_path:
         save_file(out_path, rtl)
     _record_trace(
-        trace, prompt=prompt, raw_output=raw_output,
-        retrieved_context=retrieved_context, device_paths=device_paths,
+        trace, prompt=prompt, raw_output=raw_output, cleaned_code=cleaned,
+        retrieved_context=retrieved_context, retrieval=retrieval_result,
+        device_paths=device_paths, model_metadata=model_metadata,
     )
     return rtl
 
@@ -525,12 +560,13 @@ def repair_rtl(
     trace: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Return repaired ``top_glue`` source for the given failure diagnosis."""
-    repair_context = _behavior_context(retrieve_rtl_context(
+    retrieval_result = retrieve_rtl_examples(
         "I2C master repair open drain START STOP ACK address 0xA0 data byte clock phases Verilog-2001",
         max_examples=1,
         max_chars=8000,
         enabled=retrieval,
-    ))
+    )
+    repair_context = _behavior_context(retrieval_result["text"])
     prompt = REPAIR_PROMPT.format(
         code=code,
         failure_kind=failure_kind,
@@ -539,21 +575,16 @@ def repair_rtl(
     )
     prompt = _specialize_protocol_prompt(prompt, expected_addr, expected_data)
     prompt += "\nObserved-failure preservation contract:\n" + _repair_discipline(failure_detail) + "\n"
-    kwargs = {}
-    if model:
-        kwargs["model"] = model
-    if temperature is not None:
-        kwargs["temperature"] = temperature
-    if seed is not None:
-        kwargs["seed"] = seed
-    raw_output = generate_verilog(prompt, **kwargs)
-    fixed = normalize_model_rtl(
-        clean_rtl(raw_output), device_paths, expected_addr, expected_data
+    raw_output, model_metadata = _invoke_model(
+        prompt, model=model, temperature=temperature, seed=seed
     )
+    cleaned = clean_rtl(raw_output)
+    fixed = normalize_model_rtl(cleaned, device_paths, expected_addr, expected_data)
     if out_path:
         save_file(out_path, fixed)
     _record_trace(
-        trace, prompt=prompt, raw_output=raw_output,
-        retrieved_context=repair_context, device_paths=list(device_paths or []),
+        trace, prompt=prompt, raw_output=raw_output, cleaned_code=cleaned,
+        retrieved_context=repair_context, retrieval=retrieval_result,
+        device_paths=list(device_paths or []), model_metadata=model_metadata,
     )
     return fixed

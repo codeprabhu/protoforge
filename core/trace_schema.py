@@ -19,6 +19,7 @@ class EventType(str, Enum):
     REVIEW_FINDING = "review_finding"
     TOOL_STARTED = "tool_started"
     TOOL_FINISHED = "tool_finished"
+    STAGE_FINISHED = "stage_finished"
     VERIFICATION_RESULT = "verification_result"
     RUN_FINISHED = "run_finished"
 

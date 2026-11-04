@@ -46,6 +46,26 @@ later phases and should not be assumed to run during a generation:
 - **Real-simulator end-to-end tests (`tests/test_e2e_real_sim.py`):** only the LLM is stubbed; structural gate, iverilog, vvp, judge and repair routing are real (broken -> repaired passes, correct passes first try, persistent fault exhausts the repair budget).
 - The current environment check reports 22 passing tool-independent tests and 9 simulator-dependent tests skipped because Icarus is unavailable. The real LLM generation path (Ollama) has not been exercised in this environment.
 
+## Changes in iteration 4 (auditable, replayable runs)
+
+- **Per-run directory:** every `run_once` writes to `results/runs/<run_id>/`.
+  It contains `run.json` (run id, git commit, model, model digest, seed,
+  temperature, config), `attempt_<n>.v`, `attempt_<n>_prompt.txt`,
+  `attempt_<n>.json`, and the compiled `.vvp`.
+- **Attempt records:** each attempt JSON stores the prompt, raw model output,
+  cleaned code, final code, code hash, model token/timing metadata, retrieval
+  details (which example, seed vs learned, score), every gate verdict, and
+  compiler stderr / simulator stdout. Full code is kept, not only hashes.
+- **One-line index:** `results/runs.jsonl` is now a summary pointer to the run
+  directory; the bulky payload stays in the run directory.
+- **Replay:** `python tools/replay.py results/runs/<run_id>` re-runs the
+  structural, compile, hardware, simulation and judge gates on the stored
+  attempt and compares the verdicts. `results/replay_v1/report.txt` records
+  three replayed runs (pass, missing STOP, structural failure), all matching.
+- **Event traces:** each run emits `run_started`, `model_invoked`,
+  `stage_finished` and `run_finished` through the existing `EventStore`
+  (`results/traces/<run_id>.json`).
+
 ## Run it
 
 1. Install Icarus Verilog (`iverilog` and `vvp`) and Ollama.
@@ -121,7 +141,7 @@ Fast tests that do not require Ollama or Icarus Verilog:
 python -m pytest -q tests
 ```
 
-This covers structural checks, result parsing, verified-example memory behavior, per-run isolation, and both mocked and real-simulator end-to-end repair cycles. The real model/compiler/simulator path needs Ollama and Icarus installed:
+This covers structural checks, result parsing, verified-example memory behavior, per-run isolation, attempt/run records, event traces, replay comparison, and both mocked and real-simulator end-to-end repair cycles. The real model/compiler/simulator path needs Ollama and Icarus installed:
 
 ```bash
 python -m pytest -q tests          # real-sim tests run when iverilog/vvp exist

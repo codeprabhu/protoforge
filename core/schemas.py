@@ -87,7 +87,7 @@ class RunEvent(BaseModel):
     """Durable event logged during execution."""
     event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     run_id: str
-    event_type: str  # run_started, agent_started, model_invoked, retrieval_completed, patch_created, review_finding, tool_started, tool_finished, verification_result, run_finished
+    event_type: str  # run_started, agent_started, model_invoked, retrieval_completed, patch_created, review_finding, tool_started, tool_finished, stage_finished, verification_result, run_finished
     timestamp: float = Field(default_factory=time.time)
     agent_role: Optional[str] = None
     model: Optional[str] = None
