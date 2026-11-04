@@ -100,7 +100,10 @@ class I2CDomainAdapter(BaseDomainAdapter):
                 req_id="I2C-DATA",
                 domain="i2c",
                 title="I2C Data Payload",
-                description=f"Transaction must transmit data byte 0x{spec.data_hex}",
+                description=(
+                    "Transaction must transmit data byte(s) "
+                    + ", ".join(f"0x{byte:02x}" for byte in spec.data_bytes)
+                ),
                 severity="must",
             ),
             Requirement(
@@ -177,6 +180,8 @@ class I2CDomainAdapter(BaseDomainAdapter):
             "spec_path": spec_path,
             "address_hex": parsed_spec.address_hex if parsed_spec else "a0",
             "data_hex": parsed_spec.data_hex if parsed_spec else "3c",
+            "data_hexes": parsed_spec.data_hexes if parsed_spec else ["3c"],
+            "nbytes": parsed_spec.nbytes if parsed_spec else 1,
             "required_instances": self.required_instances,
         }
 
@@ -262,7 +267,11 @@ class I2CDomainAdapter(BaseDomainAdapter):
         # Simulation step (Icarus vvp)
         sim_fn = kwargs.get("sim_fn", run_simulation)
         spec = parse_i2c_spec(kwargs.get("spec_path") or self.spec_path)
-        plusargs = [f"+I2C_ADDR={spec.address_hex}", f"+I2C_DATA={spec.data_hex}"]
+        plusargs = [
+            f"+I2C_ADDR={spec.address_hex}",
+            f"+I2C_DATA={spec.data_hex}",
+            f"+I2C_NBYTES={spec.nbytes}",
+        ]
         sim_res = sim_fn(sim_out, plusargs=plusargs)
         sim_passed = sim_res.get("success", False)
         sim_tool_missing = sim_res.get("tool_missing", False)
@@ -292,7 +301,13 @@ class I2CDomainAdapter(BaseDomainAdapter):
         raw_result = sim_val.metadata.get("raw", {})
         spec = parse_i2c_spec(sim_val.metadata.get("spec_path") or self.spec_path)
         judge_fn = kwargs.get("judge_fn", judge)
-        verdict = judge_fn(raw_result, expected_addr=spec.address_hex, expected_data=spec.data_hex)
+        verdict = judge_fn(
+            raw_result,
+            expected_addr=spec.address_hex,
+            expected_data=spec.data_hex,
+            expected_data_bytes=spec.nbytes,
+            expected_data_list=spec.data_hexes,
+        )
         failed_checks = list(verdict.get("failed_checks") or [])
         return ValidationResult(
             stage="judge",
@@ -302,6 +317,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
                 failed_checks,
                 expected_addr=spec.address_hex,
                 expected_data=spec.data_hex,
+                expected_data_list=spec.data_hexes,
             ) if failed_checks else "",
             metadata=verdict,
         )

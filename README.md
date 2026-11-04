@@ -83,6 +83,23 @@ later phases and should not be assumed to run during a generation:
   stage without failing yet; `docs/ORACLE.md` lists the warning classes that
   should fail once the policy is validated.
 
+## Changes in iteration 6 (template baseline and the two-byte task)
+
+- **Deterministic template:** `baseline/template_master.py` emits a complete
+  `top_glue` from the parsed address, data bytes and device list. It is the
+  upper-bound baseline: it never calls a model, and it passes structural,
+  compile, Verilator/Yosys and simulation gates.
+- **Coverage:** the template is tested with five address/data pairs, with one
+  device and with three devices, and with the one-byte and two-byte specs.
+- **Two-byte task:** `protocols/i2c/spec_2byte.md` asks for data bytes
+  `0x11`, `0x22`. The testbench accepts `+I2C_NBYTES` (default 1), ACKs each
+  data byte, and reports every `EVENT:DATA` byte; the judge compares the full
+  payload and requires `address + N` bytes. Old one-byte RESULT lines still
+  parse.
+- **Golden references:** `good_master_2byte_reset_safe.v` is a hand-written
+  two-byte reference that passes. The one-byte golden is correctly rejected
+  against the two-byte spec (`correct_data`, `sda_stable`, `byte_count`).
+
 ## Run it
 
 1. Install Icarus Verilog (`iverilog` and `vvp`) and Ollama.

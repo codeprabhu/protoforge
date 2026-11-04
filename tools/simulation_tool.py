@@ -9,6 +9,7 @@ RESULT_RE = re.compile(
     r"(?: tb_done=(\d) starts=(\d+) stops=(\d+))?"
     r"(?: sda_glitches=(\d+) bytes=(\d+))?"
 )
+DATA_EVENT_RE = re.compile(r"EVENT:DATA:([0-9a-fA-F]{2}):")
 
 
 def run_simulation(executable: str, timeout: float = 8.0, plusargs=None) -> dict:
@@ -69,6 +70,11 @@ def parse_result_line(stdout: str) -> dict:
         extra = {"tb_done": int(tb_done), "starts": int(starts), "stops": int(stops)}
     if sda_glitches is not None:  # even newer testbench; keep old lines parseable
         extra.update({"sda_glitches": int(sda_glitches), "bytes": int(byte_count)})
+    data_events = [m.group(1).lower() for m in DATA_EVENT_RE.finditer(stdout or "")]
+    if data_events:
+        # Every ACKed data byte, in bus order. Older logs may not have these
+        # events; the single ``data`` field remains the fallback.
+        extra["data_bytes"] = data_events
     return {
         **extra,
         "parsed": True,

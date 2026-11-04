@@ -52,6 +52,7 @@ module testbench_i2c;
     reg [7:0] captured_data = 8'h00;
     reg [7:0] expected_addr_byte = 8'hA0;
     reg [7:0] expected_data_byte = 8'h3C;
+    integer expected_nbytes = 1; // v1 default: one data byte
     integer plusarg_dummy;
     integer saw_ack_addr = 0;
     integer saw_ack_data = 0;
@@ -77,7 +78,7 @@ module testbench_i2c;
             saw_ack_addr = 1;
             captured_addr = shift_reg;
             $display("EVENT:ADDR:%02h:%0t", shift_reg, $time);
-        end else if (bit_count == 8 && byte_count == 1) begin
+        end else if (bit_count == 8 && byte_count >= 1 && byte_count <= expected_nbytes) begin
             slave_ack_drive <= 1;
             saw_ack_data = 1;
             captured_data = shift_reg;
@@ -118,9 +119,10 @@ module testbench_i2c;
             $display("EVENT:START:%0t", $time);
         end
         if (scl && scl_d && !sda_d && sda) begin
-            // A rising SDA while SCL is high is only a legal STOP after the
-            // data byte (byte_count >= 2) and while a transaction is active.
-            if (!in_transaction || byte_count < 2) sda_glitches = sda_glitches + 1;
+            // A rising SDA while SCL is high is only a legal STOP after every
+            // expected data byte (address + N data bytes) while a transaction
+            // is active.
+            if (!in_transaction || byte_count < expected_nbytes + 1) sda_glitches = sda_glitches + 1;
             saw_stop = 1;
             n_stop = n_stop + 1;
             in_transaction = 0;
@@ -136,6 +138,7 @@ module testbench_i2c;
         // may override these without changing the trusted testbench source.
         plusarg_dummy = $value$plusargs("I2C_ADDR=%h", expected_addr_byte);
         plusarg_dummy = $value$plusargs("I2C_DATA=%h", expected_data_byte);
+        plusarg_dummy = $value$plusargs("I2C_NBYTES=%d", expected_nbytes);
         // VCD tracing is opt-in to keep batch evaluation from producing
         // hundreds of megabytes of waveforms by default. Run with +dump_vcd
         // when a waveform is actually needed for debugging.

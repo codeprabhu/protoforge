@@ -33,8 +33,9 @@ RESULT:saw_start=.. saw_stop=.. saw_ack_addr=.. saw_ack_data=..
        addr=.. data=.. tb_done=.. starts=.. stops=.. sda_glitches=.. bytes=..
 ```
 
-`+I2C_ADDR=<hex>` and `+I2C_DATA=<hex>` override the expected address/data
-without editing the testbench. `+dump_vcd` opts into waveform capture.
+`+I2C_ADDR=<hex>`, `+I2C_DATA=<hex>` and `+I2C_NBYTES=<n>` override the
+expected address/data/count without editing the testbench. `+dump_vcd` opts
+into waveform capture. The default count is 1, so one-byte runs are unchanged.
 
 | Field | Meaning |
 | --- | --- |
@@ -46,7 +47,7 @@ without editing the testbench. `+dump_vcd` opts into waveform capture.
 | `tb_done` | `tb_done` was high at least once before the timeout. |
 | `starts` / `stops` | Total START / STOP conditions seen. |
 | `sda_glitches` | SDA changed while SCL was high outside a legal START/STOP, e.g. a repeated START mid-transaction or a data change during the high phase. |
-| `bytes` | Completed bytes since the last START (address + data). |
+| `bytes` | Completed bytes since the last START (address + N data bytes). |
 
 ## What the judge checks
 
@@ -57,19 +58,30 @@ without editing the testbench. `+dump_vcd` opts into waveform capture.
 | `address_ack` | The address phase was ACKed. |
 | `data_ack` | The data phase was ACKed. |
 | `correct_address` | Captured address byte equals the expected byte. |
-| `correct_data` | Captured data byte equals the expected byte. |
+| `correct_data` | Captured data byte(s) equal the expected payload. |
 | `tb_done` | Completion was asserted. |
 | `single_start` | Exactly one START, so no repeated START. |
 | `single_stop` | Exactly one STOP. |
 | `sda_stable` | `sda_glitches == 0`. |
-| `byte_count` | `bytes == expected_data_bytes + 1` (one address byte + data). |
+| `byte_count` | `bytes == expected_data_bytes + 1` (one address byte + N data bytes). |
 
 Checks whose fields are absent from an older `RESULT:` line are skipped, so
 old logs remain parseable; they are never silently treated as passing when the
 field is present and wrong.
 
-Failure text (`explain_failures`) names the actual expected address/data, so
-repair prompts stay correct when plusargs select another transaction.
+## Multi-byte writes
+
+The testbench is count-parameterised. `+I2C_NBYTES=<n>` (default 1) makes the
+BFM ACK each data byte, changes the legal-STOP threshold to `n + 1` completed
+bytes, and the judge compares the full `EVENT:DATA` sequence. The two-byte
+task lives in `protocols/i2c/spec_2byte.md` and is verified by
+`tests/test_template_master.py`; a one-byte design is rejected against it on
+`correct_data`, `sda_stable` and `byte_count`. The one-byte path is unchanged
+when the plusarg is omitted.
+
+Failure text (`explain_failures`) names the actual expected address/data
+(including every byte of a multi-byte payload), so repair prompts stay correct
+when plusargs select another transaction.
 
 ## Mutation coverage
 

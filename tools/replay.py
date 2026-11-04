@@ -101,7 +101,11 @@ def _fresh_gates(
             return {"outcome": "tool_missing" if hw.get("stage", "").endswith("tool_missing") else "hardware_failed",
                     "stages": stages}
 
-        plusargs = [f"+I2C_ADDR={spec.address_hex}", f"+I2C_DATA={spec.data_hex}"]
+        plusargs = [
+            f"+I2C_ADDR={spec.address_hex}",
+            f"+I2C_DATA={spec.data_hex}",
+            f"+I2C_NBYTES={spec.nbytes}",
+        ]
         sim = run_simulation(vvp, plusargs=plusargs)
         stages.append({
             "stage": "simulation",
@@ -112,7 +116,13 @@ def _fresh_gates(
             return {"outcome": "tool_missing", "stages": stages}
 
         raw = parse_result_line(sim.get("stdout", ""))
-        verdict = judge(raw, expected_addr=spec.address_hex, expected_data=spec.data_hex)
+        verdict = judge(
+            raw,
+            expected_addr=spec.address_hex,
+            expected_data=spec.data_hex,
+            expected_data_bytes=spec.nbytes,
+            expected_data_list=spec.data_hexes,
+        )
         stages.append({
             "stage": "judge",
             "passed": verdict.get("pass", False),

@@ -3,6 +3,7 @@ def judge(
     expected_addr: str = "a0",
     expected_data: str = "3c",
     expected_data_bytes: int = 1,
+    expected_data_list: list[str] | None = None,
 ) -> dict:
     """
     Turns a parsed simulation result (from simulation_tool.parse_result_line)
@@ -15,14 +16,23 @@ def judge(
                  "simulation output did not match the expected RESULT: line format"
         return {"pass": False, "failed_checks": ["simulation_unparseable"], "reason": reason}
 
+    if expected_data_list is None:
+        expected_data_list = [expected_data]
+    expected_data_list = [byte.lower() for byte in expected_data_list]
+    expected_data_bytes = max(expected_data_bytes, len(expected_data_list))
+
     checks = {
         "start": result["saw_start"] == 1,
         "address_ack": result["saw_ack_addr"] == 1,
         "data_ack": result["saw_ack_data"] == 1,
         "stop": result["saw_stop"] == 1,
         "correct_address": result.get("addr", "").lower() == expected_addr.lower(),
-        "correct_data": result.get("data", "").lower() == expected_data.lower(),
     }
+    actual_data = result.get("data_bytes")
+    if actual_data is not None:
+        checks["correct_data"] = [byte.lower() for byte in actual_data] == expected_data_list
+    else:
+        checks["correct_data"] = result.get("data", "").lower() == expected_data_list[-1]
     # Extended checks, only when the testbench reported them (older RESULT
     # lines do not carry these fields, so they are skipped rather than failed).
     if "tb_done" in result:
@@ -60,6 +70,7 @@ def explain_failures(
     failed_checks,
     expected_addr: str | None = None,
     expected_data: str | None = None,
+    expected_data_list: list[str] | None = None,
 ) -> str:
     """Human-readable, error-specific feedback for repair prompts.
 
@@ -73,7 +84,13 @@ def explain_failures(
             "The address byte captured on the bus did not match the expected "
             f"0x{expected_addr.upper()}."
         )
-    if expected_data:
+    if expected_data_list:
+        rendered = ", ".join(f"0x{byte.upper()}" for byte in expected_data_list)
+        dynamic["correct_data"] = (
+            "The data bytes captured on the bus did not match the required "
+            f"[{rendered}] payload."
+        )
+    elif expected_data:
         dynamic["correct_data"] = (
             "The data byte captured on the bus did not match the required "
             f"0x{expected_data.upper()} payload."
