@@ -2,6 +2,29 @@
 
 ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model creates an I²C master wrapper; a separate, fixed testbench observes the external SDA/SCL bus, and the pipeline checks the code structurally, compiles it, simulates it, judges protocol events, and repairs failures.
 
+## What is wired into the live loop
+
+The live path is:
+
+```
+main.py / agent_core.agent
+  -> domains/i2c/adapter.py
+  -> core/orchestrator.py
+  -> agent/rtl_generator.py + tools/* gates
+```
+
+These modules are **not** wired into the live loop yet; they are kept for
+later phases and should not be assumed to run during a generation:
+
+- `agents/` — the specialist roles (spec analyst, planner, reviewer, ...).
+  The multi-agent workflow is archived until Phase 9.
+- `ui/dashboard.py` — trace rendering; there are no live traces to render yet.
+- `core/task_graph.py` — state machine used only by the archived multi-agent flow.
+- `indexing/`, `mutations/`, `mcp_server/` — repository indexing, mutation
+  catalogues, and the MCP surface are available tools, not part of the
+  generation loop.
+
+
 ## Changes in this iteration
 
 - **Small-model-first generation:** the default model is `qwen2.5-coder:7b`. The model is asked for only the FSM declarations and sequential block; the harness deterministically supplies the top-level ports, parsed device instances, and open-drain bus assignments. Full-module outputs remain accepted for compatibility. This reduces the surface area where a small model can corrupt the wrapper. Generation temperature is `0` by default and Ollama receives a fixed seed. Override with `PROTOFORGE_MODEL`, `PROTOFORGE_TEMPERATURE`, `PROTOFORGE_SEED`, `PROTOFORGE_NUM_CTX`, and `PROTOFORGE_NUM_PREDICT`.

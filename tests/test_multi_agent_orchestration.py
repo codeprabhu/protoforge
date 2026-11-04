@@ -75,6 +75,10 @@ def test_specialist_agent_roles(tmp_path):
     assert any(f.get("severity") == "blocker" for f in res_review.findings)
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason="multi-agent flow is archived until Phase 9; see archive/multi_agent_draft.py",
+)
 def test_orchestrator_multi_agent_workflow(tmp_path):
     adapter = get_domain("i2c")
     orchestrator = Orchestrator(adapter)

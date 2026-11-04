@@ -48,3 +48,35 @@ def test_distinct_samples_not_flagged():
     s = main.run_batch(4, run_fn=lambda **kw: _ok(next(shas)), temperature=0.5)
     assert s["distinct_first_attempts"] == 4
     assert "ONE sample" not in main.format_summary(s)
+
+
+def test_generate_fn_failure_is_a_known_outcome(tmp_path):
+    """A raising generate_fn must be counted as generation_error, never 'other'."""
+    from core import outcomes
+    from core.orchestrator import Orchestrator
+    from core.schemas import Task
+    from domains.registry import get_domain
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("ollama is down")
+
+    task = Task(
+        task_id="TASK-GEN-ERROR",
+        domain="i2c",
+        description="generation failure outcome test",
+        metadata={
+            "target_file": str(tmp_path / "top_glue.v"),
+            "sim_out": str(tmp_path / "sim.vvp"),
+            "spec_path": "protocols/i2c/spec.md",
+        },
+    )
+    log = Orchestrator(get_domain("i2c")).execute_task(
+        task, max_repairs=0, model="stub", generate_fn=boom
+    )
+    assert log["final"] == outcomes.GENERATION_ERROR
+    assert "ollama is down" in log["generation_error"]
+
+    summary = main.run_batch(2, run_fn=lambda **kw: log, temperature=0.0)
+    assert summary["other_outcomes"] == 0
+    assert summary["outcomes"] == {outcomes.GENERATION_ERROR: 2}
+

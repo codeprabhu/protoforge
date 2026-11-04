@@ -18,9 +18,8 @@ from collections import Counter
 
 from agent_core.agent import run_once
 from agent.ollama_client import DEFAULT_MODEL, DEFAULT_SEED
+from core import outcomes
 from tools.rtl_memory import memory_summary
-
-KNOWN_FINALS = {"pass", "compile_failed", "structural_failed", "hardware_failed", "sim_checks_failed", "tool_missing", "generation_error"}
 
 
 def run_batch(n_runs: int, model: str | None = None, run_fn=run_once,
@@ -34,7 +33,7 @@ def run_batch(n_runs: int, model: str | None = None, run_fn=run_once,
             results.append(run_fn(model=model, seed=base_seed + i, temperature=temperature))
         except Exception as exc:  # e.g. Ollama not running / model not pulled
             results.append({
-                "final": "generation_error",
+                "final": outcomes.GENERATION_ERROR,
                 "error": f"{type(exc).__name__}: {exc}",
                 "attempts": [],
                 "max_repairs": None,
@@ -57,7 +56,7 @@ def run_batch(n_runs: int, model: str | None = None, run_fn=run_once,
         "first_try_pass": sum(bool(r.get("first_attempt_pass")) for r in results),
         "recovered_by_repair": sum(bool(r.get("recovered_after_repair")) for r in results),
         "outcomes": dict(counts),
-        "other_outcomes": sum(v for k, v in counts.items() if k not in KNOWN_FINALS),
+        "other_outcomes": sum(v for k, v in counts.items() if k not in outcomes.KNOWN_FINALS),
         "distinct_first_attempts": len(set(first_hashes)),
         "first_attempts_recorded": len(first_hashes),
         "errors": sorted({r["error"] for r in results if r.get("error")}),
@@ -81,7 +80,7 @@ def format_summary(s: dict) -> str:
         f"Simulation-failed:      {s['outcomes'].get('sim_checks_failed', 0)}/{n}",
         f"Hardware-failed:         {s['outcomes'].get('hardware_failed', 0)}/{n}",
         f"Tool-missing:           {s['outcomes'].get('tool_missing', 0)}/{n}",
-        f"Generation errors:      {s['outcomes'].get('generation_error', 0)}/{n}",
+        f"Generation errors:      {s['outcomes'].get(outcomes.GENERATION_ERROR, 0)}/{n}",
         f"Other outcomes:         {s['other_outcomes']}",
         f"Distinct first designs: {s['distinct_first_attempts']}/{s['first_attempts_recorded']}",
         f"RTL memory:             {memory_summary()}",
