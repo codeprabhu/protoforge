@@ -1,0 +1,16 @@
+Model:                  qwen2.5-coder:7b
+Runs:                   5/5  (temperature 0.25, base seed 42)
+Retrieval in prompt:    on
+Pass rate after repair: 1/5 (20.0%)
+First-try pass rate:    0/5 (0.0%)
+Recovered by repair:    1/5
+Compile-failed:         0/5
+Structural-failed:      0/5
+Simulation-failed:      4/5
+Hardware-failed:         0/5
+Tool-missing:           0/5
+Generation errors:      0/5
+Other outcomes:         0
+Distinct first designs: 4/5
+RTL memory:             {'seed_examples': 1, 'learned_passing_examples': 3}
+Full log:               results/runs.jsonl   Summary: results/batch_summary.json

@@ -1,0 +1,66 @@
+{
+  "timestamp": 1793795650.2357197,
+  "task_id": "i2c-1793795650235",
+  "domain": "i2c",
+  "model": "qwen2.5-coder:7b",
+  "temperature_policy": "generation=0.0; repair increases slightly per attempt",
+  "generation_temperature": 0.0,
+  "seed": null,
+  "retrieval_enabled": true,
+  "max_repairs": 2,
+  "protocol": {
+    "address": "a0",
+    "data": "3c"
+  },
+  "rtl_memory_before_run": null,
+  "requirements": [
+    "I2C-ADDR",
+    "I2C-DATA",
+    "I2C-START",
+    "I2C-STOP",
+    "I2C-ACK",
+    "I2C-OPEN-DRAIN"
+  ],
+  "attempts": [
+    {
+      "attempt": 0,
+      "stage": "compile",
+      "success": false,
+      "stderr": "generated/top_glue.v:75: error: Unable to bind wire/reg/memory `HALF' in `testbench_i2c.dut.advance_half'\ngenerated/top_glue.v:75: error: Unable to elaborate condition expression.\ngenerated/top_glue.v:74: Unable to elaborate statement in task testbench_i2c.dut.advance_half at generated/top_glue.v:73.\ngenerated/top_glue.v:80: error: Unable to bind wire/reg/memory `HALF' in `testbench_i2c.dut'\ngenerated/top_glue.v:80: error: Unable to elaborate r-value: (half_cnt)==((HALF)-('sd1))\n4 error(s) during elaboration.\n",
+      "sha256": "ab1e68d2fc7257e23eff18e2925491dd18eaaf4c88fe5561eaa236cc696ab110",
+      "candidate_hash": "ab1e68d2fc7257e2",
+      "code_len_chars": 6577,
+      "failed_checks": []
+    },
+    {
+      "attempt": 1,
+      "stage": "simulate",
+      "success": true,
+      "failed_checks": [],
+      "raw": {
+        "tb_done": 1,
+        "starts": 1,
+        "stops": 1,
+        "parsed": true,
+        "saw_start": 1,
+        "saw_stop": 1,
+        "saw_ack_addr": 1,
+        "saw_ack_data": 1,
+        "addr": "a0",
+        "data": "3c"
+      },
+      "simulator_success": true,
+      "simulator_stderr": "",
+      "hardware_success": true,
+      "hardware_stage": "hardware",
+      "sha256": "e75f138b0c2b9f31a007d16375ee052ab2fb4d881fe204646fed61fe680af292",
+      "candidate_hash": "e75f138b0c2b9f31",
+      "code_len_chars": 7486
+    }
+  ],
+  "final": "pass",
+  "verified_example": "/home/shrivathssp/Desktop/protoforge/results/rtl_memory/passing/e75f138b0c2b9f31.v",
+  "first_attempt_pass": false,
+  "recovered_after_repair": true,
+  "elapsed_sec": 331.916
+}

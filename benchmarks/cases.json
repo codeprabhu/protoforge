@@ -1,0 +1,88 @@
+{
+  "cases": [
+    {
+      "id": "c01-default-1byte",
+      "address": "0x50",
+      "data": ["0x3C"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "v1 default: address 0x50, one data byte, two devices."
+    },
+    {
+      "id": "c02-alt-address-1byte",
+      "address": "0x2A",
+      "data": ["0x5A"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "Different 7-bit address and payload."
+    },
+    {
+      "id": "c03-zero-payload",
+      "address": "0x10",
+      "data": ["0x00"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "All-zero data byte; catches models that treat 0 as 'no data'."
+    },
+    {
+      "id": "c04-all-ones-payload",
+      "address": "0x77",
+      "data": ["0xFF"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "All-ones data byte and a high address."
+    },
+    {
+      "id": "c05-low-address",
+      "address": "0x03",
+      "data": ["0x81"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "Low address; address byte has many zero bits."
+    },
+    {
+      "id": "c06-two-byte",
+      "address": "0x50",
+      "data": ["0x11", "0x22"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "Two data bytes, matching protocols/i2c/spec_2byte.md."
+    },
+    {
+      "id": "c07-two-byte-alt",
+      "address": "0x48",
+      "data": ["0xDE", "0xAD"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "Two-byte payload at a different address."
+    },
+    {
+      "id": "c08-three-byte",
+      "address": "0x50",
+      "data": ["0x01", "0x02", "0x03"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "Three data bytes; tests count-parameterised FSM generation."
+    },
+    {
+      "id": "c09-single-device",
+      "address": "0x50",
+      "data": ["0x3C"],
+      "devices": ["device_sensor"],
+      "notes": "One device instance only."
+    },
+    {
+      "id": "c10-three-devices",
+      "address": "0x50",
+      "data": ["0x3C"],
+      "devices": ["device_sensor", "device_controller", "device_timer"],
+      "notes": "Three device instances."
+    },
+    {
+      "id": "c11-three-devices-two-byte",
+      "address": "0x21",
+      "data": ["0xA5", "0x5A"],
+      "devices": ["device_sensor", "device_controller", "device_timer"],
+      "notes": "Three devices plus a two-byte payload."
+    },
+    {
+      "id": "c12-top-address",
+      "address": "0x7F",
+      "data": ["0x7F"],
+      "devices": ["device_sensor", "device_controller"],
+      "notes": "Highest legal 7-bit address; write byte is 0xFE."
+    }
+  ]
+}

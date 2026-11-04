@@ -18,11 +18,25 @@ from agent.rtl_generator import (
 from tools.verilog_parser import parse_verilog_file
 from tools.i2c_spec import parse_i2c_spec, I2CSpec
 from tools.compile_tool import compile_verilog
-from tools.error_context import extract_error_context
 from tools.hardware_checks import run_hardware_checks
 from tools.simulation_tool import run_simulation, parse_result_line
 from tools.judge import judge, explain_failures
 from tools.structural_checks import structural_checks, explain_structural_failures
+
+
+def _coerce_generated_code(generated: Any) -> str:
+    """Accept a plain string or an object exposing ``.code``."""
+    if generated is None:
+        return ""
+    if isinstance(generated, str):
+        return generated
+    code = getattr(generated, "code", None)
+    if isinstance(code, str):
+        return code
+    raise TypeError(
+        "generate_fn/repair_fn must return Verilog source as a string, "
+        f"got {type(generated).__name__}"
+    )
 
 
 class I2CDomainAdapter(BaseDomainAdapter):
@@ -86,7 +100,10 @@ class I2CDomainAdapter(BaseDomainAdapter):
                 req_id="I2C-DATA",
                 domain="i2c",
                 title="I2C Data Payload",
-                description=f"Transaction must transmit data byte 0x{spec.data_hex}",
+                description=(
+                    "Transaction must transmit data byte(s) "
+                    + ", ".join(f"0x{byte:02x}" for byte in spec.data_bytes)
+                ),
                 severity="must",
             ),
             Requirement(
@@ -163,36 +180,39 @@ class I2CDomainAdapter(BaseDomainAdapter):
             "spec_path": spec_path,
             "address_hex": parsed_spec.address_hex if parsed_spec else "a0",
             "data_hex": parsed_spec.data_hex if parsed_spec else "3c",
+            "data_hexes": parsed_spec.data_hexes if parsed_spec else ["3c"],
+            "nbytes": parsed_spec.nbytes if parsed_spec else 1,
             "required_instances": self.required_instances,
         }
 
     def generate_candidate(self, task: Task, context: Dict[str, Any], **kwargs) -> CandidatePatch:
-        """Generate candidate RTL using the multi-device glue generator."""
-        out_path = kwargs.get("out_path", task.metadata.get("out_path", "protocols/i2c/generated/top_glue.v"))
-        generate_fn = kwargs.get("generate_fn", generate_multi_device_glue_rtl)
+        """Generate candidate RTL and return it as an in-memory string."""
+        out_path = kwargs.get("out_path", task.metadata.get("target_file", "generated/top_glue.v"))
+        generate_fn = kwargs.get("generate_fn") or generate_multi_device_glue_rtl
         model = kwargs.get("model", task.metadata.get("model"))
         temperature = kwargs.get("temperature", 0.0)
         seed = kwargs.get("seed")
+        retrieval = kwargs.get("retrieval", True)
+        patcher = kwargs.get("patcher", True)
 
-        os.makedirs(os.path.dirname(out_path) or ".", exist_ok=True)
-        generate_fn(
+        trace: Dict[str, Any] = {}
+        generated = generate_fn(
             self.device_paths,
             context.get("spec_path", self.spec_path),
-            out_path=out_path,
             model=model,
             temperature=temperature,
             seed=seed,
+            retrieval=retrieval,
+            patcher=patcher,
+            trace=trace,
         )
-
-        content = ""
-        if os.path.exists(out_path):
-            with open(out_path, encoding="utf-8") as f:
-                content = f.read()
+        content = _coerce_generated_code(generated)
 
         return CandidatePatch(
             target_file=out_path,
             full_content=content,
             author_role="implementer",
+            metadata=trace,
         )
 
     def validate_structure(self, candidate: CandidatePatch) -> ValidationResult:
@@ -212,8 +232,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
         """Compile RTL, run hardware checks, and run simulation."""
         results: List[ValidationResult] = []
         out_path = candidate.target_file
-        code = candidate.full_content or ""
-        sim_out = kwargs.get("sim_out", "protocols/i2c/generated/top_sim.vvp")
+        sim_out = kwargs.get("sim_out", "generated/top_sim.vvp")
 
         # Compile step
         compile_fn = kwargs.get("compile_fn", compile_verilog)
@@ -249,8 +268,12 @@ class I2CDomainAdapter(BaseDomainAdapter):
 
         # Simulation step (Icarus vvp)
         sim_fn = kwargs.get("sim_fn", run_simulation)
-        spec = parse_i2c_spec(self.spec_path)
-        plusargs = [f"+I2C_ADDR={spec.address_hex}", f"+I2C_DATA={spec.data_hex}"]
+        spec = parse_i2c_spec(kwargs.get("spec_path") or self.spec_path)
+        plusargs = [
+            f"+I2C_ADDR={spec.address_hex}",
+            f"+I2C_DATA={spec.data_hex}",
+            f"+I2C_NBYTES={spec.nbytes}",
+        ]
         sim_res = sim_fn(sim_out, plusargs=plusargs)
         sim_passed = sim_res.get("success", False)
         sim_tool_missing = sim_res.get("tool_missing", False)
@@ -260,7 +283,10 @@ class I2CDomainAdapter(BaseDomainAdapter):
             tool_missing=sim_tool_missing,
             stdout=sim_res.get("stdout", ""),
             stderr=sim_res.get("stderr", ""),
-            metadata={"raw": parse_result_line(sim_res.get("stdout", ""))},
+            metadata={
+                "raw": parse_result_line(sim_res.get("stdout", "")),
+                "spec_path": kwargs.get("spec_path") or self.spec_path,
+            },
         )
         results.append(sim_val)
         return results
@@ -275,15 +301,26 @@ class I2CDomainAdapter(BaseDomainAdapter):
             return ValidationResult(stage="judge", passed=False, failed_checks=["simulation_failed"], diagnostics="Simulation failed or was not run")
 
         raw_result = sim_val.metadata.get("raw", {})
-        spec = parse_i2c_spec(self.spec_path)
+        spec = parse_i2c_spec(sim_val.metadata.get("spec_path") or self.spec_path)
         judge_fn = kwargs.get("judge_fn", judge)
-        verdict = judge_fn(raw_result, expected_addr=spec.address_hex, expected_data=spec.data_hex)
+        verdict = judge_fn(
+            raw_result,
+            expected_addr=spec.address_hex,
+            expected_data=spec.data_hex,
+            expected_data_bytes=spec.nbytes,
+            expected_data_list=spec.data_hexes,
+        )
         failed_checks = list(verdict.get("failed_checks") or [])
         return ValidationResult(
             stage="judge",
             passed=verdict.get("pass", False),
             failed_checks=failed_checks,
-            diagnostics=explain_failures(failed_checks) if failed_checks else "",
+            diagnostics=explain_failures(
+                failed_checks,
+                expected_addr=spec.address_hex,
+                expected_data=spec.data_hex,
+                expected_data_list=spec.data_hexes,
+            ) if failed_checks else "",
             metadata=verdict,
         )
 
@@ -296,38 +333,39 @@ class I2CDomainAdapter(BaseDomainAdapter):
         """Execute repair on candidate RTL with error-specific feedback."""
         out_path = candidate.target_file
         code = candidate.full_content or ""
-        repair_fn = kwargs.get("repair_fn", repair_rtl)
+        repair_fn = kwargs.get("repair_fn") or repair_rtl
         model = kwargs.get("model")
         temperature = kwargs.get("temperature", 0.3)
         seed = kwargs.get("seed")
+        retrieval = kwargs.get("retrieval", True)
+        patcher = kwargs.get("patcher", True)
 
         spec = parse_i2c_spec(self.spec_path)
         latest_failure = failed_results[-1]
         summary = f"failed {latest_failure.stage} checks"
         detail = latest_failure.diagnostics or latest_failure.stderr
 
-        repair_fn(
+        trace: Dict[str, Any] = {}
+        repaired = repair_fn(
             code,
             summary,
             detail,
-            out_path=out_path,
             model=model,
             temperature=temperature,
             seed=seed,
             expected_addr=spec.address_hex,
             expected_data=spec.data_hex,
             device_paths=self.device_paths,
+            retrieval=retrieval,
+            patcher=patcher,
+            trace=trace,
         )
-
-        repaired_content = ""
-        if os.path.exists(out_path):
-            with open(out_path, encoding="utf-8") as f:
-                repaired_content = f.read()
 
         return CandidatePatch(
             target_file=out_path,
-            full_content=repaired_content,
+            full_content=_coerce_generated_code(repaired),
             author_role="repair_agent",
+            metadata=trace,
         )
 
     def get_mutations(self) -> List[Dict[str, Any]]:
@@ -368,6 +406,30 @@ class I2CDomainAdapter(BaseDomainAdapter):
                 "name": "repeated_start",
                 "fault": "Master issues spurious repeated START",
                 "expected_failed_check": "single_start",
+            },
+            {
+                "id": "I2C-MUT-007",
+                "name": "lsb_first",
+                "fault": "Master transmits each byte least-significant bit first",
+                "expected_failed_check": "address_ack",
+            },
+            {
+                "id": "I2C-MUT-008",
+                "name": "sda_glitch",
+                "fault": "Master changes SDA while SCL is high during a data bit",
+                "expected_failed_check": "sda_stable",
+            },
+            {
+                "id": "I2C-MUT-009",
+                "name": "third_byte",
+                "fault": "Master sends a third data byte before STOP",
+                "expected_failed_check": "byte_count",
+            },
+            {
+                "id": "I2C-MUT-010",
+                "name": "skip_ack",
+                "fault": "Master omits the address ACK clock cell",
+                "expected_failed_check": "data_ack",
             },
         ]
 

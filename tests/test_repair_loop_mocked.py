@@ -8,12 +8,12 @@ import agent_core.agent as pipeline
 ROOT = Path(__file__).resolve().parents[1]
 
 
-def test_model_repair_loop_recovers_from_missing_stop(tmp_path, monkeypatch):
+def test_model_repair_loop_recovers_from_missing_stop(run_config, monkeypatch):
     broken = (ROOT / "protocols/i2c/reference/broken_master_no_stop_reset_safe.v").read_text()
     good = (ROOT / "protocols/i2c/reference/good_master_reset_safe.v").read_text()
     calls = {"count": 0}
 
-    def fake_generate(prompt, model=None, temperature=None):
+    def fake_generate(prompt, **kwargs):
         calls["count"] += 1
         code = broken if calls["count"] == 1 else good
         return f"```verilog\n{code}\n```"
@@ -36,17 +36,19 @@ def test_model_repair_loop_recovers_from_missing_stop(tmp_path, monkeypatch):
         "success": True, "stdout": "", "stderr": "", "returncode": 0,
     })
     monkeypatch.setattr(pipeline, "run_simulation", lambda *args, **kwargs: next(sim_results))
-    monkeypatch.setattr(pipeline, "TOP", str(tmp_path / "top_glue.v"))
-    monkeypatch.setattr(pipeline, "SIM_OUT", str(tmp_path / "sim.out"))
-    monkeypatch.setattr(pipeline, "RESULTS_LOG", str(tmp_path / "runs.jsonl"))
-    monkeypatch.setattr(pipeline, "record_passing_example", lambda *args, **kwargs: tmp_path / "verified.v")
+    monkeypatch.setattr(pipeline, "record_passing_example", lambda *args, **kwargs: Path("verified.v"))
 
-    result = pipeline.run_once(model="stub-model", max_repairs=2)
+    result = pipeline.run_once(model="stub-model", max_repairs=2, config=run_config)
 
     assert result["final"] == "pass"
     assert [attempt["failed_checks"] for attempt in result["attempts"]] == [["stop"], []]
     assert calls["count"] == 2
-    assert Path(pipeline.RESULTS_LOG).is_file()
+    assert Path(run_config.results_log).is_file()
+    # Per-attempt artifacts are isolated under the run directory.
+    run_dir = Path(result["run_dir"])
+    assert (run_dir / "attempt_0.v").is_file()
+    assert (run_dir / "attempt_1.v").is_file()
+    assert (run_dir / "attempt_0_prompt.txt").is_file()
 
 
 def test_repair_prompt_preserves_valid_phases():

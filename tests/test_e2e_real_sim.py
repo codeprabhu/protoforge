@@ -26,18 +26,22 @@ def _run(tmp_path, monkeypatch, outputs, max_repairs=2):
     queue = list(outputs)
     prompts = []
 
-    def fake_generate(prompt, model=None, temperature=None, seed=None):
+    def fake_generate(prompt, **kwargs):
         prompts.append(prompt)
         return f"```verilog\n{queue.pop(0)}\n```"
 
     monkeypatch.setattr(rtl_generator, "generate_verilog", fake_generate)
-    monkeypatch.setattr(pipeline, "TOP", str(tmp_path / "top_glue.v"))
-    monkeypatch.setattr(pipeline, "SIM_OUT", str(tmp_path / "sim.out"))
-    monkeypatch.setattr(pipeline, "RESULTS_LOG", str(tmp_path / "runs.jsonl"))
     monkeypatch.setattr(pipeline, "record_passing_example", lambda *a, **k: tmp_path / "ok.v")
     monkeypatch.setattr(pipeline, "record_failed_example", lambda *a, **k: tmp_path / "bad.v")
-    monkeypatch.setattr(rtl_generator, "save_file", lambda path, text: Path(path).write_text(text))
-    return pipeline.run_once(model="stub", max_repairs=max_repairs), prompts
+
+    from agent_core.config import Config
+
+    config = Config(
+        output_root=str(tmp_path / "runs"),
+        results_log=str(tmp_path / "runs.jsonl"),
+        trace_dir=str(tmp_path / "traces"),
+    )
+    return pipeline.run_once(model="stub", max_repairs=max_repairs, config=config), prompts
 
 
 def _ref(name):

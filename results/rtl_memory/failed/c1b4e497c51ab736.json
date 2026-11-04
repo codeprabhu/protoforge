@@ -1,0 +1,13 @@
+{
+  "created_at": 1793797478.6468349,
+  "detail": "No STOP condition (SDA rising while SCL is high) was observed on the bus -- the transaction never terminated correctly. The bus showed more than one START condition (or none); v1 requires exactly one START and no repeated START. The bus showed more than one STOP condition (or none); v1 requires exactly one STOP at the end of the transaction.",
+  "failed_checks": [
+    "stop",
+    "single_start",
+    "single_stop"
+  ],
+  "model": "qwen2.5-coder:7b",
+  "sha256": "c1b4e497c51ab7369168a411572c6fcbe828050935c01537116a42ebbb13f3ea",
+  "stage": "simulate",
+  "verified_pass": false
+}

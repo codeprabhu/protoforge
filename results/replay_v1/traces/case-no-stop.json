@@ -1,0 +1,146 @@
+{
+  "run_id": "case-no-stop",
+  "task_id": "i2c-case-no-stop",
+  "domain": "i2c",
+  "start_time": 1793797270.532325,
+  "end_time": 1793797270.7493136,
+  "status": "failed",
+  "events": [
+    {
+      "event_id": "dd1be2f2-d387-47ea-aae5-8e0828e00d59",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.532391,
+      "event_type": "run_started",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "config": {
+          "device_paths": [
+            "devices/device_sensor.v",
+            "devices/device_controller.v"
+          ],
+          "spec_path": "protocols/i2c/spec.md",
+          "tb_path": "protocols/i2c/testbench_i2c.v",
+          "max_repairs": 0,
+          "model": "stub-replay",
+          "seed": 42,
+          "temperature": 0.0,
+          "retrieval": true,
+          "output_root": "/home/shrivathssp/Desktop/protoforge/results/replay_v1",
+          "results_log": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/index.jsonl",
+          "trace_dir": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/traces",
+          "target_name": "top_glue.v"
+        },
+        "git_commit": "cb15497b98ee44d6ca2feb0a82b8d546b413fc5b"
+      }
+    },
+    {
+      "event_id": "30373a50-c3f6-4bc1-8ccf-d26c879d5695",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.5399427,
+      "event_type": "model_invoked",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "model": "stub-replay",
+        "repair": false,
+        "prompt_chars": 12069,
+        "raw_output_chars": 8958,
+        "candidate_hash": "1aa8f0b802afe8d2"
+      }
+    },
+    {
+      "event_id": "41424484-28de-40c9-a2cf-7e2af46c26e0",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.5417364,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "stage": "structural",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "07102a3b-a8aa-446f-9ce2-19718709cbc9",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.7474208,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "stage": "compile",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "b6d6b09e-ba7c-41c0-8dd4-15e833bf0859",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.7474597,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "stage": "hardware",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "45935463-e49c-45d6-9db7-1bdc72dcdd89",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.7474875,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "stage": "simulation",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "f8caae25-8199-4dca-b6bc-a5ddf79f7849",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.7477715,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "stage": "judge",
+        "passed": false,
+        "attempt": 0,
+        "failed_checks": [
+          "stop",
+          "single_stop"
+        ]
+      }
+    },
+    {
+      "event_id": "4009ea72-60ca-48db-a2e8-06fac1f35ef2",
+      "run_id": "case-no-stop",
+      "timestamp": 1793797270.7493763,
+      "event_type": "run_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "final": "sim_checks_failed",
+        "run_dir": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/case-no-stop"
+      }
+    }
+  ],
+  "decision_records": [],
+  "summary": {
+    "final": "sim_checks_failed",
+    "attempts": 1,
+    "first_attempt_pass": false,
+    "recovered_after_repair": false,
+    "run_dir": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/case-no-stop"
+  }
+}

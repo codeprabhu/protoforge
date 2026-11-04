@@ -33,8 +33,7 @@ end
     out = tmp_path / "top_glue.v"
     generator.generate_glue_rtl(
         "devices/device_sensor.v", "devices/device_controller.v",
-        "protocols/i2c/spec.md", out_path=str(out), debug_prompt_path=None,
-        model="stub", seed=42,
+        "protocols/i2c/spec.md", out_path=str(out), model="stub", seed=42,
     )
     rtl = out.read_text()
     checks = structural_checks(rtl, ["device_sensor", "device_controller"])

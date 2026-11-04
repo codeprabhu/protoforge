@@ -2,6 +2,29 @@
 
 ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model creates an I²C master wrapper; a separate, fixed testbench observes the external SDA/SCL bus, and the pipeline checks the code structurally, compiles it, simulates it, judges protocol events, and repairs failures.
 
+## What is wired into the live loop
+
+The live path is:
+
+```
+main.py / agent_core.agent
+  -> domains/i2c/adapter.py
+  -> core/orchestrator.py
+  -> agent/rtl_generator.py + tools/* gates
+```
+
+These modules are **not** wired into the live loop yet; they are kept for
+later phases and should not be assumed to run during a generation:
+
+- `agents/` — the specialist roles (spec analyst, planner, reviewer, ...).
+  The multi-agent workflow is archived until Phase 9.
+- `ui/dashboard.py` — trace rendering; there are no live traces to render yet.
+- `core/task_graph.py` — state machine used only by the archived multi-agent flow.
+- `indexing/`, `mutations/`, `mcp_server/` — repository indexing, mutation
+  catalogues, and the MCP surface are available tools, not part of the
+  generation loop.
+
+
 ## Changes in this iteration
 
 - **Small-model-first generation:** the default model is `qwen2.5-coder:7b`. The model is asked for only the FSM declarations and sequential block; the harness deterministically supplies the top-level ports, parsed device instances, and open-drain bus assignments. Full-module outputs remain accepted for compatibility. This reduces the surface area where a small model can corrupt the wrapper. Generation temperature is `0` by default and Ollama receives a fixed seed. Override with `PROTOFORGE_MODEL`, `PROTOFORGE_TEMPERATURE`, `PROTOFORGE_SEED`, `PROTOFORGE_NUM_CTX`, and `PROTOFORGE_NUM_PREDICT`.
@@ -22,6 +45,76 @@ ProtoForge evaluates a local LLM on a constrained RTL-generation task. The model
 - **Retrieval ablation:** `PROTOFORGE_NO_RETRIEVAL=1` removes the reference example from the prompt. The seed example is derived from the known-good oracle, so compare pass rates with it on and off before claiming the model can generate an I²C master.
 - **Real-simulator end-to-end tests (`tests/test_e2e_real_sim.py`):** only the LLM is stubbed; structural gate, iverilog, vvp, judge and repair routing are real (broken -> repaired passes, correct passes first try, persistent fault exhausts the repair budget).
 - The current environment check reports 22 passing tool-independent tests and 9 simulator-dependent tests skipped because Icarus is unavailable. The real LLM generation path (Ollama) has not been exercised in this environment.
+
+## Changes in iteration 4 (auditable, replayable runs)
+
+- **Per-run directory:** every `run_once` writes to `results/runs/<run_id>/`.
+  It contains `run.json` (run id, git commit, model, model digest, seed,
+  temperature, config), `attempt_<n>.v`, `attempt_<n>_prompt.txt`,
+  `attempt_<n>.json`, and the compiled `.vvp`.
+- **Attempt records:** each attempt JSON stores the prompt, raw model output,
+  cleaned code, final code, code hash, model token/timing metadata, retrieval
+  details (which example, seed vs learned, score), every gate verdict, and
+  compiler stderr / simulator stdout. Full code is kept, not only hashes.
+- **One-line index:** `results/runs.jsonl` is now a summary pointer to the run
+  directory; the bulky payload stays in the run directory.
+- **Replay:** `python tools/replay.py results/runs/<run_id>` re-runs the
+  structural, compile, hardware, simulation and judge gates on the stored
+  attempt and compares the verdicts. `results/replay_v1/report.txt` records
+  three replayed runs (pass, missing STOP, structural failure), all matching.
+- **Event traces:** each run emits `run_started`, `model_invoked`,
+  `stage_finished` and `run_finished` through the existing `EventStore`
+  (`results/traces/<run_id>.json`).
+
+## Changes in iteration 5 (oracle-v1)
+
+- **SDA stability check:** the testbench counts SDA transitions while SCL is
+  high outside a legal START/STOP and reports `sda_glitches`; the judge fails
+  designs with a non-zero count (`sda_stable`).
+- **Byte-count check:** the testbench reports completed `bytes`; the judge
+  requires exactly one address byte plus the expected data bytes
+  (`byte_count`), rejecting extra or missing bytes.
+- **More mutants:** LSB-first, SDA-while-SCL-high, third byte, and skipped ACK
+  clock mutants are rejected, with the skipped-ACK case diagnosed downstream
+  (documented in `docs/ORACLE.md`).
+- **Plusarg coverage:** the testbench is exercised with three address/data
+  pairs via `+I2C_ADDR`/`+I2C_DATA`, and a mismatched pair is rejected.
+- **Warnings visible:** Verilator warning count is recorded in the hardware
+  stage without failing yet; `docs/ORACLE.md` lists the warning classes that
+  should fail once the policy is validated.
+
+## Changes in iteration 6 (template baseline and the two-byte task)
+
+- **Deterministic template:** `baseline/template_master.py` emits a complete
+  `top_glue` from the parsed address, data bytes and device list. It is the
+  upper-bound baseline: it never calls a model, and it passes structural,
+  compile, Verilator/Yosys and simulation gates.
+- **Coverage:** the template is tested with five address/data pairs, with one
+  device and with three devices, and with the one-byte and two-byte specs.
+- **Two-byte task:** `protocols/i2c/spec_2byte.md` asks for data bytes
+  `0x11`, `0x22`. The testbench accepts `+I2C_NBYTES` (default 1), ACKs each
+  data byte, and reports every `EVENT:DATA` byte; the judge compares the full
+  payload and requires `address + N` bytes. Old one-byte RESULT lines still
+  parse.
+- **Golden references:** `good_master_2byte_reset_safe.v` is a hand-written
+  two-byte reference that passes. The one-byte golden is correctly rejected
+  against the two-byte spec (`correct_data`, `sda_stable`, `byte_count`).
+
+## Changes in iteration 7 (benchmark runner)
+
+- **Case set:** `benchmarks/cases.json` has 12 cases varying the 7-bit address,
+  the 1/2/3-byte payload and the 1/2/3-device list. `tools/make_spec.py` turns
+  a case into a parseable spec.
+- **Runner:** `python -m bench.run` loops cases and samples, writes one CSV row
+  per run (flushed immediately), and aggregates pass@1, pass-after-repair,
+  distinct first designs, latency, token counts and Wilson 95% CIs.
+- **Ablations:** retrieval on/off and the regex patcher on/off are real
+  switches (`PROTOFORGE_NO_PATCHER` / `Config.patcher`). With the patcher off,
+  the deterministic wrapper is still supplied but the model response is embedded
+  verbatim. The 2x2 shares the on/on cell.
+- **Template upper bound:** 240/240 template runs pass across all 12 cases.
+- **Measured table:** `docs/BASELINE.md` records the configuration, commit,
+  model digest and the real-model matrix.
 
 ## Run it
 
@@ -98,12 +191,11 @@ Fast tests that do not require Ollama or Icarus Verilog:
 python -m pytest -q tests
 ```
 
-This covers structural checks, result parsing, verified-example memory behavior, and a mocked end-to-end repair cycle. The real model/compiler/simulator path still needs Ollama and Icarus installed:
+This covers structural checks, result parsing, verified-example memory behavior, per-run isolation, attempt/run records, event traces, replay comparison, and both mocked and real-simulator end-to-end repair cycles. The real model/compiler/simulator path needs Ollama and Icarus installed:
 
 ```bash
-python manual_agent_integration.py
-python manual_structural_gate.py
-python manual_reported_bug.py
+python -m pytest -q tests          # real-sim tests run when iverilog/vvp exist
+python -m agent_core.agent         # one real model run
 ```
 
 ## Current validation status

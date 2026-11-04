@@ -96,9 +96,8 @@ def test_orchestrator_mocked_execution(tmp_path):
         },
     )
 
-    def fake_generate(devices, spec_path, out_path, model=None, temperature=0.0, seed=None):
-        with open(out_path, "w") as f:
-            f.write(good)
+    def fake_generate(devices, spec_path, model=None, temperature=0.0, seed=None, **kwargs):
+        return good
 
     result = orchestrator.execute_task(
         task,

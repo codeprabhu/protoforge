@@ -1,0 +1,21 @@
+{
+  "base_seed": 42,
+  "distinct_first_attempts": 4,
+  "errors": [],
+  "first_attempts_recorded": 5,
+  "first_try_pass": 0,
+  "first_try_pass_rate": 0.0,
+  "model": "qwen2.5-coder:7b",
+  "other_outcomes": 0,
+  "outcomes": {
+    "pass": 1,
+    "sim_checks_failed": 4
+  },
+  "pass_after_repair": 1,
+  "pass_rate_after_repair": 0.2,
+  "recovered_by_repair": 1,
+  "retrieval_enabled": true,
+  "runs_completed": 5,
+  "runs_requested": 5,
+  "temperature": 0.25
+}

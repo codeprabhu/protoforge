@@ -1,0 +1,94 @@
+{
+  "run_id": "case-structural",
+  "task_id": "i2c-case-structural",
+  "domain": "i2c",
+  "start_time": 1793797270.7511964,
+  "end_time": 1793797270.752646,
+  "status": "failed",
+  "events": [
+    {
+      "event_id": "ea42a7f2-6732-4e17-ad7d-4be252840a60",
+      "run_id": "case-structural",
+      "timestamp": 1793797270.751224,
+      "event_type": "run_started",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "config": {
+          "device_paths": [
+            "devices/device_sensor.v",
+            "devices/device_controller.v"
+          ],
+          "spec_path": "protocols/i2c/spec.md",
+          "tb_path": "protocols/i2c/testbench_i2c.v",
+          "max_repairs": 0,
+          "model": "stub-replay",
+          "seed": 42,
+          "temperature": 0.0,
+          "retrieval": true,
+          "output_root": "/home/shrivathssp/Desktop/protoforge/results/replay_v1",
+          "results_log": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/index.jsonl",
+          "trace_dir": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/traces",
+          "target_name": "top_glue.v"
+        },
+        "git_commit": "cb15497b98ee44d6ca2feb0a82b8d546b413fc5b"
+      }
+    },
+    {
+      "event_id": "cbd9de6c-b806-4ea8-a9bd-b676276d6c3c",
+      "run_id": "case-structural",
+      "timestamp": 1793797270.7515788,
+      "event_type": "model_invoked",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "model": "stub-replay",
+        "repair": false,
+        "prompt_chars": 0,
+        "raw_output_chars": 0,
+        "candidate_hash": "0317e94208229578"
+      }
+    },
+    {
+      "event_id": "98d864b1-a0b0-4b56-920e-d9d2f99d4b34",
+      "run_id": "case-structural",
+      "timestamp": 1793797270.7520778,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "stage": "structural",
+        "passed": false,
+        "attempt": 0,
+        "failed_checks": [
+          "no_delay_statements",
+          "open_drain_sda",
+          "open_drain_scl",
+          "no_procedural_bus_writes",
+          "instantiates_device_sensor",
+          "instantiates_device_controller"
+        ]
+      }
+    },
+    {
+      "event_id": "993c535c-8e24-4c43-814d-c918ac73803f",
+      "run_id": "case-structural",
+      "timestamp": 1793797270.7526927,
+      "event_type": "run_finished",
+      "agent_role": null,
+      "model": "stub-replay",
+      "data": {
+        "final": "structural_failed",
+        "run_dir": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/case-structural"
+      }
+    }
+  ],
+  "decision_records": [],
+  "summary": {
+    "final": "structural_failed",
+    "attempts": 1,
+    "first_attempt_pass": false,
+    "recovered_after_repair": false,
+    "run_dir": "/home/shrivathssp/Desktop/protoforge/results/replay_v1/case-structural"
+  }
+}

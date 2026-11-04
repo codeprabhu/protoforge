@@ -37,6 +37,29 @@ def test_missing_tb_done_fails():
     assert "tb_done" in explain_failures(v["failed_checks"])
 
 
+def test_glitch_and_extra_byte_fail_only_when_reported():
+    parsed = parse_result_line(
+        BASE + " tb_done=1 starts=1 stops=1 sda_glitches=1 bytes=3"
+    )
+    assert (parsed["sda_glitches"], parsed["bytes"]) == (1, 3)
+    v = judge(parsed)
+    assert set(v["failed_checks"]) == {"sda_stable", "byte_count"}
+
+    legacy = parse_result_line(BASE + " tb_done=1 starts=1 stops=1")
+    assert "sda_glitches" not in legacy and "bytes" not in legacy
+    assert judge(legacy)["pass"]
+
+
+def test_explanations_name_the_actual_expected_values():
+    text = explain_failures(
+        ["correct_address", "correct_data"],
+        expected_addr="44",
+        expected_data="a5",
+    )
+    assert "0x44" in text and "0xA5" in text
+    assert "0xA0" not in text and "0x3C" not in text
+
+
 def test_repeated_start_and_extra_stop_fail():
     v = judge(parse_result_line(BASE + " tb_done=1 starts=2 stops=2"))
     assert set(v["failed_checks"]) == {"single_start", "single_stop"}

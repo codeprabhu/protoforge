@@ -1,0 +1,9 @@
+== case-good
+attempt 0: MATCH (stored=pass replay=pass)
+exit=0
+== case-no-stop
+attempt 0: MATCH (stored=sim_checks_failed replay=sim_checks_failed)
+exit=0
+== case-structural
+attempt 0: MATCH (stored=structural_failed replay=structural_failed)
+exit=0

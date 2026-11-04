@@ -1,15 +1,58 @@
+"""Prompt construction and deterministic wrapping for generated I2C RTL.
+
+The model only writes the behaviour-bearing fragment. The top-level ports,
+device instances, and open-drain bus drivers are generated deterministically
+from the parsed device interfaces, so a small model cannot corrupt them.
+
+Generators return the RTL **string**; writing it to disk is optional and is
+never required to pass the code to the next pipeline stage.
+"""
+
+from __future__ import annotations
+
 import re
+from typing import Any, Dict, List, Optional
 
 from agent import ollama_client
 from agent.rtl_cleaner import clean_rtl
 from tools.file_tool import save_file
-from tools.verilog_parser import parse_verilog_file, ModuleInfo
-from tools.rtl_memory import retrieve_rtl_context
+from tools.rtl_memory import retrieve_rtl_examples
+from tools.verilog_parser import ModuleInfo, parse_verilog_file
 
 
 def generate_verilog(*args, **kwargs):
     """Indirection keeps model calls patchable in integration tests."""
     return ollama_client.generate_verilog(*args, **kwargs)
+
+
+def _invoke_model(
+    prompt: str,
+    *,
+    model: Optional[str] = None,
+    temperature: Optional[float] = None,
+    seed: Optional[int] = None,
+) -> tuple[str, Dict[str, Any]]:
+    """Call the model and return ``(text, response_metadata)``.
+
+    The call goes through the module-level ``generate_verilog`` wrapper so
+    existing tests can patch either this module or ``ollama_client``. A patched
+    function that returns a plain string is accepted and yields empty metadata.
+    """
+    kwargs: Dict[str, Any] = {"with_metadata": True}
+    if model:
+        kwargs["model"] = model
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    if seed is not None:
+        kwargs["seed"] = seed
+    result = generate_verilog(prompt, **kwargs)
+    if isinstance(result, dict):
+        content = result.get("content", "")
+        metadata = {key: value for key, value in result.items() if key != "content"}
+        return content, metadata
+    return result, {}
+
+
 
 I2C_IMPLEMENTATION_RULES = """
 IMPORTANT:
@@ -80,40 +123,36 @@ bus lines open-drain using internal *_drive_low registers and tri-state assigns.
 NEVER use # delays, wait statements, or initial blocks. Do not use SystemVerilog
 syntax: target plain Verilog-2001. Never use curly braces for statement grouping.
 """
+
+
 def build_instance_block(info: ModuleInfo, label: str, instance_name: str) -> dict:
-    """
-    Deterministically generates the wire/reg declarations + instantiation
-    for a device, from its parsed port list. This removes the single
-    biggest LLM failure mode observed in practice (the model simply not
-    instantiating the devices, or getting port connections wrong) by
-    never asking the LLM to write this part at all.
+    """Generate wire/reg declarations plus the instantiation for one device.
 
-    `label` is a short prefix (e.g. "a", "b") used to namespace internal
-    signal names so two devices with identically-named ports don't collide.
+    ``label`` namespaces internal signal names (e.g. ``a_reg_write``) so two
+    devices with identically named ports do not collide.
 
-    Returns {"code": <verilog text>, "signals": {port_name: internal_signal_name}}
-    so the caller can tell the LLM exactly what to drive/read.
+    Returns ``{"code": <verilog text>, "signals": {port: internal_name}}`` so
+    the prompt can tell the model exactly which signals it may drive or read.
     """
     decls = []
     conns = []
     signals = {}
 
-    for p in info.ports:
-        if p.name in ("clk", "rst_n"):
-            # tie straight to the top-level signal of the same name
-            conns.append(f".{p.name}({p.name})")
-            signals[p.name] = p.name
+    for port in info.ports:
+        if port.name in ("clk", "rst_n"):
+            conns.append(f".{port.name}({port.name})")
+            signals[port.name] = port.name
             continue
 
-        internal_name = f"{label}_{p.name}"
-        width = f"{p.width} " if p.width else ""
-        if p.direction == "input":
+        internal_name = f"{label}_{port.name}"
+        width = f"{port.width} " if port.width else ""
+        if port.direction == "input":
             decls.append(f"    reg  {width}{internal_name};")
-        else:  # output (or inout, treated as wire here -- devices in v1 have none)
+        else:  # output (or inout, treated as wire here -- v1 devices have none)
             decls.append(f"    wire {width}{internal_name};")
 
-        conns.append(f".{p.name}({internal_name})")
-        signals[p.name] = internal_name
+        conns.append(f".{port.name}({internal_name})")
+        signals[port.name] = internal_name
 
     conn_str = ",\n        ".join(conns)
     code = "\n".join(decls) + f"\n\n    {info.name} {instance_name} (\n        {conn_str}\n    );"
@@ -123,9 +162,8 @@ def build_instance_block(info: ModuleInfo, label: str, instance_name: str) -> di
 def build_device_instance_blocks(device_paths: list[str]) -> list[dict]:
     """Parse and wire any number of contract-compliant device modules.
 
-    The order is part of the generated interface: it deterministically maps
-    devices to labels a, b, c, ... and prevents the model from inventing
-    instance names or port connections.
+    Device order is part of the generated interface: it deterministically maps
+    devices to labels a, b, c, ... so the model never invents instance names.
     """
     if not device_paths:
         raise ValueError("At least one device is required")
@@ -148,162 +186,38 @@ def build_device_instance_blocks(device_paths: list[str]) -> list[dict]:
 
 
 def _signal_map_summary(label: str, signals: dict) -> str:
-    lines = [f"  {port} -> {sig}" for port, sig in signals.items() if port not in ("clk", "rst_n")]
-    return "\n".join(lines)
+    return "\n".join(
+        f"  {port} -> {sig}" for port, sig in signals.items() if port not in ("clk", "rst_n")
+    )
 
 
-GLUE_PROMPT = """You are completing a partially-written Verilog module. Both
-devices are ALREADY instantiated below with all wiring pre-generated --
-do not remove, rename, or re-declare them or their signals. Your ONLY job
-is to write the I2C master state machine in the marked TODO section,
-driving/reading the internal signals listed below.
+MULTI_SMALL_MODEL_PROMPT = """You are generating only the behavior-bearing control fragment for a fixed
+Verilog-2001 I2C wrapper. The harness already declares clk, rst_n, tb_start,
+tb_done, the open-drain sda/scl drivers, and every device instance below.
+Do not output a module header, module instances, bus assignments, or endmodule.
 
-Device A ({device_a_module}) is instantiated as `u_device_a`. Its signals
-you can drive/read from your FSM:
-{device_a_signal_map}
+Devices and their generated internal signals:
+{device_maps}
 
-Device B ({device_b_module}) is instantiated as `u_device_b`. Its signals
-you can drive/read from your FSM:
-{device_b_signal_map}
-
-Protocol specification to implement in the marked section:
+Implement the transaction required by this protocol specification:
 {protocol_spec}
 
-Additional implementation requirements:
-{implementation_rules}
-
-Retrieved design context from verified examples and previous passing runs:
-{retrieved_context}
-
-The retrieved example is for protocol timing guidance only. Use the instance
-block below, obey the current device interfaces and exact top-level contract,
-and do not copy any forbidden constructs from historical examples.
-
-Here is the module you must complete. Copy the instantiation section
-EXACTLY as shown -- it is already correct and complete. Only write code
-where marked TODO:
-
-```verilog
-module top_glue (
-    input  wire clk,
-    input  wire rst_n,
-    inout  wire sda,
-    inout  wire scl,
-    input  wire tb_start,
-    output reg  tb_done
-);
-
-    // --- Device A: copy exactly, do not modify ---
-{device_a_instance_code}
-
-    // --- Device B: copy exactly, do not modify ---
-{device_b_instance_code}
-
-    // --- TODO: implement the I2C master state machine here ---
-    // Requirements: on tb_start, issue START, write address byte 0xA0
-    // (0x50 write), wait for ACK, write one data byte, wait for ACK,
-    // issue STOP, then set tb_done = 1.
-    //
-    // RULES (violating any of these will fail to compile):
-    // - Use non-blocking assignments (<=) for all sequential state. Never
-    //   read a signal in the same always block on the same clock edge
-    //   you just assigned it with <= in a prior statement -- that reads
-    //   the OLD value, not the one you just set.
-    // - NEVER use `#<number>` delays (e.g. #10). This is synthesizable
-    //   hardware, not a testbench. To wait N clock cycles, use a counter
-    //   register that increments every clock edge and gates a state
-    //   transition on reaching a target count.
-    // - NEVER use curly braces to group multiple statements (that
-    //   syntax is ONLY for bit concatenation, e.g. joining two signals
-    //   into one wider bus). To execute multiple statements together
-    //   use begin ... end, e.g. begin a <= 0; b <= 1; end.
-    // - Every `case` item with more than one statement MUST be wrapped
-    //   in `begin ... end`, e.g. `START: begin a <= 1; b <= 0; end`.
-
-endmodule
-```
-
-Output ONLY the complete module (instantiations + your state machine) in
-a single ```verilog code block. Do not use markdown escaping (no
-backslash before underscores or asterisks) -- this is a plain text
-Verilog file, not markdown prose.
-"""
-
-
-SMALL_MODEL_PROMPT = """You are generating the control fragment for a fixed Verilog-2001 I2C wrapper.
-Do NOT generate a module header, device declarations/instances, bus assignments,
-or endmodule. Those are generated deterministically by the harness. Return only
-RTL declarations needed by your FSM and one clocked always block.
-
-Fixed signals already declared by the harness:
-- clk, rst_n, tb_start, tb_done
-- sda_drive_low and scl_drive_low are regs; 1 means pull the line low, 0 means release it
-- SDA/SCL are already wired as open-drain: assign line = drive_low ? 1'b0 : 1'bz
-- Device A is instantiated as u_device_a; ports/signals: {device_a_signal_map}
-- Device B is instantiated as u_device_b; ports/signals: {device_b_signal_map}
-
-Task: implement exactly one transaction after tb_start: START, address byte 8'hA0
-(MSB first), slave ACK clock, one data byte 8'h3C (MSB first), slave ACK clock,
-STOP, then assert tb_done. The testbench observes only external SDA/SCL; writing
-internal device registers is not a substitute for an I2C transaction.
-
-Rules:
-- START is SDA falling while SCL is released/high; STOP is SDA rising while SCL is high.
-- Each data bit has a low phase to set SDA and a high phase to sample/clock it.
-- Release SDA during each ACK so the slave can pull it low.
-- Keep SCL released during START/STOP transitions. Use a counter so phases last
-  several clk cycles (the testbench must observe the edges).
-- Use an explicit FSM and nonblocking assignments in always @(posedge clk or negedge rst_n).
-- Reset state, counters, drive registers and tb_done in the reset branch.
-- No initial, wait, #delay, SystemVerilog-only syntax, curly-brace statement blocks,
-  or procedural assignments to SDA/SCL. Use plain Verilog-2001.
-- Every multi-statement case arm must use begin/end. Do not omit default recovery.
-
-Protocol spec:
-{protocol_spec}
+The local device ports are not the I2C bus. The FSM must directly create all
+START, address, data, ACK and STOP transitions on sda/scl. Keep each device
+interface correctly driven according to its port direction; never invent a
+port or rename a generated signal.
 
 Implementation constraints:
 {implementation_rules}
 
-Retrieved verified RTL (reference only; do not copy module/interface/instance wrappers):
+The fragment must contain declarations for its own state and one synthesizable
+clocked always block. The harness already owns sda_drive_low and scl_drive_low:
+do not declare them again. Return only plain Verilog-2001 declarations and the
+always block, with no markdown or prose.
+
+Verified context:
 {retrieved_context}
-
-Return only the declarations and always block, no markdown fences and no prose.
 """
-
-
-def _assemble_fragment(a_instance_code: str, b_instance_code: str, fragment: str) -> str:
-    """Wrap a model-produced FSM fragment in a deterministic module shell.
-
-    Full-module output remains accepted for backwards compatibility, but the
-    small-model path asks for only the behavior-bearing fragment so the model
-    cannot corrupt the port list or device instantiations.
-    """
-    return f'''module top_glue (
-    input  wire clk,
-    input  wire rst_n,
-    inout  wire sda,
-    inout  wire scl,
-    input  wire tb_start,
-    output reg  tb_done
-);
-
-    // Generated deterministically from parsed device interfaces.
-{a_instance_code}
-
-{b_instance_code}
-
-    // Open-drain bus drivers are fixed by the harness.
-    reg sda_drive_low;
-    reg scl_drive_low;
-    assign sda = sda_drive_low ? 1'b0 : 1'bz;
-    assign scl = scl_drive_low ? 1'b0 : 1'bz;
-
-    // Model-generated FSM fragment begins here.
-{fragment.rstrip()}
-    // Model-generated FSM fragment ends here.
-endmodule
-'''
 
 
 def _assemble_multi_fragment(instance_code: str, fragment: str) -> str:
@@ -332,14 +246,29 @@ endmodule
 '''
 
 
+def wrap_raw_fragment(device_paths: list[str] | None, raw_output: str) -> str:
+    """Put an unpatched model response behind the deterministic wrapper.
+
+    This is the ablation path: the fixed top-level ports, device instances and
+    open-drain drivers are still supplied by the harness, but the response is
+    not cleaned, coerced or scaffold-normalised. It measures how much of the
+    pass rate depends on the regex patcher.
+    """
+    if not device_paths:
+        return raw_output
+    blocks = build_device_instance_blocks(device_paths)
+    instance_code = "\n\n".join(block["code"] for block in blocks)
+    return _assemble_multi_fragment(instance_code, raw_output)
+
+
 def normalize_model_rtl(generated: str, device_paths: list[str] | None = None,
                         address_hex: str = "a0", data_hex: str = "3c") -> str:
-    """Put model behavior behind the deterministic wrapper used by generation.
+    """Put model behaviour behind the deterministic wrapper used by generation.
 
     Repair responses frequently ignore the request for a complete module or
-    return a wrapper with stale device instances.  Reusing the same scaffold
+    return a wrapper with stale device instances. Reusing the same scaffold
     for repairs prevents those responses from changing the hardware contract
-    between attempts; only the behavior-bearing fragment is accepted.
+    between attempts; only the behaviour-bearing fragment is accepted.
     """
     if not device_paths:
         return generated
@@ -351,14 +280,7 @@ def normalize_model_rtl(generated: str, device_paths: list[str] | None = None,
 
 
 def _remove_fixed_bus_declarations(fragment: str) -> str:
-    """Remove redundant declarations for signals owned by the scaffold.
-
-    The fragment prompt says these registers already exist, but a model may
-    still echo their declarations. Removing only standalone declarations is a
-    safe normalization that avoids spending a repair on a deterministic name
-    collision; assignments and declarations of all model-owned signals remain
-    untouched.
-    """
+    """Remove redundant declarations for signals owned by the scaffold."""
     fragment = re.sub(
         r"(?im)^\s*(?:reg|wire|logic)\s+(?:\[[^\]]+\]\s+)?sda_drive_low\s*;\s*(?://[^\n]*)?\n?",
         "",
@@ -403,7 +325,7 @@ def _normalize_fragment_scaffold(fragment: str, address_hex: str = "a0", data_he
 
 
 def _coerce_full_module_to_fragment(generated: str, address_hex: str = "a0", data_hex: str = "3c") -> str:
-    """Extract behavior from a model that ignored the fragment contract."""
+    """Extract behaviour from a model that ignored the fragment contract."""
     if not re.search(r"\bmodule\s+top_glue\b", generated, re.I):
         return _normalize_fragment_scaffold(
             _remove_fixed_bus_declarations(generated), address_hex, data_hex
@@ -413,7 +335,9 @@ def _coerce_full_module_to_fragment(generated: str, address_hex: str = "a0", dat
     header = re.search(r"\)\s*;", candidate, re.S)
     end = candidate.lower().rfind("endmodule")
     if not header or end <= header.end():
-        return _normalize_fragment_scaffold(_remove_fixed_bus_declarations(candidate), address_hex, data_hex)
+        return _normalize_fragment_scaffold(
+            _remove_fixed_bus_declarations(candidate), address_hex, data_hex
+        )
     body = candidate[header.end():end]
     # Start after the model's wrapper/device section. The last instance close
     # before the sequential block is a stable boundary for ANSI Verilog;
@@ -428,7 +352,7 @@ def _coerce_full_module_to_fragment(generated: str, address_hex: str = "a0", dat
             instance_end = prefix.rfind(");")
             if instance_end >= 0 and "endmodule" not in prefix[instance_end:]:
                 body = body[instance_end + 2:]
-    if body == generated[header.end():end]:
+    if body == candidate[header.end():end]:
         anchor = re.search(r"(?im)^\s*(?:localparam|parameter|reg|wire)\b", body)
         if anchor:
             body = body[anchor.start():]
@@ -549,95 +473,52 @@ def _repair_discipline(failure_detail: str) -> str:
     return "No phase is known valid; implement the full required sequence and do not shortcut to tb_done."
 
 
-def generate_glue_rtl(device_a_path, device_b_path, protocol_spec_path,
-                       out_path="generated/top_glue.v", model=None, debug_prompt_path="generated/last_prompt.txt",
-                       temperature=0.0, seed=None):
-    a = parse_verilog_file(device_a_path)
-    b = parse_verilog_file(device_b_path)
-    spec = open(protocol_spec_path).read()
-
-    a_inst = build_instance_block(a, "a", "u_device_a")
-    b_inst = build_instance_block(b, "b", "u_device_b")
-
-    retrieval_query = (
-        "I2C open-drain master FSM START START_HOLD address 0xA0 MSB-first "
-        "ACK data byte ACK STOP low high clock phases counter tb_done synthesizable Verilog-2001"
-    )
-    retrieved_context = _behavior_context(
-        retrieve_rtl_context(retrieval_query, max_examples=1, max_chars=10000)
-    )
-
-    signal_map_a = _signal_map_summary("a", a_inst["signals"])
-    signal_map_b = _signal_map_summary("b", b_inst["signals"])
-    # Ask even small models for only the behavior-bearing fragment. The
-    # wrapper/ports/instances/open-drain drivers are deterministic scaffolding.
-    prompt = SMALL_MODEL_PROMPT.format(
-        device_a_signal_map=signal_map_a,
-        device_b_signal_map=signal_map_b,
-        protocol_spec=spec,
-        implementation_rules=I2C_IMPLEMENTATION_RULES,
-        retrieved_context=retrieved_context,
-    )
-
-    if debug_prompt_path:
-        save_file(debug_prompt_path, prompt)
-
-    kwargs = {"temperature": temperature}
-    if seed is not None:
-        kwargs["seed"] = seed
-    if model:
-        kwargs["model"] = model
-    generated = clean_rtl(generate_verilog(prompt, **kwargs))
-    # Preserve compatibility with full-module responses from older prompts or
-    # models that ignore the fragment contract; those still go through gates.
-    rtl = _assemble_fragment(
-        a_inst["code"], b_inst["code"], _coerce_full_module_to_fragment(generated)
-    )
-    save_file(out_path, rtl)
-    return out_path, prompt
-
-
-MULTI_SMALL_MODEL_PROMPT = """You are generating only the behavior-bearing control fragment for a fixed
-Verilog-2001 I2C wrapper. The harness already declares clk, rst_n, tb_start,
-tb_done, the open-drain sda/scl drivers, and every device instance below.
-Do not output a module header, module instances, bus assignments, or endmodule.
-
-Devices and their generated internal signals:
-{device_maps}
-
-Implement the transaction required by this protocol specification:
-{protocol_spec}
-
-The local device ports are not the I2C bus. The FSM must directly create all
-START, address, data, ACK and STOP transitions on sda/scl. Keep each device
-interface correctly driven according to its port direction; never invent a
-port or rename a generated signal.
-
-Implementation constraints:
-{implementation_rules}
-
-The fragment must contain declarations for its own state and one synthesizable
-clocked always block. The harness already owns sda_drive_low and scl_drive_low:
-do not declare them again. Return only plain Verilog-2001 declarations and the
-always block, with no markdown or prose.
-
-Verified context:
-{retrieved_context}
-"""
+def _record_trace(
+    trace: Optional[Dict[str, Any]],
+    *,
+    prompt: str,
+    raw_output: str,
+    cleaned_code: str,
+    retrieved_context: str,
+    retrieval: Dict[str, Any],
+    device_paths: List[str],
+    model_metadata: Dict[str, Any],
+) -> None:
+    if trace is None:
+        return
+    trace.update({
+        "prompt": prompt,
+        "raw_output": raw_output,
+        "cleaned_code": cleaned_code,
+        "retrieved_context": retrieved_context,
+        "retrieval": retrieval,
+        "device_paths": list(device_paths),
+        "model_metadata": model_metadata,
+    })
 
 
 def generate_multi_device_glue_rtl(
-    device_paths: list[str], protocol_spec_path: str,
-    out_path: str = "generated/top_glue.v", model=None,
-    debug_prompt_path: str | None = "generated/last_prompt.txt",
-    temperature: float = 0.0, seed=None,
-):
-    """Generate a fixed wrapper for an arbitrary set of device modules."""
+    device_paths: list[str],
+    protocol_spec_path: str,
+    model: Optional[str] = None,
+    temperature: float = 0.0,
+    seed: Optional[int] = None,
+    retrieval: bool = True,
+    patcher: bool = True,
+    out_path: Optional[str] = None,
+    trace: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Generate a deterministic wrapper around a model-written FSM fragment.
+
+    Returns the complete ``top_glue`` source as a string. If ``out_path`` is
+    given the same source is also written there (convenience only; the live
+    pipeline keeps the string and writes its own per-attempt file).
+    """
+    from tools.i2c_spec import parse_i2c_spec
+
     blocks = build_device_instance_blocks(device_paths)
     spec = open(protocol_spec_path, encoding="utf-8").read()
-    from tools.i2c_spec import parse_i2c_spec
     parsed_spec = parse_i2c_spec(protocol_spec_path)
-    instance_code = "\n\n".join(block["code"] for block in blocks)
     maps = []
     for block in blocks:
         maps.append(
@@ -645,38 +526,69 @@ def generate_multi_device_glue_rtl(
             f"instantiated as `{block['instance_name']}`:\n"
             + _signal_map_summary(block["label"], block["signals"])
         )
-    retrieved_context = _behavior_context(retrieve_rtl_context(
+    retrieval_result = retrieve_rtl_examples(
         "I2C open-drain master FSM START address ACK data STOP Verilog-2001",
-        max_examples=1, max_chars=10000,
-    ))
+        max_examples=1, max_chars=10000, enabled=retrieval,
+    )
+    retrieved_context = _behavior_context(retrieval_result["text"])
     prompt = MULTI_SMALL_MODEL_PROMPT.format(
         device_maps="\n\n".join(maps), protocol_spec=spec,
         implementation_rules=I2C_IMPLEMENTATION_RULES,
         retrieved_context=retrieved_context,
     )
     prompt = _specialize_protocol_prompt(prompt, parsed_spec.address_hex, parsed_spec.data_hex)
-    if debug_prompt_path:
-        save_file(debug_prompt_path, prompt)
-    kwargs = {"temperature": temperature}
-    if seed is not None:
-        kwargs["seed"] = seed
-    if model:
-        kwargs["model"] = model
-    generated = clean_rtl(generate_verilog(prompt, **kwargs))
-    rtl = normalize_model_rtl(generated, device_paths, parsed_spec.address_hex,
-                              parsed_spec.data_hex)
-    save_file(out_path, rtl)
-    return out_path, prompt
+    raw_output, model_metadata = _invoke_model(
+        prompt, model=model, temperature=temperature, seed=seed
+    )
+    if patcher:
+        cleaned = clean_rtl(raw_output)
+        rtl = normalize_model_rtl(
+            cleaned, device_paths, parsed_spec.address_hex, parsed_spec.data_hex
+        )
+    else:
+        # Ablation: keep the model response verbatim inside the fixed wrapper.
+        cleaned = raw_output
+        rtl = wrap_raw_fragment(device_paths, raw_output)
+    if out_path:
+        save_file(out_path, rtl)
+    _record_trace(
+        trace, prompt=prompt, raw_output=raw_output, cleaned_code=cleaned,
+        retrieved_context=retrieved_context, retrieval=retrieval_result,
+        device_paths=device_paths, model_metadata=model_metadata,
+    )
+    return rtl
 
 
-def repair_rtl(code, failure_kind, failure_detail, out_path="generated/top_glue.v", model=None,
-               temperature=None, seed=None, expected_addr="a0", expected_data="3c",
-               device_paths=None):
-    repair_context = _behavior_context(retrieve_rtl_context(
+def generate_glue_rtl(device_a_path, device_b_path, protocol_spec_path, **kwargs) -> str:
+    """Two-device convenience wrapper kept for older callers and tests."""
+    return generate_multi_device_glue_rtl(
+        [device_a_path, device_b_path], protocol_spec_path, **kwargs
+    )
+
+
+def repair_rtl(
+    code,
+    failure_kind,
+    failure_detail,
+    model=None,
+    temperature=None,
+    seed=None,
+    expected_addr="a0",
+    expected_data="3c",
+    device_paths=None,
+    retrieval: bool = True,
+    patcher: bool = True,
+    out_path: Optional[str] = None,
+    trace: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Return repaired ``top_glue`` source for the given failure diagnosis."""
+    retrieval_result = retrieve_rtl_examples(
         "I2C master repair open drain START STOP ACK address 0xA0 data byte clock phases Verilog-2001",
         max_examples=1,
         max_chars=8000,
-    ))
+        enabled=retrieval,
+    )
+    repair_context = _behavior_context(retrieval_result["text"])
     prompt = REPAIR_PROMPT.format(
         code=code,
         failure_kind=failure_kind,
@@ -685,14 +597,20 @@ def repair_rtl(code, failure_kind, failure_detail, out_path="generated/top_glue.
     )
     prompt = _specialize_protocol_prompt(prompt, expected_addr, expected_data)
     prompt += "\nObserved-failure preservation contract:\n" + _repair_discipline(failure_detail) + "\n"
-    kwargs = {}
-    if model:
-        kwargs["model"] = model
-    if temperature is not None:
-        kwargs["temperature"] = temperature
-    if seed is not None:
-        kwargs["seed"] = seed
-    fixed = clean_rtl(generate_verilog(prompt, **kwargs))
-    fixed = normalize_model_rtl(fixed, device_paths, expected_addr, expected_data)
-    save_file(out_path, fixed)
-    return fixed, prompt
+    raw_output, model_metadata = _invoke_model(
+        prompt, model=model, temperature=temperature, seed=seed
+    )
+    if patcher:
+        cleaned = clean_rtl(raw_output)
+        fixed = normalize_model_rtl(cleaned, device_paths, expected_addr, expected_data)
+    else:
+        cleaned = raw_output
+        fixed = wrap_raw_fragment(device_paths, raw_output)
+    if out_path:
+        save_file(out_path, fixed)
+    _record_trace(
+        trace, prompt=prompt, raw_output=raw_output, cleaned_code=cleaned,
+        retrieved_context=repair_context, retrieval=retrieval_result,
+        device_paths=list(device_paths or []), model_metadata=model_metadata,
+    )
+    return fixed

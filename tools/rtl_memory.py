@@ -15,7 +15,6 @@ import re
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Iterable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REFERENCE = PROJECT_ROOT / "protocols" / "i2c" / "reference" / "good_master_reset_safe.v"
@@ -110,24 +109,39 @@ def _load_successful_examples(memory_dir: Path) -> list[tuple[str, str, str]]:
     return examples
 
 
-def retrieve_rtl_context(
+def retrieve_rtl_examples(
     query: str,
     max_examples: int = 1,
     max_chars: int = 10000,
     memory_dir: str | Path | None = None,
-) -> str:
-    """Retrieve the most relevant verified examples and return prompt-ready text.
+    enabled: bool | None = None,
+) -> dict:
+    """Retrieve verified examples and report exactly what was chosen.
 
-    Set PROTOFORGE_NO_RETRIEVAL=1 to disable retrieval (ablation). The seed
-    example is derived from the known-good oracle, so with retrieval on a pass
-    partly measures copying it; with retrieval off it measures generation.
+    Returns ``{"enabled", "query", "text", "examples"}`` where each example
+    carries its label, origin (``seed`` or ``learned``), retrieval score and
+    size. The live pipeline stores this in the attempt record so a run can be
+    audited for what the model was actually shown.
     """
-    if os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower() in {"1", "true", "yes", "on"}:
-        return "Retrieval is disabled for this run; no reference examples are provided. Work only from the spec above."
+    if enabled is None:
+        enabled = os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower() not in {"1", "true", "yes", "on"}
+    if not enabled:
+        return {
+            "enabled": False,
+            "query": query,
+            "text": "Retrieval is disabled for this run; no reference examples are provided. Work only from the spec above.",
+            "examples": [],
+        }
+
     root = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
     examples = _load_successful_examples(root)
     if not examples or max_examples <= 0:
-        return "No previously verified RTL examples are available."
+        return {
+            "enabled": True,
+            "query": query,
+            "text": "No previously verified RTL examples are available.",
+            "examples": [],
+        }
 
     query_tokens = _tokens(query)
     ranked = []
@@ -144,6 +158,7 @@ def retrieve_rtl_context(
         "RETRIEVED VERIFIED EXAMPLE(S) — use as behavioral guidance, not as text to copy blindly.",
         "Preserve the requested wrapper and generated device instances. Check every example against the current spec; never copy testbench-only constructs, `initial`, `wait`, or delay controls.",
     ]
+    chosen = []
     used = 0
     for score, origin, label, code in ranked:
         if used >= max_examples:
@@ -158,8 +173,37 @@ def retrieve_rtl_context(
             if "endmodule" not in snippet:
                 snippet += "\n// [retrieved example truncated to fit the context budget]"
         sections.extend([header, snippet])
+        chosen.append({
+            "label": label,
+            "origin": origin,
+            "score": round(score, 6),
+            "chars": len(snippet),
+            "sha256": hashlib.sha256(code.encode("utf-8")).hexdigest(),
+        })
         used += 1
-    return "\n".join(sections)
+    return {
+        "enabled": True,
+        "query": query,
+        "text": "\n".join(sections),
+        "examples": chosen,
+    }
+
+
+def retrieve_rtl_context(
+    query: str,
+    max_examples: int = 1,
+    max_chars: int = 10000,
+    memory_dir: str | Path | None = None,
+    enabled: bool | None = None,
+) -> str:
+    """Return only the prompt-ready text (compatibility wrapper)."""
+    return retrieve_rtl_examples(
+        query,
+        max_examples=max_examples,
+        max_chars=max_chars,
+        memory_dir=memory_dir,
+        enabled=enabled,
+    )["text"]
 
 
 def memory_summary(memory_dir: str | Path | None = None) -> dict:

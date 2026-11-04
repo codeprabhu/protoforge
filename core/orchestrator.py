@@ -1,31 +1,46 @@
-"""Domain-neutral execution coordinator for ProtoForge."""
+"""Domain-neutral execution coordinator for ProtoForge.
+
+The live loop is deterministic:
+
+    generate -> structural -> compile -> hardware -> simulate -> judge -> repair
+
+Repair is bounded and receives the specific failed stage/checks. The
+specialist multi-agent draft that used to live (unreachable) in this module is
+archived in ``archive/multi_agent_draft.py`` until Phase 9.
+"""
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import time
-import json
-import hashlib
+from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-from core.schemas import CandidatePatch, Task, ValidationResult, RunEvent, AgentResult
-from core.trace_schema import RunTrace, EventType
-from core.event_store import EventStore
-import uuid
-from core.task_graph import TaskGraph, TaskState
-from domains.registry import get_domain
+from core import outcomes
+from core.attempt_record import AttemptRecord, write_attempt_record
+from core.schemas import Task, ValidationResult
+from core.trace_schema import EventType
 from domains.base import BaseDomainAdapter
+from domains.registry import get_domain
 
 
-def _hash_code(code: str) -> str:
-    return hashlib.sha256(code.encode("utf-8")).hexdigest()[:16]
+def _emit(event_sink: Optional[Callable], event_type: EventType, **data: Any) -> None:
+    """Best-effort event emission: tracing must never break a run."""
+    if event_sink is None:
+        return
+    try:
+        event_sink(event_type, data)
+    except Exception:
+        pass
 
 
 def _snapshot(code: str, stage: str, failed_checks: Optional[List[str]] = None) -> Dict[str, Any]:
-    h = hashlib.sha256(code.encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(code.encode("utf-8")).hexdigest()
     return {
-        "sha256": h,
-        "candidate_hash": h[:16],
+        "sha256": digest,
+        "candidate_hash": digest[:16],
         "code_len_chars": len(code),
         "stage": stage,
         "failed_checks": failed_checks or [],
@@ -33,10 +48,76 @@ def _snapshot(code: str, stage: str, failed_checks: Optional[List[str]] = None) 
 
 
 class Orchestrator:
-    """Domain-independent coordinator that manages candidate generation, verification, and repair."""
+    """Coordinate candidate generation, verification, and bounded repair."""
 
     def __init__(self, domain: BaseDomainAdapter):
         self.domain = domain
+
+    def _repair(
+        self,
+        candidate,
+        failed_results: List[ValidationResult],
+        *,
+        model: Optional[str],
+        temperature: float,
+        seed: Optional[int],
+        repair_fn: Optional[Callable],
+        retrieval: bool,
+        patcher: bool = True,
+        event_sink: Optional[Callable] = None,
+    ):
+        repaired = self.domain.repair_candidate(
+            candidate,
+            failed_results,
+            model=model,
+            temperature=temperature,
+            seed=seed,
+            repair_fn=repair_fn,
+            retrieval=retrieval,
+            patcher=patcher,
+        )
+        metadata = getattr(repaired, "metadata", {}) or {}
+        _emit(
+            event_sink,
+            EventType.MODEL_INVOKED,
+            model=model,
+            repair=True,
+            prompt_chars=len(metadata.get("prompt", "")),
+            raw_output_chars=len(metadata.get("raw_output", "")),
+            candidate_hash=hashlib.sha256(
+                (getattr(repaired, "full_content", "") or "").encode("utf-8")
+            ).hexdigest()[:16],
+        )
+        return repaired
+
+    @staticmethod
+    def _close_attempt(record: AttemptRecord, run_dir: Optional[str], outcome: str) -> None:
+        """Finish and persist one attempt record (when a run directory exists)."""
+        record.finish(outcome)
+        if run_dir:
+            write_attempt_record(run_dir, record)
+
+    @staticmethod
+    def _stage_attempt(candidate, attempt: int, run_dir: Optional[str], default_sim_out: str):
+        """Write the attempt's source (and prompt) under its own run directory.
+
+        Returns the simulator output path. Writing happens here, immediately
+        before the gates run, so every attempt on disk matches what was
+        actually compiled and simulated.
+        """
+        if not run_dir:
+            return default_sim_out
+        directory = Path(run_dir)
+        directory.mkdir(parents=True, exist_ok=True)
+        code_path = directory / f"attempt_{attempt}.v"
+        code_path.write_text(candidate.full_content or "", encoding="utf-8")
+        candidate.target_file = str(code_path)
+        prompt = candidate.metadata.get("prompt")
+        if prompt:
+            (directory / f"attempt_{attempt}_prompt.txt").write_text(
+                prompt, encoding="utf-8"
+            )
+        return str(directory / f"attempt_{attempt}.vvp")
 
     def execute_task(
         self,
@@ -46,6 +127,11 @@ class Orchestrator:
         seed: Optional[int] = None,
         temperature: float = 0.0,
         results_log_path: Optional[str] = None,
+        run_dir: Optional[str] = None,
+        retrieval: bool = True,
+        patcher: bool = True,
+        run_id: Optional[str] = None,
+        event_sink: Optional[Callable] = None,
         # Injection hooks for mocking / tests
         compile_fn: Optional[Callable] = None,
         hardware_check_fn: Optional[Callable] = None,
@@ -57,9 +143,10 @@ class Orchestrator:
         on_success: Optional[Callable] = None,
         on_failure: Optional[Callable] = None,
     ) -> Dict[str, Any]:
-        """Execute task through domain adapter with bounded repair."""
+        """Execute one task through the domain adapter with bounded repair."""
         started = time.time()
         selected_model = model or "default"
+        repair_budget = max(0, int(max_repairs))
         context = self.domain.build_context(task)
         if not task.requirements:
             task.requirements = self.domain.parse_requirements(context.get("spec_path"))
@@ -67,21 +154,28 @@ class Orchestrator:
         log: Dict[str, Any] = {
             "timestamp": started,
             "task_id": task.task_id,
+            "run_id": run_id or (Path(run_dir).name if run_dir else task.task_id),
+            "run_dir": run_dir,
             "domain": self.domain.name,
             "model": selected_model,
             "temperature_policy": f"generation={temperature}; repair increases slightly per attempt",
             "generation_temperature": temperature,
             "seed": seed,
-            "retrieval_enabled": os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower() not in {"1", "true", "yes", "on"},
-            "max_repairs": max(0, int(max_repairs)),
-            "protocol": context.get("protocol", {"address": context.get("address_hex", ""), "data": context.get("data_hex", "")}),
-            "rtl_memory_before_run": context.get("rtl_memory_before_run"),
+            "retrieval_enabled": retrieval,
+            "max_repairs": repair_budget,
+            "protocol": context.get(
+                "protocol",
+                {"address": context.get("address_hex", ""), "data": context.get("data_hex", "")},
+            ),
+            "rtl_memory_before_run": task.metadata.get(
+                "rtl_memory_before_run", context.get("rtl_memory_before_run")
+            ),
             "requirements": [r.req_id for r in task.requirements],
             "attempts": [],
         }
 
         # 1. Generation
-        target_path = task.metadata.get("target_file", "protocols/i2c/generated/top_glue.v")
+        target_path = task.metadata.get("target_file", "generated/top_glue.v")
         try:
             candidate = self.domain.generate_candidate(
                 task,
@@ -91,26 +185,59 @@ class Orchestrator:
                 temperature=temperature,
                 seed=seed,
                 generate_fn=generate_fn,
+                retrieval=retrieval,
+                patcher=patcher,
             )
             task.candidate_patch = candidate
-        except Exception as exc:
-            log["final"] = "generation_failed"
-            log["generation_error"] = str(exc)
-            return log
+            metadata = getattr(candidate, "metadata", {}) or {}
+            _emit(
+                event_sink,
+                EventType.MODEL_INVOKED,
+                model=selected_model,
+                repair=False,
+                prompt_chars=len(metadata.get("prompt", "")),
+                raw_output_chars=len(metadata.get("raw_output", "")),
+                candidate_hash=hashlib.sha256(
+                    (candidate.full_content or "").encode("utf-8")
+                ).hexdigest()[:16],
+            )
+        except Exception as exc:  # model/runtime failure is a known outcome
+            log["final"] = outcomes.GENERATION_ERROR
+            log["generation_error"] = f"{type(exc).__name__}: {exc}"
+            log["elapsed_sec"] = round(time.time() - started, 3)
+            return self._finish(log, results_log_path)
 
         if not candidate.full_content or not candidate.full_content.strip():
-            log["final"] = "generation_failed"
+            log["final"] = outcomes.GENERATION_ERROR
             log["generation_error"] = "Empty or missing candidate output after generation"
-            return log
+            log["elapsed_sec"] = round(time.time() - started, 3)
+            return self._finish(log, results_log_path)
 
-        # 2. Repair loop
-        for attempt in range(max(0, int(max_repairs)) + 1):
+        # 2. Bounded verify/repair loop
+        for attempt in range(repair_budget + 1):
+            attempt_started = time.time()
             repair_temperature = min(0.15 + 0.15 * attempt, 0.45)
             code = candidate.full_content or ""
+            sim_out = self._stage_attempt(
+                candidate,
+                attempt,
+                run_dir,
+                task.metadata.get("sim_out", "generated/top_sim.vvp"),
+            )
+            record = AttemptRecord.from_candidate(
+                candidate,
+                run_id=log["run_id"],
+                attempt=attempt,
+                model=selected_model,
+                repair=attempt > 0,
+            )
+            record.started_at = attempt_started
 
-            # Structural validation
+            # Structural gate
+            stage_started = time.time()
             if struct_check_fn:
-                struct_res_raw = struct_check_fn(code, self.domain.required_instances if hasattr(self.domain, "required_instances") else [])
+                required = getattr(self.domain, "required_instances", [])
+                struct_res_raw = struct_check_fn(code, required)
                 struct_val = ValidationResult(
                     stage="structural",
                     passed=struct_res_raw.get("pass", False),
@@ -119,6 +246,12 @@ class Orchestrator:
                 )
             else:
                 struct_val = self.domain.validate_structure(candidate)
+            record.add_stage(struct_val, round(time.time() - stage_started, 6))
+            _emit(
+                event_sink, EventType.STAGE_FINISHED,
+                stage="structural", passed=struct_val.passed, attempt=attempt,
+                failed_checks=struct_val.failed_checks,
+            )
 
             if not struct_val.passed:
                 log["attempts"].append({
@@ -128,33 +261,40 @@ class Orchestrator:
                     "failed_checks": struct_val.failed_checks,
                     **_snapshot(code, "structural", struct_val.failed_checks),
                 })
-                if attempt < max_repairs:
-                    candidate = self.domain.repair_candidate(
-                        candidate,
-                        [struct_val],
-                        model=selected_model,
-                        temperature=repair_temperature,
-                        seed=seed,
-                        repair_fn=repair_fn,
+                if attempt < repair_budget:
+                    self._close_attempt(record, run_dir, "repaired")
+                    candidate = self._repair(
+                        candidate, [struct_val],
+                        model=selected_model, temperature=repair_temperature,
+                        seed=seed, repair_fn=repair_fn, retrieval=retrieval,
+                        patcher=patcher, event_sink=event_sink,
                     )
                     continue
-                log["final"] = "structural_failed"
+                log["final"] = outcomes.STRUCTURAL_FAILED
+                self._close_attempt(record, run_dir, outcomes.STRUCTURAL_FAILED)
                 break
 
-            # Build and test
+            # Compile, hardware, simulate
             test_kwargs = {
-                "sim_out": task.metadata.get("sim_out", "protocols/i2c/generated/top_sim.vvp"),
+                "sim_out": sim_out,
+                "spec_path": task.metadata.get("spec_path", context.get("spec_path")),
                 "compile_fn": compile_fn,
                 "hardware_check_fn": hardware_check_fn,
                 "sim_fn": sim_fn,
             }
             val_results = self.domain.build_and_test(
                 candidate,
-                **{k: v for k, v in test_kwargs.items() if v is not None}
+                **{k: v for k, v in test_kwargs.items() if v is not None},
             )
 
-            # Check compile stage
             compile_val = next((r for r in val_results if r.stage == "compile"), None)
+            if compile_val:
+                record.add_stage(compile_val)
+                _emit(
+                    event_sink, EventType.STAGE_FINISHED,
+                    stage="compile", passed=compile_val.passed, attempt=attempt,
+                    failed_checks=compile_val.failed_checks,
+                )
             if compile_val and not compile_val.passed:
                 log["attempts"].append({
                     "attempt": attempt,
@@ -164,24 +304,31 @@ class Orchestrator:
                     **_snapshot(code, "compile"),
                 })
                 if compile_val.tool_missing:
-                    log["final"] = "tool_missing"
+                    log["final"] = outcomes.TOOL_MISSING
                     log["tool_error"] = compile_val.stderr
+                    self._close_attempt(record, run_dir, outcomes.TOOL_MISSING)
                     break
-                if attempt < max_repairs:
-                    candidate = self.domain.repair_candidate(
-                        candidate,
-                        [compile_val],
-                        model=selected_model,
-                        temperature=repair_temperature,
-                        seed=seed,
-                        repair_fn=repair_fn,
+                if attempt < repair_budget:
+                    self._close_attempt(record, run_dir, "repaired")
+                    candidate = self._repair(
+                        candidate, [compile_val],
+                        model=selected_model, temperature=repair_temperature,
+                        seed=seed, repair_fn=repair_fn, retrieval=retrieval,
+                        patcher=patcher, event_sink=event_sink,
                     )
                     continue
-                log["final"] = "compile_failed"
+                log["final"] = outcomes.COMPILE_FAILED
+                self._close_attempt(record, run_dir, outcomes.COMPILE_FAILED)
                 break
 
-            # Check hardware stage
             hw_val = next((r for r in val_results if r.stage == "hardware"), None)
+            if hw_val:
+                record.add_stage(hw_val)
+                _emit(
+                    event_sink, EventType.STAGE_FINISHED,
+                    stage="hardware", passed=hw_val.passed, attempt=attempt,
+                    failed_checks=hw_val.failed_checks,
+                )
             if hw_val and not hw_val.passed:
                 log["attempts"].append({
                     "attempt": attempt,
@@ -192,24 +339,31 @@ class Orchestrator:
                     **_snapshot(code, "hardware"),
                 })
                 if hw_val.tool_missing:
-                    log["final"] = "tool_missing"
+                    log["final"] = outcomes.TOOL_MISSING
                     log["tool_error"] = hw_val.diagnostics
+                    self._close_attempt(record, run_dir, outcomes.TOOL_MISSING)
                     break
-                if attempt < max_repairs:
-                    candidate = self.domain.repair_candidate(
-                        candidate,
-                        [hw_val],
-                        model=selected_model,
-                        temperature=repair_temperature,
-                        seed=seed,
-                        repair_fn=repair_fn,
+                if attempt < repair_budget:
+                    self._close_attempt(record, run_dir, "repaired")
+                    candidate = self._repair(
+                        candidate, [hw_val],
+                        model=selected_model, temperature=repair_temperature,
+                        seed=seed, repair_fn=repair_fn, retrieval=retrieval,
+                        patcher=patcher, event_sink=event_sink,
                     )
                     continue
-                log["final"] = "hardware_failed"
+                log["final"] = outcomes.HARDWARE_FAILED
+                self._close_attempt(record, run_dir, outcomes.HARDWARE_FAILED)
                 break
 
-            # Check simulation stage
             sim_val = next((r for r in val_results if r.stage == "simulation"), None)
+            if sim_val:
+                record.add_stage(sim_val)
+                _emit(
+                    event_sink, EventType.STAGE_FINISHED,
+                    stage="simulation", passed=sim_val.passed, attempt=attempt,
+                    failed_checks=sim_val.failed_checks,
+                )
             if sim_val and sim_val.tool_missing:
                 log["attempts"].append({
                     "attempt": attempt,
@@ -218,13 +372,20 @@ class Orchestrator:
                     "stderr": sim_val.stderr,
                     **_snapshot(code, "simulation_tool_missing"),
                 })
-                log["final"] = "tool_missing"
+                log["final"] = outcomes.TOOL_MISSING
                 log["tool_error"] = sim_val.stderr
+                self._close_attempt(record, run_dir, outcomes.TOOL_MISSING)
                 break
 
-            # Protocol judging
+            # Protocol judge
             judge_kwargs = {"judge_fn": judge_fn} if judge_fn else {}
             verdict = self.domain.judge(val_results, **judge_kwargs)
+            record.add_stage(verdict)
+            _emit(
+                event_sink, EventType.STAGE_FINISHED,
+                stage="judge", passed=verdict.passed, attempt=attempt,
+                failed_checks=verdict.failed_checks,
+            )
             sim_passed = sim_val.passed if sim_val else False
             overall_pass = verdict.passed and sim_passed
 
@@ -242,353 +403,83 @@ class Orchestrator:
             })
 
             if overall_pass:
-                log["final"] = "pass"
+                log["final"] = outcomes.PASS
                 task.status = "completed"
+                self._close_attempt(record, run_dir, outcomes.PASS)
                 if on_success:
                     try:
-                        artifact = on_success(code, model=selected_model, metadata={"checks": verdict.metadata.get("raw", {})})
+                        artifact = on_success(
+                            code,
+                            model=selected_model,
+                            metadata={"checks": verdict.metadata.get("raw", {})},
+                        )
                         log["verified_example"] = str(artifact)
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        log["on_success_error"] = f"{type(exc).__name__}: {exc}"
                 break
 
-            if attempt < max_repairs:
-                candidate = self.domain.repair_candidate(
-                    candidate,
-                    [*val_results, verdict],
-                    model=selected_model,
-                    temperature=repair_temperature,
-                    seed=seed,
-                    repair_fn=repair_fn,
+            if attempt < repair_budget:
+                self._close_attempt(record, run_dir, "repaired")
+                candidate = self._repair(
+                    candidate, [*val_results, verdict],
+                    model=selected_model, temperature=repair_temperature,
+                    seed=seed, repair_fn=repair_fn, retrieval=retrieval,
+                    patcher=patcher, event_sink=event_sink,
                 )
                 continue
 
-            log["final"] = "sim_checks_failed"
+            log["final"] = outcomes.SIM_CHECKS_FAILED
             task.status = "failed"
+            self._close_attempt(record, run_dir, outcomes.SIM_CHECKS_FAILED)
             if on_failure:
                 try:
                     on_failure(code, selected_model, "simulate", verdict.failed_checks, verdict.diagnostics)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    log["on_failure_error"] = f"{type(exc).__name__}: {exc}"
             break
 
         log["first_attempt_pass"] = bool(
             log["attempts"] and log["attempts"][0].get("success", False)
         )
         log["recovered_after_repair"] = bool(
-            log.get("final") == "pass" and len(log["attempts"]) > 1
+            log.get("final") == outcomes.PASS and len(log["attempts"]) > 1
         )
         log["elapsed_sec"] = round(time.time() - started, 3)
+        return self._finish(log, results_log_path)
 
+    @staticmethod
+    def _summary(log: Dict[str, Any]) -> Dict[str, Any]:
+        """One-line index entry pointing at the run directory and full record."""
+        attempts = log.get("attempts") or []
+        return {
+            "run_id": log.get("run_id"),
+            "timestamp": log.get("timestamp"),
+            "task_id": log.get("task_id"),
+            "domain": log.get("domain"),
+            "model": log.get("model"),
+            "seed": log.get("seed"),
+            "temperature": log.get("generation_temperature"),
+            "retrieval_enabled": log.get("retrieval_enabled"),
+            "final": log.get("final"),
+            "first_attempt_pass": bool(log.get("first_attempt_pass", False)),
+            "recovered_after_repair": bool(log.get("recovered_after_repair", False)),
+            "attempts": len(attempts),
+            "first_attempt_hash": attempts[0].get("candidate_hash") if attempts else None,
+            "elapsed_sec": log.get("elapsed_sec"),
+            "run_dir": log.get("run_dir"),
+        }
+
+    @classmethod
+    def _finish(cls, log: Dict[str, Any], results_log_path: Optional[str]) -> Dict[str, Any]:
         if results_log_path:
             os.makedirs(os.path.dirname(results_log_path) or ".", exist_ok=True)
-            with open(results_log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(log, sort_keys=True) + "\n")
-
+            with open(results_log_path, "a", encoding="utf-8") as handle:
+                handle.write(json.dumps(cls._summary(log), sort_keys=True) + "\n")
         return log
 
 
-        # 1. Specification Analyst
-        graph.transition_to(TaskState.SPEC_ANALYSIS.value, "orchestrator")
-        trace.add_event(EventType.AGENT_STARTED, agent_role="SpecificationAnalyst", model=selected_model)
-        analyst = SpecificationAnalyst(model_name=selected_model)
-        spec_res = analyst.execute(task, context)
-        agent_results.append(spec_res)
-        if spec_res.decision_record:
-            trace.decision_records.append(spec_res.decision_record)
-        trace.add_event(EventType.MODEL_INVOKED, agent_role="SpecificationAnalyst", model=selected_model, data={"result": spec_res.model_dump()})
-
-        # 2. Codebase Mapper
-        graph.transition_to(TaskState.CODE_MAPPING.value, spec_res.role, spec_res)
-        trace.add_event(EventType.AGENT_STARTED, agent_role="CodebaseMapper", model=selected_model)
-        mapper = CodebaseMapper(model_name=selected_model)
-        mapper_res = mapper.execute(task, context)
-        agent_results.append(mapper_res)
-        if mapper_res.decision_record:
-            trace.decision_records.append(mapper_res.decision_record)
-        trace.add_event(EventType.MODEL_INVOKED, agent_role="CodebaseMapper", model=selected_model, data={"result": mapper_res.model_dump()})
-
-        # 3. Planning Agent
-        graph.transition_to(TaskState.PLANNING.value, mapper_res.role, mapper_res)
-        trace.add_event(EventType.AGENT_STARTED, agent_role="PlanningAgent", model=selected_model)
-        planner = PlanningAgent(model_name=selected_model)
-        plan_res = planner.execute(task, context)
-        agent_results.append(plan_res)
-        if plan_res.decision_record:
-            trace.decision_records.append(plan_res.decision_record)
-        trace.add_event(EventType.MODEL_INVOKED, agent_role="PlanningAgent", model=selected_model, data={"result": plan_res.model_dump()})
-
-        # 4. Implementation Agent
-        graph.transition_to(TaskState.IMPLEMENTATION.value, plan_res.role, plan_res)
-        trace.add_event(EventType.AGENT_STARTED, agent_role="ImplementationAgent", model=selected_model)
-        implementer = ImplementationAgent(model_name=selected_model)
-        impl_res = implementer.execute(task, context)
-        agent_results.append(impl_res)
-        if impl_res.decision_record:
-            trace.decision_records.append(impl_res.decision_record)
-        trace.add_event(EventType.MODEL_INVOKED, agent_role="ImplementationAgent", model=selected_model, data={"result": impl_res.model_dump()})
-
-        # 5. Review & Verification Loop
-        reviewer = ReviewerAgent(model_name=selected_model)
-        repairer = RepairAgent(model_name=selected_model)
-
-        graph.transition_to(TaskState.REVIEW.value, impl_res.role, impl_res)
-        verification_passed = False
-        final_verdict = "failed"
-
-        while not graph.is_terminal:
-            candidate = task.candidate_patch
-
-            # Review stage
-            trace.add_event(EventType.AGENT_STARTED, agent_role="ReviewerAgent", model=selected_model)
-            rev_res = reviewer.execute(task, context)
-            agent_results.append(rev_res)
-            if rev_res.decision_record:
-                trace.decision_records.append(rev_res.decision_record)
-            trace.add_event(EventType.MODEL_INVOKED, agent_role="ReviewerAgent", model=selected_model, data={"result": rev_res.model_dump()})
-
-            if rev_res.decision == "rejected":
-                if graph.increment_retry():
-                    graph.transition_to(TaskState.FAILED.value, rev_res.role, rev_res, "Exceeded retry budget on review failure")
-                    final_verdict = "review_rejected_max_retries"
-                    break
-                graph.transition_to(TaskState.REPAIR.value, rev_res.role, rev_res)
-                rep_res = repairer.execute(task, {**context, "failed_results": [
-                    ValidationResult(stage="review", passed=False, diagnostics=str(rev_res.findings))
-                ]})
-                agent_results.append(rep_res)
-                if rep_res.decision_record:
-                    trace.decision_records.append(rep_res.decision_record)
-                trace.add_event(EventType.MODEL_INVOKED, agent_role="RepairAgent", model=selected_model, data={"result": rep_res.model_dump()})
-                graph.transition_to(TaskState.REVIEW.value, rep_res.role, rep_res)
-                continue
-
-            # Deterministic Verification Stage
-            graph.transition_to(TaskState.VERIFICATION.value, rev_res.role, rev_res)
-            test_kwargs = {
-                "sim_out": task.metadata.get("sim_out", "protocols/i2c/generated/top_sim.vvp"),
-                "compile_fn": compile_fn,
-                "hardware_check_fn": hardware_check_fn,
-                "sim_fn": sim_fn,
-            }
-            val_results = self.domain.build_and_test(
-                candidate,
-                **{k: v for k, v in test_kwargs.items() if v is not None}
-            )
-            # Check compile
-            compile_val = next((r for r in val_results if r.stage == "compile"), None)
-            if compile_val and not compile_val.passed:
-                if compile_val.tool_missing or graph.increment_retry():
-                    graph.transition_to(TaskState.FAILED.value, "compiler", None, "Compile failed")
-                    final_verdict = "tool_missing" if compile_val.tool_missing else "compile_failed"
-                    trace.add_event(EventType.VERIFICATION_RESULT, data={"compile_passed": False, "tool_missing": compile_val.tool_missing})
-                    break
-                graph.transition_to(TaskState.REPAIR.value, "compiler")
-                rep_res = repairer.execute(task, {**context, "failed_results": [compile_val]})
-                agent_results.append(rep_res)
-                if rep_res.decision_record:
-                    trace.decision_records.append(rep_res.decision_record)
-                trace.add_event(EventType.MODEL_INVOKED, agent_role="RepairAgent", model=selected_model, data={"result": rep_res.model_dump()})
-                graph.transition_to(TaskState.REVIEW.value, rep_res.role, rep_res)
-                continue
-
-            # Check simulation / judge
-            judge_kwargs = {"judge_fn": judge_fn} if judge_fn else {}
-            verdict = self.domain.judge(val_results, **judge_kwargs)
-            sim_val = next((r for r in val_results if r.stage == "simulation"), None)
-            sim_passed = sim_val.passed if sim_val else False
-
-            if verdict.passed and sim_passed:
-                graph.transition_to(TaskState.COMPLETED.value, "oracle", None, "All verification checks passed")
-                verification_passed = True
-                final_verdict = "pass"
-                trace.add_event(EventType.VERIFICATION_RESULT, data={"verdict": "pass", "simulation_passed": True})
-                break
-            else:
-                if graph.increment_retry():
-                    graph.transition_to(TaskState.FAILED.value, "oracle", None, "Verification failed retry budget")
-                    final_verdict = "sim_checks_failed"
-                    trace.add_event(EventType.VERIFICATION_RESULT, data={"verdict": "fail", "simulation_passed": sim_passed})
-                    break
-                graph.transition_to(TaskState.REPAIR.value, "oracle")
-                rep_res = repairer.execute(task, {**context, "failed_results": [*val_results, verdict]})
-                agent_results.append(rep_res)
-                if rep_res.decision_record:
-                    trace.decision_records.append(rep_res.decision_record)
-                trace.add_event(EventType.MODEL_INVOKED, agent_role="RepairAgent", model=selected_model, data={"result": rep_res.model_dump()})
-                graph.transition_to(TaskState.REVIEW.value, rep_res.role, rep_res)
-                continue
-
-        elapsed = round(time.time() - started, 3)
-        # Finalise trace
-        trace.end_time = time.time()
-        trace.status = "completed" if verification_passed else "failed"
-        # Persist trace
-        store = EventStore()
-        trace_path = store.save_trace(trace)
-
-        multi_log = {
-            "task_id": task.task_id,
-            "domain": self.domain.name,
-            "final": final_verdict,
-            "passed": verification_passed,
-            "retry_count": graph.retry_count,
-            "elapsed_sec": elapsed,
-            "transitions": [t.model_dump() for t in graph.transitions],
-            "agent_results": [r.model_dump() for r in agent_results],
-            "trace_file": trace_path,
-        }
-
-        if results_log_path:
-            os.makedirs(os.path.dirname(results_log_path) or ".", exist_ok=True)
-            with open(results_log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(multi_log, sort_keys=True) + "\\n")
-
-        return multi_log
-
-        """Execute full multi-agent specialist workflow: Analyst -> Mapper -> Planner -> Implementer -> Reviewer -> Verification -> Repair."""
-        from agents.spec_analyst import SpecificationAnalyst
-        from agents.codebase_mapper import CodebaseMapper
-        from agents.planner import PlanningAgent
-        from agents.implementer import ImplementationAgent
-        from agents.reviewer import ReviewerAgent
-        from agents.repair import RepairAgent
-
-        started = time.time()
-        selected_model = model or "default"
-        context = self.domain.build_context(task)
-        context.update({
-            "model": selected_model,
-            "seed": seed,
-            "temperature": temperature,
-            "generate_fn": generate_fn,
-            "repair_fn": repair_fn,
-        })
-
-        graph = TaskGraph(task_id=task.task_id, max_retries=max_repairs)
-        agent_results: List[AgentResult] = []
-
-        # 1. Specification Analyst
-        graph.transition_to(TaskState.SPEC_ANALYSIS.value, "orchestrator")
-        analyst = SpecificationAnalyst(model_name=selected_model)
-        spec_res = analyst.execute(task, context)
-        agent_results.append(spec_res)
-
-        # 2. Codebase Mapper
-        graph.transition_to(TaskState.CODE_MAPPING.value, spec_res.role, spec_res)
-        mapper = CodebaseMapper(model_name=selected_model)
-        mapper_res = mapper.execute(task, context)
-        agent_results.append(mapper_res)
-
-        # 3. Planning Agent
-        graph.transition_to(TaskState.PLANNING.value, mapper_res.role, mapper_res)
-        planner = PlanningAgent(model_name=selected_model)
-        plan_res = planner.execute(task, context)
-        agent_results.append(plan_res)
-
-        # 4. Implementation Agent
-        graph.transition_to(TaskState.IMPLEMENTATION.value, plan_res.role, plan_res)
-        implementer = ImplementationAgent(model_name=selected_model)
-        impl_res = implementer.execute(task, context)
-        agent_results.append(impl_res)
-
-        # 5. Review & Verification Loop
-        reviewer = ReviewerAgent(model_name=selected_model)
-        repairer = RepairAgent(model_name=selected_model)
-
-        graph.transition_to(TaskState.REVIEW.value, impl_res.role, impl_res)
-        verification_passed = False
-        final_verdict = "failed"
-
-        while not graph.is_terminal:
-            candidate = task.candidate_patch
-
-            # Review stage
-            rev_res = reviewer.execute(task, context)
-            agent_results.append(rev_res)
-
-            if rev_res.decision == "rejected":
-                if graph.increment_retry():
-                    graph.transition_to(TaskState.FAILED.value, rev_res.role, rev_res, "Exceeded retry budget on review failure")
-                    final_verdict = "review_rejected_max_retries"
-                    break
-                graph.transition_to(TaskState.REPAIR.value, rev_res.role, rev_res)
-                rep_res = repairer.execute(task, {**context, "failed_results": [
-                    ValidationResult(stage="review", passed=False, diagnostics=str(rev_res.findings))
-                ]})
-                agent_results.append(rep_res)
-                graph.transition_to(TaskState.REVIEW.value, rep_res.role, rep_res)
-                continue
-
-            # Deterministic Verification Stage
-            graph.transition_to(TaskState.VERIFICATION.value, rev_res.role, rev_res)
-            test_kwargs = {
-                "sim_out": task.metadata.get("sim_out", "protocols/i2c/generated/top_sim.vvp"),
-                "compile_fn": compile_fn,
-                "hardware_check_fn": hardware_check_fn,
-                "sim_fn": sim_fn,
-            }
-            val_results = self.domain.build_and_test(
-                candidate,
-                **{k: v for k, v in test_kwargs.items() if v is not None}
-            )
-
-            # Check compile
-            compile_val = next((r for r in val_results if r.stage == "compile"), None)
-            if compile_val and not compile_val.passed:
-                if compile_val.tool_missing or graph.increment_retry():
-                    graph.transition_to(TaskState.FAILED.value, "compiler", None, "Compile failed")
-                    final_verdict = "tool_missing" if compile_val.tool_missing else "compile_failed"
-                    break
-                graph.transition_to(TaskState.REPAIR.value, "compiler")
-                rep_res = repairer.execute(task, {**context, "failed_results": [compile_val]})
-                agent_results.append(rep_res)
-                graph.transition_to(TaskState.REVIEW.value, rep_res.role, rep_res)
-                continue
-
-            # Check simulation / judge
-            judge_kwargs = {"judge_fn": judge_fn} if judge_fn else {}
-            verdict = self.domain.judge(val_results, **judge_kwargs)
-            sim_val = next((r for r in val_results if r.stage == "simulation"), None)
-            sim_passed = sim_val.passed if sim_val else False
-
-            if verdict.passed and sim_passed:
-                graph.transition_to(TaskState.COMPLETED.value, "oracle", None, "All verification checks passed")
-                verification_passed = True
-                final_verdict = "pass"
-                break
-            else:
-                if graph.increment_retry():
-                    graph.transition_to(TaskState.FAILED.value, "oracle", None, "Verification failed retry budget")
-                    final_verdict = "sim_checks_failed"
-                    break
-                graph.transition_to(TaskState.REPAIR.value, "oracle")
-                rep_res = repairer.execute(task, {**context, "failed_results": [*val_results, verdict]})
-                agent_results.append(rep_res)
-                graph.transition_to(TaskState.REVIEW.value, rep_res.role, rep_res)
-
-        elapsed = round(time.time() - started, 3)
-        multi_log = {
-            "task_id": task.task_id,
-            "domain": self.domain.name,
-            "final": final_verdict,
-            "passed": verification_passed,
-            "retry_count": graph.retry_count,
-            "elapsed_sec": elapsed,
-            "transitions": [t.model_dump() for t in graph.transitions],
-            "agent_results": [r.model_dump() for r in agent_results],
-        }
-
-        if results_log_path:
-            os.makedirs(os.path.dirname(results_log_path) or ".", exist_ok=True)
-            with open(results_log_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(multi_log, sort_keys=True) + "\n")
-
-        return multi_log
-
-
 def run_orchestrated_task(task: Task, **kwargs) -> Dict[str, Any]:
-    """Top-level helper to run a task on its registered domain adapter."""
+    """Run a task on its registered domain adapter."""
     domain = get_domain(task.domain)
     orchestrator = Orchestrator(domain)
     return orchestrator.execute_task(task, **kwargs)
