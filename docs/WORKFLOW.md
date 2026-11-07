@@ -1,6 +1,57 @@
-ProtoForge v1: 100-step plan
+# ProtoForge v1: 100-step plan
+
 Baby steps from the current repo to a measured, reproducible v1.
-How to use this plan
+
+This is the single canonical workflow document. An earlier copy lived at the
+repo root as `worklfow.md` (misspelt, byte-identical); it was removed in
+commit `086bf99`.
+
+## Status board
+
+Last verified: 2026-11-07, commit `ccca20e`, `118 passed` from
+`.venv/bin/python -m pytest -q tests`.
+
+| Phase | Steps | State | Evidence |
+| --- | --- | --- | --- |
+| 0 Snapshot and environment | 1–10 | **done** | tag `pre-cleanup` (`9acd76d`), tag `baseline-v0` (`2a28978`), `docs/ENV.md` |
+| 1 Clean the orchestrator | 11–20 | **done** | `01cddcf`; `agents/`, `archive/`, `core/task_graph.py` removed for good in `086bf99` |
+| 2 Remove file handoff / import-time config | 21–34 | **done** | `cb15497`, `tests/test_run_isolation.py` |
+| 3 Replayable logging | 35–46 | **done** | tag `logging-v1` (`6038b46`), `tests/test_logging_replay.py`, `tools/replay.py` |
+| 4 Harden the oracle | 47–60 | **done** | tag `oracle-v1` (`c0f2f54`), `tests/test_oracle_mutation.py`, `docs/ORACLE.md` |
+| 5 Template baseline + 2-byte task | 61–70 | **done** | tag `template-v1` (`a0c783d`), `tests/test_template_master.py` |
+| 6 Benchmark runner | 71–80 | **done** | `5fb83dd` + harness fixes in `ccca20e`, `tests/test_bench.py`, `docs/BASELINE.md` |
+| 7 FSM JSON intermediate representation | 81–92 | **not started** | — |
+| 8 Best-of-N | 93–95 | not started | — |
+| 9 Traces and v1 packaging | 96–100 | partially unblocked | `ui/dashboard.py` now renders real `stage_finished` events (`086bf99`) |
+
+## Definition of done for a phase
+
+A phase counts as done only when **all** of the following hold. Anything less
+is a checkpoint you may return from, not a completion.
+
+1. `.venv/bin/python -q -m pytest tests` is green with no `xfail` that exists
+   only to hide a red test.
+2. `python -m pyflakes $(git ls-files '*.py')` is clean.
+3. No tracked file under `results/` disagrees with another (a report's row
+   count equals its CSV's and its index's).
+4. Any number quoted in `docs/` came from a run recorded in this repository,
+   with its command, commit and model digest.
+5. The phase is committed with a message naming the phase and steps.
+
+## Rules that override convenience
+
+- **Never** edit the golden references or the testbench to make a result pass
+  (`AGENTS.md`, oracle integrity). If the oracle is wrong, add a separate test
+  that proves it.
+- A test that cannot fail is not evidence. Before adding one, ask whether
+  deleting the code under test would make it red.
+- Report compiler errors, protocol failures, timeouts and missing tools as
+  four different things. A missing tool is never a model failure.
+- A run that produced no candidate (`attempts == 0`) is a harness event and
+  must be labelled as such, never folded into a pass rate.
+
+## How to use this plan
+
 • Work top to bottom. Each phase ends with a checkpoint; do not start the next phase until it is met.
 • Commit after every phase and tag the checkpoints.
 • Never edit the golden references or the testbench just to make a result pass (the AGENTS.md rule). If the oracle is wrong, add a separate test that proves it.

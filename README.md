@@ -13,15 +13,32 @@ main.py / agent_core.agent
   -> agent/rtl_generator.py + tools/* gates
 ```
 
-These modules are **not** wired into the live loop yet; they are kept for
-later phases and should not be assumed to run during a generation. (The old
-rule-based specialist agents and task graph were removed; see git history on
-`v1-stabilize` if you want them back.)
+Everything else is deliberately **not** part of a generation. These are kept
+because `docs/WORKFLOW.md` phases 7-9 need them; do not assume they run:
 
-- `ui/dashboard.py` — trace rendering; there are no live traces to render yet.
-- `indexing/`, `mutations/`, `mcp_server/` — repository indexing, mutation
-  catalogues, and the MCP surface are available tools, not part of the
-  generation loop.
+- `ui/dashboard.py` — trace rendering for the run timeline (phase 9, step 96).
+- `mcp_server/` — standalone MCP entry point (phase 9, step 97).
+- `bench/`, `baseline/`, `tools/replay.py`, `tools/make_spec.py` — measurement
+  and audit tooling invoked explicitly, never from inside a run.
+
+Removed and not coming back without a workflow step that asks for them:
+`agents/`, `archive/`, `core/task_graph.py`, `indexing/`, `mutations/`,
+`tools/error_context.py` (commit `086bf99`). They had no importers in the live
+loop; `archive/multi_agent_draft.py` did not even parse.
+
+## Status
+
+| Check | Command | Result |
+| --- | --- | --- |
+| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | 118 passed |
+| Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
+| Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all mutants killed |
+| Template upper bound | `results/bench_template_20x/` | 240/240 pass |
+| Real model, one run | `.venv/bin/python -m agent_core.agent` | pass after 1 repair (2 attempts, 416 s) |
+| Replay of that run | `.venv/bin/python tools/replay.py <run_dir>` | verdicts match |
+
+See `docs/WORKFLOW.md` for the phase-by-phase status board and
+`docs/BASELINE.md` for the measured benchmark table.
 
 
 ## Changes in this iteration
@@ -43,7 +60,10 @@ rule-based specialist agents and task graph were removed; see git history on
 - **Honest batches (`main.py`):** each run gets its own seed (`PROTOFORGE_SEED + i`) and the sampling temperature is explicit (`PROTOFORGE_BATCH_TEMPERATURE`, default 0). At temperature 0 all runs are expected to be identical, so the report prints `Distinct first designs: k/N` and warns when a batch is effectively one sample. A failing run (e.g. Ollama down) is recorded as `generation_error` instead of aborting the batch; a first-run configuration error stops early. A machine-readable summary is written to `results/batch_summary.json`.
 - **Retrieval ablation:** `PROTOFORGE_NO_RETRIEVAL=1` removes the reference example from the prompt. The seed example is derived from the known-good oracle, so compare pass rates with it on and off before claiming the model can generate an I²C master.
 - **Real-simulator end-to-end tests (`tests/test_e2e_real_sim.py`):** only the LLM is stubbed; structural gate, iverilog, vvp, judge and repair routing are real (broken -> repaired passes, correct passes first try, persistent fault exhausts the repair budget).
-- The current environment check reports 22 passing tool-independent tests and 9 simulator-dependent tests skipped because Icarus is unavailable. The real LLM generation path (Ollama) has not been exercised in this environment.
+- At the time this iteration was written the suite reported 22 tool-independent
+  passes and 9 skips because Icarus was unavailable; that environment gap is
+  closed (see `docs/ENV.md`), and the current counts are in the Status table
+  above.
 
 ## Changes in iteration 4 (auditable, replayable runs)
 
@@ -184,26 +204,46 @@ from-scratch RTL competence. Keep that distinction explicit in reports.
 
 ## Tests
 
-Fast tests that do not require Ollama or Icarus Verilog:
-
 ```bash
-python -m pytest -q tests
+.venv/bin/python -q -m pytest tests
+.venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-This covers structural checks, result parsing, verified-example memory behavior, per-run isolation, attempt/run records, event traces, replay comparison, and both mocked and real-simulator end-to-end repair cycles. The real model/compiler/simulator path needs Ollama and Icarus installed:
+118 tests, no `xfail`, no `skip` in this environment (Icarus, Verilator, Yosys
+and Ollama are all installed). Four suites carry `skipif` guards and skip only
+where a tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
+`test_logging_replay`, `test_template_master`.
+
+Coverage includes structural checks, result parsing, verified-example memory
+behaviour, per-run isolation, attempt/run records, event traces, replay
+comparison, benchmark aggregation and artifact consistency, domain discovery,
+and mocked plus real-simulator end-to-end repair cycles.
+
+Tests never write into the tracked `results/rtl_memory/` store; `conftest.py`
+redirects it to a temporary directory.
+
+To exercise the real model/compiler/simulator path end to end:
 
 ```bash
-python -m pytest -q tests          # real-sim tests run when iverilog/vvp exist
-python -m agent_core.agent         # one real model run
+.venv/bin/python -m agent_core.agent                       # one real run
+.venv/bin/python tools/replay.py results/runs/<run_id>     # re-verify it
+.venv/bin/python -m bench.run --case-limit 2 --samples 1   # small batch
 ```
 
 ## Current validation status
 
 The deterministic multi-device wrapper path and the checked-in reference pass
-Icarus, Verilator, and Yosys validation. Real Qwen 7B trials are recorded in
-`results/real_trials.jsonl`; they currently show protocol failures after repair
-despite passing compile, lint, and synthesis. Those candidates are not promoted
-as verified examples. A physical board driver or FPGA target is not included in
-this repository; hardware validation currently means synthesizability and
-open-drain RTL checks, while the I2C electrical behavior is exercised by the
-BFM testbench.
+Icarus, Verilator, and Yosys validation. A real `qwen2.5-coder:7b` run through
+the full loop (structural -> compile -> Verilator/Yosys -> simulation -> judge,
+with one bounded repair) passes; its artifacts are reproducible with
+`tools/replay.py`, which re-runs gates 1-5 on the stored attempt and compares
+verdicts.
+
+Real Qwen 7B batch trials are recorded in `results/real_trials.jsonl` and
+`results/bench/`; per-configuration pass rates, distinct first designs and
+Wilson intervals live in `docs/BASELINE.md`. Candidates that only pass compile
+and lint but fail the protocol oracle are never promoted as verified examples.
+
+A physical board driver or FPGA target is not included in this repository;
+hardware validation currently means synthesizability and open-drain RTL checks,
+while the I2C electrical behavior is exercised by the BFM testbench.
