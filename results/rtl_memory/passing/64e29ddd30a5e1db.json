@@ -1,0 +1,25 @@
+{
+  "created_at": 1794052074.0060112,
+  "metadata": {
+    "checks": {
+      "addr": "a0",
+      "bytes": 2,
+      "data": "3c",
+      "data_bytes": [
+        "3c"
+      ],
+      "parsed": true,
+      "saw_ack_addr": 1,
+      "saw_ack_data": 1,
+      "saw_start": 1,
+      "saw_stop": 1,
+      "sda_glitches": 0,
+      "starts": 1,
+      "stops": 1,
+      "tb_done": 1
+    }
+  },
+  "model": "qwen2.5-coder:7b",
+  "sha256": "64e29ddd30a5e1db82e1755a56183d3a0c134663ede6819332fc31ea6e647ec1",
+  "verified_pass": true
+}
