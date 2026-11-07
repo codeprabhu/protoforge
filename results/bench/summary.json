@@ -16,16 +16,15 @@
   ],
   "configs": {
     "on-on": {
+      "candidate_runs": 24,
       "cases": 12,
       "distinct_first_designs": 12,
       "first_attempts_recorded": 24,
-      "median_latency_sec": 92.053,
-      "median_tokens_per_run": 2908.0,
+      "median_latency_sec": 187.238,
+      "median_tokens_per_run": 2899.0,
       "outcomes": {
-        "compile_failed": 1,
         "pass": 16,
-        "sim_checks_failed": 6,
-        "structural_failed": 1
+        "sim_checks_failed": 8
       },
       "pass_after_repair": 16,
       "pass_after_repair_ci95": [
@@ -41,17 +40,20 @@
       "pass_at_1_rate": 0.6667,
       "recovered_by_repair": 0,
       "runs": 24,
+      "runs_without_candidate": 0,
       "samples": 2,
-      "total_tokens": 142402
+      "total_tokens": 141784
     },
     "patcher-off": {
+      "candidate_runs": 5,
       "cases": 12,
-      "distinct_first_designs": 0,
-      "first_attempts_recorded": 0,
-      "median_latency_sec": 0.032,
+      "distinct_first_designs": 1,
+      "first_attempts_recorded": 5,
+      "median_latency_sec": 0.001,
       "median_tokens_per_run": 0.0,
       "outcomes": {
-        "generation_error": 24
+        "runner_error": 19,
+        "structural_failed": 5
       },
       "pass_after_repair": 0,
       "pass_after_repair_ci95": [
@@ -67,20 +69,20 @@
       "pass_at_1_rate": 0.0,
       "recovered_by_repair": 0,
       "runs": 24,
+      "runs_without_candidate": 19,
       "samples": 2,
-      "total_tokens": 0
+      "total_tokens": 61262
     },
     "retrieval-off": {
+      "candidate_runs": 24,
       "cases": 12,
-      "distinct_first_designs": 6,
-      "first_attempts_recorded": 6,
-      "median_latency_sec": 0.005,
-      "median_tokens_per_run": 0.0,
+      "distinct_first_designs": 24,
+      "first_attempts_recorded": 24,
+      "median_latency_sec": 243.605,
+      "median_tokens_per_run": 7744.0,
       "outcomes": {
-        "compile_failed": 2,
-        "generation_error": 17,
-        "hardware_failed": 2,
-        "runner_error": 1,
+        "compile_failed": 19,
+        "hardware_failed": 3,
         "structural_failed": 2
       },
       "pass_after_repair": 0,
@@ -97,14 +99,16 @@
       "pass_at_1_rate": 0.0,
       "recovered_by_repair": 0,
       "runs": 24,
+      "runs_without_candidate": 0,
       "samples": 2,
-      "total_tokens": 47580
+      "total_tokens": 188636
     },
     "template": {
+      "candidate_runs": 24,
       "cases": 12,
       "distinct_first_designs": 12,
       "first_attempts_recorded": 24,
-      "median_latency_sec": 0.087,
+      "median_latency_sec": 0.081,
       "median_tokens_per_run": 0.0,
       "outcomes": {
         "pass": 24
@@ -123,6 +127,7 @@
       "pass_at_1_rate": 1.0,
       "recovered_by_repair": 0,
       "runs": 24,
+      "runs_without_candidate": 0,
       "samples": 2,
       "total_tokens": 0
     }
