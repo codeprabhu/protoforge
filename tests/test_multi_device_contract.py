@@ -1,6 +1,5 @@
 """Regression tests for contract-driven multi-device wrapper generation."""
 
-from pathlib import Path
 
 import pytest
 

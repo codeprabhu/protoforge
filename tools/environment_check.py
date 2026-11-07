@@ -48,9 +48,11 @@ def check_ollama(url: str = "http://localhost:11434") -> dict[str, Any]:
         error = str(exc)
 
     return {
+        "available": bool(cli_path),
         "installed": bool(cli_path),
         "path": cli_path,
         "version": cli_version,
+        "role": "Ollama service (local model inference)",
         "service_reachable": api_available,
         "url": url,
         "models": models,
@@ -74,27 +76,12 @@ def check_environment() -> dict[str, Any]:
         "verilator": {
             "path": shutil.which("verilator"),
             "version": get_command_version("verilator", "--version"),
-            "role": "Verilator RTL linter (recommended for hardware checks)",
+            "role": "Verilator RTL linter (hardware check gate)",
         },
         "yosys": {
             "path": shutil.which("yosys"),
             "version": get_command_version("yosys", "-V"),
-            "role": "Yosys synthesis suite (recommended for hardware synthesis gate)",
-        },
-        "clang": {
-            "path": shutil.which("clang"),
-            "version": get_command_version("clang", "--version"),
-            "role": "C compiler / LibTooling (required for C/PCIe driver AST & validation)",
-        },
-        "gcc": {
-            "path": shutil.which("gcc"),
-            "version": get_command_version("gcc", "--version"),
-            "role": "C compiler / kernel build backend",
-        },
-        "make": {
-            "path": shutil.which("make"),
-            "version": get_command_version("make", "--version"),
-            "role": "Build automation for kernel modules",
+            "role": "Yosys synthesis suite (synthesis gate)",
         },
     }
 
@@ -116,9 +103,17 @@ def check_environment() -> dict[str, Any]:
     if not tools["vvp"]["available"]:
         missing_required.append("vvp")
 
+    # The full generation loop also runs the Verilator/Yosys hardware gate; a
+    # missing one does not block simulation but does block a complete verdict.
+    missing_gate_tools = [
+        name for name in ("verilator", "yosys") if not tools[name]["available"]
+    ]
+
     return {
         "ready_for_rtl_sim": len(missing_required) == 0,
         "missing_required_rtl_tools": missing_required,
+        "ready_for_full_gate": not missing_required and not missing_gate_tools,
+        "missing_gate_tools": missing_gate_tools,
         "tools": tools,
         "python": python_info,
     }

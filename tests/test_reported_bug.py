@@ -1,6 +1,5 @@
 """Test that live reported bug with delay statements inside clocked always block is caught and repaired."""
 
-import pytest
 import agent.ollama_client as ollama_client
 import agent_core.agent as agent
 

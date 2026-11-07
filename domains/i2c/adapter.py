@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import os
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.schemas import CandidatePatch, Requirement, SourceReference, Task, ValidationResult
+from core.schemas import CandidatePatch, Requirement, Task, ValidationResult
 from domains.base import BaseDomainAdapter
 from domains.registry import register_domain
 
@@ -15,7 +14,6 @@ from agent.rtl_generator import (
     generate_multi_device_glue_rtl,
     repair_rtl,
 )
-from tools.verilog_parser import parse_verilog_file
 from tools.i2c_spec import parse_i2c_spec, I2CSpec
 from tools.compile_tool import compile_verilog
 from tools.hardware_checks import run_hardware_checks
@@ -136,38 +134,6 @@ class I2CDomainAdapter(BaseDomainAdapter):
             ),
         ]
         return reqs
-
-    def index_sources(self, source_paths: List[str]) -> List[SourceReference]:
-        """Index device modules, interfaces, and testbench."""
-        refs: List[SourceReference] = []
-        paths_to_index = source_paths or [*self.device_paths, self.tb_path]
-        for p in paths_to_index:
-            if not os.path.exists(p):
-                continue
-            with open(p, encoding="utf-8") as f:
-                f.read()
-            try:
-                mod_info = parse_verilog_file(p)
-                symbol_name = mod_info.name
-                inputs = [port.name for port in mod_info.inputs]
-                outputs = [port.name for port in mod_info.outputs]
-                inouts = [port.name for port in mod_info.inouts]
-            except Exception:
-                symbol_name = Path(p).stem
-                inputs, outputs, inouts = [], [], []
-
-            refs.append(
-                SourceReference(
-                    file_path=p,
-                    symbol=symbol_name,
-                    metadata={
-                        "inputs": inputs,
-                        "outputs": outputs,
-                        "inouts": inouts,
-                    },
-                )
-            )
-        return refs
 
     def build_context(self, task: Task) -> Dict[str, Any]:
         """Assemble domain-specific context bundle for generation or repair."""
@@ -367,71 +333,14 @@ class I2CDomainAdapter(BaseDomainAdapter):
             metadata=trace,
         )
 
-    def get_mutations(self) -> List[Dict[str, Any]]:
-        """Known defect mutations for I2C bus testing."""
-        return [
-            {
-                "id": "I2C-MUT-001",
-                "name": "no_start",
-                "fault": "Missing START condition on bus",
-                "expected_failed_check": "start",
-            },
-            {
-                "id": "I2C-MUT-002",
-                "name": "no_stop",
-                "fault": "Missing STOP condition on bus",
-                "expected_failed_check": "stop",
-            },
-            {
-                "id": "I2C-MUT-003",
-                "name": "no_tb_done",
-                "fault": "FSM fails to assert tb_done completion signal",
-                "expected_failed_check": "tb_done",
-            },
-            {
-                "id": "I2C-MUT-004",
-                "name": "wrong_address",
-                "fault": "Master drives wrong slave address byte",
-                "expected_failed_check": "address_ack",
-            },
-            {
-                "id": "I2C-MUT-005",
-                "name": "wrong_data",
-                "fault": "Master drives wrong data payload byte",
-                "expected_failed_check": "correct_data",
-            },
-            {
-                "id": "I2C-MUT-006",
-                "name": "repeated_start",
-                "fault": "Master issues spurious repeated START",
-                "expected_failed_check": "single_start",
-            },
-            {
-                "id": "I2C-MUT-007",
-                "name": "lsb_first",
-                "fault": "Master transmits each byte least-significant bit first",
-                "expected_failed_check": "address_ack",
-            },
-            {
-                "id": "I2C-MUT-008",
-                "name": "sda_glitch",
-                "fault": "Master changes SDA while SCL is high during a data bit",
-                "expected_failed_check": "sda_stable",
-            },
-            {
-                "id": "I2C-MUT-009",
-                "name": "third_byte",
-                "fault": "Master sends a third data byte before STOP",
-                "expected_failed_check": "byte_count",
-            },
-            {
-                "id": "I2C-MUT-010",
-                "name": "skip_ack",
-                "fault": "Master omits the address ACK clock cell",
-                "expected_failed_check": "data_ack",
-            },
-        ]
+# The registry imports this module lazily; ``register`` is idempotent so a
+# cached import can still repopulate a cleared registry.
+_ADAPTER = I2CDomainAdapter()
 
 
-# Automatically register I2C adapter
-register_domain(I2CDomainAdapter())
+def register() -> None:
+    """(Re)populate the domain registry with the singleton I2C adapter."""
+    register_domain(_ADAPTER)
+
+
+register()

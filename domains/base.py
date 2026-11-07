@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List
-from core.schemas import CandidatePatch, Requirement, SourceReference, Task, ValidationResult
+from core.schemas import CandidatePatch, Requirement, Task, ValidationResult
 
 
 class BaseDomainAdapter(ABC):
@@ -25,11 +25,6 @@ class BaseDomainAdapter(ABC):
     @abstractmethod
     def parse_requirements(self, spec_input: Any) -> List[Requirement]:
         """Parse domain-specific specification, register map or datasheet into canonical Requirements."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def index_sources(self, source_paths: List[str]) -> List[SourceReference]:
-        """Index symbols, files, module headers, or AST elements from target source files."""
         raise NotImplementedError
 
     @abstractmethod
@@ -65,9 +60,4 @@ class BaseDomainAdapter(ABC):
         **kwargs
     ) -> CandidatePatch:
         """Apply targeted domain-specific repair to candidate using failure diagnostics."""
-        raise NotImplementedError
-
-    @abstractmethod
-    def get_mutations(self) -> List[Dict[str, Any]]:
-        """Return the versioned catalogue of known defect mutations for this domain."""
         raise NotImplementedError

@@ -2,6 +2,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import subprocess
+
 from tools.rtl_memory import record_failed_example, record_passing_example, retrieve_rtl_context
 from tools.simulation_tool import parse_result_line, run_simulation
 from tools.structural_checks import structural_checks
@@ -53,18 +55,29 @@ def test_result_line_parsing():
     }
 
 
-def test_simulation_wrapper_returns_success_output():
-    completed = SimpleNamespace(returncode=0, stdout="RESULT: ok", stderr="")
-    with patch("tools.simulation_tool.subprocess.run", return_value=completed):
+def test_simulation_wrapper_reports_failure_for_a_nonzero_exit():
+    failed = SimpleNamespace(returncode=1, stdout="", stderr="ERROR: iverilog failed")
+    with patch("tools.simulation_tool.subprocess.run", return_value=failed):
         result = run_simulation("dummy.out")
-    assert result["success"] is True
-    assert result["stdout"] == "RESULT: ok"
+    assert result["success"] is False
     assert result["timeout"] is False
+    assert "ERROR: iverilog failed" in result["stderr"]
+
+
+def test_simulation_wrapper_marks_a_timeout_as_a_timeout():
+    timed_out = subprocess.TimeoutExpired(cmd="vvp", timeout=30)
+    with patch("tools.simulation_tool.subprocess.run", side_effect=timed_out):
+        result = run_simulation("dummy.out")
+    assert result["success"] is False
+    assert result["timeout"] is True
 
 
 def test_memory_only_retrieves_verified_passing_examples(tmp_path):
     good = (ROOT / "protocols/i2c/reference/good_master_reset_safe.v").read_text()
-    failed = (ROOT / "protocols/i2c/reference/broken_master_no_stop_reset_safe.v").read_text()
+    failed = (
+        "// BROKEN-DESIGN-MARKER\n"
+        + (ROOT / "protocols/i2c/reference/broken_master_no_stop_reset_safe.v").read_text()
+    )
     passing_path = record_passing_example(good, "unit-model", {"protocol": "i2c-v1"}, tmp_path)
     record_failed_example(failed, "unit-model", "simulate", ["stop"], memory_dir=tmp_path)
 
@@ -73,8 +86,9 @@ def test_memory_only_retrieves_verified_passing_examples(tmp_path):
         memory_dir=tmp_path,
     )
     assert passing_path.stem in context
-    # Failed snapshots are intentionally excluded from positive few-shot context.
-    assert "failed_master_no_stop" not in context
+    # The failed snapshot is stored on disk but must never reach the prompt.
+    assert (tmp_path / "failed").exists()
+    assert "BROKEN-DESIGN-MARKER" not in context
     assert "RETRIEVED VERIFIED EXAMPLE" in context
 
 
@@ -95,14 +109,18 @@ def test_ollama_client_uses_stable_options_without_real_ollama(tmp_path, monkeyp
 
     assert response == "module top_glue; endmodule"
     assert seen["model"] == "qwen-test"
-    assert seen["options"]["temperature"] == 0
-    assert seen["options"]["seed"] == ollama_client.DEFAULT_SEED
-    assert seen["options"]["num_ctx"] == ollama_client.DEFAULT_NUM_CTX
-    assert seen["options"]["num_predict"] == ollama_client.DEFAULT_NUM_PREDICT
+    # Reproducibility contract: these are the recorded stable defaults, pinned as
+    # literals so an accidental drift fails the suite instead of silently
+    # invalidating every committed baseline number.
+    assert seen["options"] == {
+        "temperature": 0,
+        "seed": 42,
+        "num_ctx": 8192,
+        "num_predict": 4096,
+    }
 
 
 def test_tampered_passing_memory_entry_is_not_retrieved(tmp_path):
-    import json
     from tools.rtl_memory import _load_successful_examples
 
     good = (ROOT / "protocols/i2c/reference/good_master_reset_safe.v").read_text()

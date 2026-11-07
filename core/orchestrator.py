@@ -5,8 +5,9 @@ The live loop is deterministic:
     generate -> structural -> compile -> hardware -> simulate -> judge -> repair
 
 Repair is bounded and receives the specific failed stage/checks. The
-specialist multi-agent draft that used to live (unreachable) in this module is
-archived in ``archive/multi_agent_draft.py`` until Phase 9.
+specialist multi-agent flow is not wired in; it was removed together with
+``agents/`` and ``core/task_graph.py`` (see ``docs/WORKFLOW.md`` phase 1 and
+the git history on ``v1-stabilize``).
 """
 
 from __future__ import annotations
@@ -23,7 +24,6 @@ from core.attempt_record import AttemptRecord, write_attempt_record
 from core.schemas import Task, ValidationResult
 from core.trace_schema import EventType
 from domains.base import BaseDomainAdapter
-from domains.registry import get_domain
 
 
 def _emit(event_sink: Optional[Callable], event_type: EventType, **data: Any) -> None:
@@ -476,10 +476,3 @@ class Orchestrator:
             with open(results_log_path, "a", encoding="utf-8") as handle:
                 handle.write(json.dumps(cls._summary(log), sort_keys=True) + "\n")
         return log
-
-
-def run_orchestrated_task(task: Task, **kwargs) -> Dict[str, Any]:
-    """Run a task on its registered domain adapter."""
-    domain = get_domain(task.domain)
-    orchestrator = Orchestrator(domain)
-    return orchestrator.execute_task(task, **kwargs)

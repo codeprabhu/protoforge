@@ -66,34 +66,6 @@ class DecisionRecord(BaseModel):
     next_action: str = ""
 
 
-class AgentResult(BaseModel):
-    """Typed output returned by a specialist agent role."""
-    task_id: str
-    role: str
-    objective: str
-    requirements: List[str] = Field(default_factory=list)
-    source_references: List[SourceReference] = Field(default_factory=list)
-    assumptions: List[str] = Field(default_factory=list)
-    findings: List[Dict[str, Any]] = Field(default_factory=list)
-    proposed_changes: List[CandidatePatch] = Field(default_factory=list)
-    confidence: float = 1.0
-    decision: str = ""
-    next_action: str = ""
-    decision_record: Optional[DecisionRecord] = None
-    raw_output: str = ""
-
-
-class RunEvent(BaseModel):
-    """Durable event logged during execution."""
-    event_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    run_id: str
-    event_type: str  # run_started, agent_started, model_invoked, retrieval_completed, patch_created, review_finding, tool_started, tool_finished, stage_finished, verification_result, run_finished
-    timestamp: float = Field(default_factory=time.time)
-    agent_role: Optional[str] = None
-    model: Optional[str] = None
-    payload: Dict[str, Any] = Field(default_factory=dict)
-
-
 class Task(BaseModel):
     """The canonical task contract shared across orchestrator and agents."""
     task_id: str

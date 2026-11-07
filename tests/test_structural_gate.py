@@ -1,6 +1,5 @@
 """Test that missing device instantiation is caught by structural checks."""
 
-import pytest
 import agent.ollama_client as ollama_client
 import agent_core.agent as agent
 
