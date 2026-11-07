@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "name": "one_byte_write",
+  "address_byte": "a0",
+  "data_bytes": ["3c"],
+  "half": 4,
+  "reset_state": "IDLE",
+  "states": [
+    {
+      "name": "IDLE",
+      "drive": {"sda": "high", "scl": "high", "done": "low"},
+      "wait": "started",
+      "otherwise": "hold",
+      "transitions": [
+        {"when": ["always"], "next": "START", "actions": ["load_address"]}
+      ]
+    },
+    {
+      "name": "START",
+      "drive": {"sda": "high", "scl": "high"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {"when": ["always"], "next": "START_HOLD", "drive": {"sda": "low"}}
+      ]
+    },
+    {
+      "name": "START_HOLD",
+      "drive": {"sda": "low", "scl": "high"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {
+          "when": ["always"],
+          "next": "BIT_LOW",
+          "drive": {"scl": "low"},
+          "actions": ["restart_bits"]
+        }
+      ]
+    },
+    {
+      "name": "BIT_LOW",
+      "drive": {"sda": "bit", "scl": "low"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {"when": ["always"], "next": "BIT_HIGH", "drive": {"scl": "high"}}
+      ]
+    },
+    {
+      "name": "BIT_HIGH",
+      "drive": {"scl": "high"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {
+          "when": ["bit_last"],
+          "next": "ACK_LOW",
+          "drive": {"scl": "low", "sda": "high"}
+        },
+        {
+          "when": ["bit_not_last"],
+          "next": "BIT_LOW",
+          "drive": {"scl": "low"},
+          "actions": ["next_bit"]
+        }
+      ]
+    },
+    {
+      "name": "ACK_LOW",
+      "drive": {"scl": "low", "sda": "high"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {"when": ["always"], "next": "ACK_HIGH", "drive": {"scl": "high"}}
+      ]
+    },
+    {
+      "name": "ACK_HIGH",
+      "drive": {"scl": "high", "sda": "high"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {"when": ["always"], "next": "NEXT_BYTE", "drive": {"scl": "low"}}
+      ]
+    },
+    {
+      "name": "NEXT_BYTE",
+      "drive": {},
+      "wait": null,
+      "otherwise": "hold",
+      "transitions": [
+        {
+          "when": ["byte_not_last"],
+          "next": "BIT_LOW",
+          "actions": ["advance_byte", "restart_bits"]
+        },
+        {"when": ["byte_done"], "next": "STOP_LOW"}
+      ]
+    },
+    {
+      "name": "STOP_LOW",
+      "drive": {"scl": "low", "sda": "low"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {"when": ["always"], "next": "STOP_HIGH", "drive": {"scl": "high"}}
+      ]
+    },
+    {
+      "name": "STOP_HIGH",
+      "drive": {"scl": "high", "sda": "low"},
+      "wait": "half_done",
+      "otherwise": "tick",
+      "transitions": [
+        {"when": ["always"], "next": "DONE", "drive": {"sda": "high"}}
+      ]
+    },
+    {
+      "name": "DONE",
+      "drive": {"done": "high"},
+      "wait": null,
+      "transitions": []
+    }
+  ]
+}

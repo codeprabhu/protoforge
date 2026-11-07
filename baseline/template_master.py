@@ -12,7 +12,11 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
-from agent.rtl_generator import _assemble_multi_fragment, build_device_instance_blocks
+from agent.rtl_generator import (
+    _assemble_multi_fragment,
+    _device_input_defaults,
+    build_device_instance_blocks,
+)
 from tools.i2c_spec import parse_i2c_spec
 
 DEFAULT_DEVICE_PATHS = (
@@ -22,16 +26,6 @@ DEFAULT_DEVICE_PATHS = (
 DEFAULT_ADDRESS = 0x50
 DEFAULT_DATA_BYTES = (0x3C,)
 DEFAULT_HALF = 4
-
-
-def _device_input_defaults(blocks: list[dict]) -> list[str]:
-    """Reset assignments for every device input so simulation has no X inputs."""
-    lines: list[str] = []
-    for block in blocks:
-        for port in block["info"].ports:
-            if port.direction == "input" and port.name not in ("clk", "rst_n"):
-                lines.append(f"            {block['signals'][port.name]} <= 0;")
-    return lines
 
 
 def _next_byte_branches(data_bytes: Sequence[int]) -> list[str]:

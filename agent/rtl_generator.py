@@ -191,6 +191,20 @@ def _signal_map_summary(label: str, signals: dict) -> str:
     )
 
 
+def _device_input_defaults(blocks: list[dict]) -> list[str]:
+    """Reset assignments for every device input so simulation has no X inputs.
+
+    Shared by the template baseline and the FSM-IR compiler: both emit the
+    same wrapper, so both must zero the same device inputs on reset.
+    """
+    lines: list[str] = []
+    for block in blocks:
+        for port in block["info"].ports:
+            if port.direction == "input" and port.name not in ("clk", "rst_n"):
+                lines.append(f"            {block['signals'][port.name]} <= 0;")
+    return lines
+
+
 MULTI_SMALL_MODEL_PROMPT = """You are generating only the behavior-bearing control fragment for a fixed
 Verilog-2001 I2C wrapper. The harness already declares clk, rst_n, tb_start,
 tb_done, the open-drain sda/scl drivers, and every device instance below.
