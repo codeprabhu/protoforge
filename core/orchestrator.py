@@ -451,6 +451,10 @@ class Orchestrator:
     def _summary(log: Dict[str, Any]) -> Dict[str, Any]:
         """One-line index entry pointing at the run directory and full record."""
         attempts = log.get("attempts") or []
+        # Why the run ended must be on disk even when no attempt was staged:
+        # without it a run that never reached the model is indistinguishable
+        # from a model that produced nothing.
+        error = log.get("generation_error") or log.get("tool_error")
         return {
             "run_id": log.get("run_id"),
             "timestamp": log.get("timestamp"),
@@ -461,6 +465,7 @@ class Orchestrator:
             "temperature": log.get("generation_temperature"),
             "retrieval_enabled": log.get("retrieval_enabled"),
             "final": log.get("final"),
+            "error": error,
             "first_attempt_pass": bool(log.get("first_attempt_pass", False)),
             "recovered_after_repair": bool(log.get("recovered_after_repair", False)),
             "attempts": len(attempts),

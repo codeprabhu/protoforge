@@ -77,6 +77,7 @@ CSV_FIELDS = [
     "first_sha256",
     "run_id",
     "run_dir",
+    "error",
 ]
 
 
@@ -226,6 +227,8 @@ def run_one(
         "first_sha256": first_sha,
         "run_id": log.get("run_id", ""),
         "run_dir": log.get("run_dir", ""),
+        # Why the run ended when it never produced a candidate; empty otherwise.
+        "error": log.get("generation_error") or log.get("tool_error") or "",
     }
 
 
@@ -250,12 +253,21 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         latencies = [float(row["elapsed_sec"]) for row in group if row["elapsed_sec"] is not None]
         tokens = [float(row["total_tokens"]) for row in group]
         outcomes: dict[str, int] = {}
+        without_candidate = 0
         for row in group:
             outcomes[row["final"]] = outcomes.get(row["final"], 0) + 1
+            if not int(row.get("attempts") or 0):
+                without_candidate += 1
         summary["configs"][name] = {
             "runs": n,
             "cases": len({row["case_id"] for row in group}),
             "samples": len({row["sample"] for row in group}),
+            # A run that never staged a candidate (generation_error /
+            # runner_error) says nothing about model quality; keep it out of
+            # the candidate denominator instead of silently counting it as a
+            # failed generation.
+            "runs_without_candidate": without_candidate,
+            "candidate_runs": n - without_candidate,
             "pass_at_1": pass1,
             "pass_at_1_rate": round(pass1 / n, 4) if n else 0.0,
             "pass_at_1_ci95": [round(v, 4) for v in wilson_interval(pass1, n)],
@@ -275,9 +287,9 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 def _markdown_table(summary: dict[str, Any]) -> str:
     header = (
-        "| Config | Runs | pass@1 | pass@1 95% CI | pass after repair | "
+        "| Config | Runs | no candidate | pass@1 | pass@1 95% CI | pass after repair | "
         "after-repair 95% CI | recovered | distinct first | median latency (s) | median tokens |\n"
-        "| --- | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |"
+        "| --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |"
     )
     lines = [header]
     for name, stats in summary["configs"].items():
@@ -285,6 +297,7 @@ def _markdown_table(summary: dict[str, Any]) -> str:
         cia = stats["pass_after_repair_ci95"]
         lines.append(
             f"| {name} | {stats['runs']} | "
+            f"{stats['runs_without_candidate']} | "
             f"{stats['pass_at_1']}/{stats['runs']} ({stats['pass_at_1_rate']:.1%}) | "
             f"[{ci1[0]:.1%}, {ci1[1]:.1%}] | "
             f"{stats['pass_after_repair']}/{stats['runs']} "
@@ -347,6 +360,11 @@ def main(argv: list[str] | None = None) -> int:
     done = 0
     csv_path = out_dir / "runs.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    # The orchestrator appends to results_log, while the csv is truncated on
+    # every invocation. Truncate the jsonl here too so csv, jsonl and
+    # summary.json always describe the same set of runs.
+    (out_dir / "runs.jsonl").write_text("", encoding="utf-8")
 
     def _write_summary() -> None:
         summary = summarize(rows)

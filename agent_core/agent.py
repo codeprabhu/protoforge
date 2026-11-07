@@ -176,6 +176,13 @@ def run_once(
         "first_attempt_pass": bool(log.get("first_attempt_pass", False)),
         "recovered_after_repair": bool(log.get("recovered_after_repair", False)),
         "elapsed_sec": log.get("elapsed_sec"),
+        # Only present when the run failed for a reason other than the gates;
+        # omitted otherwise so a clean header stays clean.
+        **{
+            key: log[key]
+            for key in ("generation_error", "tool_error")
+            if log.get(key)
+        },
     })
     _write_json(paths.run_header(), header)
 

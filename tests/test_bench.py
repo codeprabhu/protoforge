@@ -102,6 +102,34 @@ def test_summary_reports_rates_cis_and_distinct_designs():
     assert len(stats["pass_at_1_ci95"]) == 2
 
 
+def test_summary_separates_runs_that_never_produced_a_candidate():
+    """A run where the model was never called must not read as a model result."""
+    def row(sample, final, sha, attempts):
+        return {
+            "config": "on-on", "case_id": "c1", "sample": sample,
+            "final": final, "first_attempt_pass": final == "pass",
+            "recovered_after_repair": False, "elapsed_sec": 10.0,
+            "total_tokens": 100, "first_sha256": sha, "attempts": attempts,
+        }
+
+    rows = [
+        row(0, "generation_error", "", 0),
+        row(1, "pass", "aaa", 1),
+        row(2, "runner_error", "", 0),
+    ]
+    stats = summarize(rows)["configs"]["on-on"]
+    assert stats["runs"] == 3
+    assert stats["runs_without_candidate"] == 2
+    assert stats["candidate_runs"] == 1
+    assert stats["outcomes"] == {
+        "generation_error": 1, "pass": 1, "runner_error": 1,
+    }
+    assert stats["pass_at_1"] == 1
+    # Denominators stay over every requested run, but the contamination is
+    # visible instead of being reported as a flat 33% pass rate.
+    assert stats["pass_at_1_rate"] == pytest.approx(1 / 3, abs=1e-4)
+
+
 def test_template_benchmark_smoke_writes_csv_and_summary(tmp_path):
     from bench.run import main
 
@@ -125,3 +153,33 @@ def test_template_benchmark_smoke_writes_csv_and_summary(tmp_path):
     assert stats["pass_at_1"] == 1
     assert stats["pass_after_repair"] == 1
     assert (out / "report.md").is_file()
+
+
+def test_rerunning_a_benchmark_overwrites_instead_of_accumulating(tmp_path):
+    """csv truncated, jsonl appended: the three artifacts used to disagree.
+
+    ``runs.csv`` was opened with ``"w"`` while the orchestrator appended to
+    ``runs.jsonl``, and ``summary.json`` was computed from the in-memory rows
+    only. After two invocations the committed report could claim 96 rows while
+    the csv held 36 and the jsonl held 92.
+    """
+    from bench.run import main
+
+    out = tmp_path / "bench"
+    args = [
+        "--cases", str(CASES), "--case-limit", "1", "--samples", "1",
+        "--configs", "template", "--out-dir", str(out), "--quiet",
+    ]
+    assert main(args) == 0
+    assert main(args) == 0
+
+    csv_rows = list(csv.DictReader((out / "runs.csv").open(encoding="utf-8")))
+    jsonl_rows = [
+        json.loads(line)
+        for line in (out / "runs.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+
+    assert len(csv_rows) == len(jsonl_rows) == summary["rows"] == 1
+    assert {r["run_id"] for r in csv_rows} == {r["run_id"] for r in jsonl_rows}

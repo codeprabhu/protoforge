@@ -44,6 +44,12 @@ def run_batch(n_runs: int, model: str | None = None, run_fn=run_once,
                 break
     counts = Counter(r.get("final", "unknown") for r in results)
     first_hashes = [r["attempts"][0]["sha256"] for r in results if r.get("attempts")]
+    # A run can fail before any attempt is staged; its reason lives under
+    # generation_error/tool_error rather than "error".
+    def _why(run: dict) -> str | None:
+        return run.get("error") or run.get("generation_error") or run.get("tool_error")
+
+    errors = sorted({reason for reason in map(_why, results) if reason})
     n = max(len(results), 1)
     summary = {
         "model": model or DEFAULT_MODEL,
@@ -59,7 +65,7 @@ def run_batch(n_runs: int, model: str | None = None, run_fn=run_once,
         "other_outcomes": sum(v for k, v in counts.items() if k not in outcomes.KNOWN_FINALS),
         "distinct_first_attempts": len(set(first_hashes)),
         "first_attempts_recorded": len(first_hashes),
-        "errors": sorted({r["error"] for r in results if r.get("error")}),
+        "errors": errors,
     }
     summary["pass_rate_after_repair"] = counts["pass"] / n
     summary["first_try_pass_rate"] = summary["first_try_pass"] / n
@@ -78,7 +84,7 @@ def format_summary(s: dict) -> str:
         f"Compile-failed:         {s['outcomes'].get('compile_failed', 0)}/{n}",
         f"Structural-failed:      {s['outcomes'].get('structural_failed', 0)}/{n}",
         f"Simulation-failed:      {s['outcomes'].get('sim_checks_failed', 0)}/{n}",
-        f"Hardware-failed:         {s['outcomes'].get('hardware_failed', 0)}/{n}",
+        f"Hardware-failed:       {s['outcomes'].get('hardware_failed', 0)}/{n}",
         f"Tool-missing:           {s['outcomes'].get('tool_missing', 0)}/{n}",
         f"Generation errors:      {s['outcomes'].get(outcomes.GENERATION_ERROR, 0)}/{n}",
         f"Other outcomes:         {s['other_outcomes']}",
