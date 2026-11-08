@@ -301,14 +301,121 @@ def _canon_hex(value: Any) -> str:
     return f"{int(text, 16):02x}"
 
 
-def _protocol_problems(design: FsmDesign) -> List[str]:
-    """Reject tables that cannot perform the transaction at all.
+def _state_reads_bit_idx(state) -> bool:
+    """True when the state's behaviour depends on ``bit_idx``."""
+    return (
+        state.drive.sda is Sda.BIT
+        or any(transition.drive.sda is Sda.BIT for transition in state.transitions)
+        or any(
+            Cond.BIT_LAST in transition.when or Cond.BIT_NOT_LAST in transition.when
+            for transition in state.transitions
+        )
+        or any(Action.NEXT_BIT in transition.actions for transition in state.transitions)
+    )
 
-    These are not style preferences and they are not part of the structural
-    validator: each one is a guaranteed protocol failure that the first real
-    model table exhibited (compile and simulation pass, then no address, no
-    data bits, no STOP). Catching them here costs one retry instead of a full
-    simulation plus repair cycle.
+
+def _enrich_design(design: FsmDesign) -> Tuple[FsmDesign, List[str]]:
+    """Fill protocol boilerplate the compiler can own, and say what was filled.
+
+    The real model tables consistently omit four mechanical things:
+
+    * ``otherwise`` on states whose guards can all be false;
+    * ``load_address`` (the first byte is always the address);
+    * ``restart_bits`` on the way into the bit loop and after ``advance_byte``;
+    * a rising ``tb_done`` in the terminal state.
+
+    None of these changes the model's contribution -- state order, drive levels
+    and timing -- they are the same in every I2C write transaction. Filling
+    them deterministically removes a class of generation failures that cost two
+    model calls each, without weakening :func:`ir.validator.validate_design`:
+    the enriched table must still pass the full validator and protocol checks,
+    and the notes are returned so a run can audit what was inserted.
+    """
+    enriched = design.model_copy(deep=True)
+    notes: List[str] = []
+    reset = enriched.state_by_name[enriched.reset_state]
+
+    def has_condition(condition: Cond) -> bool:
+        return any(
+            state.wait is condition
+            or any(condition in transition.when for transition in state.transitions)
+            for state in enriched.states
+        )
+
+    def has_action(action: Action) -> bool:
+        return any(
+            action in transition.actions
+            for state in enriched.states
+            for transition in state.transitions
+        )
+
+    for state in enriched.states:
+        has_always = any(
+            transition.when == [Cond.ALWAYS] for transition in state.transitions
+        )
+        falls_through = bool(state.transitions) and not has_always
+        if state.otherwise is None and (state.wait is not None or falls_through):
+            state.otherwise = (
+                Otherwise.TICK
+                if state.wait is Cond.HALF_DONE
+                else Otherwise.HOLD
+            )
+            notes.append(f"otherwise={state.otherwise.value} in {state.name}")
+
+    if not has_condition(Cond.STARTED) and reset.wait is None:
+        reset.wait = Cond.STARTED
+        reset.otherwise = reset.otherwise or Otherwise.HOLD
+        notes.append(f"wait=started in {reset.name}")
+
+    if not has_action(Action.LOAD_ADDRESS) and reset.transitions:
+        for transition in reset.transitions:
+            transition.actions.append(Action.LOAD_ADDRESS)
+        notes.append(f"load_address after {reset.name}")
+
+    if any(_state_reads_bit_idx(state) for state in enriched.states):
+        # Only fill when the path-sensitive check would otherwise reject it:
+        # a table that already reloads bit_idx on every path is left byte-for
+        # -byte identical, so an explicit golden design stays untouched.
+        needs_restart = any(
+            "restart_bits" in problem for problem in validate_design(enriched)
+        )
+        if needs_restart:
+            for state in enriched.states:
+                for transition in state.transitions:
+                    if (
+                        state.name == reset.name
+                        or Action.ADVANCE_BYTE in transition.actions
+                    ):
+                        if Action.RESTART_BITS not in transition.actions:
+                            transition.actions.append(Action.RESTART_BITS)
+                            notes.append(f"restart_bits in {state.name}")
+
+    done_present = has_action(Action.FINISH) or any(
+        state.drive.done is Done.HIGH
+        or any(transition.drive.done is Done.HIGH for transition in state.transitions)
+        for state in enriched.states
+    )
+    if not done_present:
+        terminals = [
+            state
+            for state in enriched.states
+            if not state.transitions and state.wait is None
+        ]
+        for state in terminals:
+            state.drive.done = Done.HIGH
+            notes.append(f"done=high in {state.name}")
+
+    return enriched, notes
+
+
+def _protocol_problems(design: FsmDesign) -> List[str]:
+    """Reject tables that still cannot perform the transaction.
+
+    Most mechanical omissions are filled by :func:`_enrich_design` before this
+    runs. What remains is the part the compiler cannot invent: a table that
+    never drives ``sda="bit"`` cannot send data, so it is rejected at
+    generation time and costs one retry instead of a compile+simulate+repair
+    cycle. The other checks stay as a guard for callers that skip enrichment.
     """
     problems: List[str] = []
     actions = {
@@ -360,11 +467,12 @@ def _evaluate_design(
     *,
     expected_addr: Optional[str],
     expected_data: Optional[Sequence[str]],
-) -> Tuple[Optional[FsmDesign], List[str]]:
+) -> Tuple[Optional[FsmDesign], List[str], List[str]]:
     design, problems = parse_design(extract_json_text(raw))
     if design is None:
-        return None, problems
+        return None, problems, []
 
+    design, notes = _enrich_design(design)
     problems = validate_design(design)
     problems.extend(_protocol_problems(design))
     if expected_addr is not None and _canon_hex(design.address_byte) != _canon_hex(expected_addr):
@@ -381,8 +489,8 @@ def _evaluate_design(
                 f"got {json.dumps(actual)}"
             )
     if problems:
-        return None, problems
-    return design, []
+        return None, problems, notes
+    return design, [], notes
 
 
 def compile_design_with_json(
@@ -444,13 +552,13 @@ def _request_design(
     seed: Optional[int],
     expected_addr: Optional[str],
     expected_data: Optional[Sequence[str]],
-) -> Tuple[FsmDesign, str, str, List[Dict[str, Any]]]:
+) -> Tuple[FsmDesign, str, str, List[Dict[str, Any]], List[str]]:
     """One model call, one retry on bad output, then ``FsmError``."""
     raw, metadata = _model_call(
         prompt, model=model, temperature=temperature, seed=seed
     )
     calls = [metadata]
-    design, problems = _evaluate_design(
+    design, problems, notes = _evaluate_design(
         raw, expected_addr=expected_addr, expected_data=expected_data
     )
     prompt_used = prompt
@@ -460,12 +568,12 @@ def _request_design(
             prompt_used, model=model, temperature=temperature, seed=seed
         )
         calls.append(metadata)
-        design, problems = _evaluate_design(
+        design, problems, notes = _evaluate_design(
             raw, expected_addr=expected_addr, expected_data=expected_data
         )
         if design is None:
             raise FsmError(problems)
-    return design, raw, prompt_used, calls
+    return design, raw, prompt_used, calls, notes
 
 
 def _record_trace(
@@ -478,6 +586,7 @@ def _record_trace(
     retrieval: bool,
     device_paths: Sequence[str],
     design_json: str,
+    enrichment: List[str],
 ) -> None:
     if trace is None:
         return
@@ -502,6 +611,7 @@ def _record_trace(
             },
             "device_paths": list(device_paths),
             "fsm_json": design_json,
+            "enrichment": list(enrichment),
         }
     )
 
@@ -529,7 +639,7 @@ def generate_fsm_rtl(
     del patcher  # IR output never goes through the regex patcher.
     spec = parse_i2c_spec(str(protocol_spec_path))
     prompt = build_generation_prompt(spec, retrieval=retrieval)
-    design, raw, prompt_used, calls = _request_design(
+    design, raw, prompt_used, calls, notes = _request_design(
         prompt,
         model=model,
         temperature=temperature,
@@ -550,6 +660,7 @@ def generate_fsm_rtl(
         retrieval=retrieval,
         device_paths=device_paths,
         design_json=design_json,
+        enrichment=notes,
     )
     if out_path:
         Path(out_path).write_text(rtl, encoding="utf-8")
@@ -589,7 +700,7 @@ def repair_fsm_rtl(
     # expected_addr/expected_data (first byte only) are a secondary check.
     expected_addr = original.address_byte
     expected_data = list(original.data_bytes)
-    design, raw, prompt_used, calls = _request_design(
+    design, raw, prompt_used, calls, notes = _request_design(
         prompt,
         model=model,
         temperature=temperature,
@@ -611,6 +722,7 @@ def repair_fsm_rtl(
         retrieval=retrieval,
         device_paths=device_paths,
         design_json=design_json,
+        enrichment=notes,
     )
     if out_path:
         Path(out_path).write_text(rtl, encoding="utf-8")
