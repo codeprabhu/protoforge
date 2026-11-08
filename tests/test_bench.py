@@ -70,6 +70,64 @@ def test_config_aliases_dedupe_the_shared_on_on_cell():
         resolve_configs(["not-a-config"])
 
 
+def test_ir_switch_suffixes_model_configs_and_collapses_the_patcher_axis():
+    resolved = resolve_configs(["on-on", "retrieval-off", "patcher-off"], ir=True)
+    assert [name for name, _ in resolved] == ["on-on-ir", "retrieval-off-ir"]
+    assert all(spec["generator"] == "ir" for _, spec in resolved)
+    assert all(spec["patcher"] for _, spec in resolved)
+
+    template = resolve_configs(["template"], ir=True)
+    assert [name for name, _ in template] == ["template"]
+    assert template[0][1]["generator"] == "template"
+
+
+def test_ir_config_installs_the_json_generator_hooks(tmp_path, monkeypatch):
+    import bench.run as bench
+    from agent.ir_generator import generate_fsm_rtl, repair_fsm_rtl
+
+    case = load_cases(CASES)[0]
+    spec_path = write_case_spec(case, tmp_path)
+    seen = {}
+
+    def fake_run_once(**kwargs):
+        seen.update(kwargs)
+        return {
+            "final": "pass",
+            "attempts": [],
+            "first_attempt_pass": True,
+            "recovered_after_repair": False,
+            "run_id": "r1",
+            "run_dir": "",
+            "elapsed_sec": 0.0,
+        }
+
+    monkeypatch.setattr(bench, "run_once", fake_run_once)
+
+    def one(config_name, config_spec):
+        return bench.run_one(
+            config_name=config_name,
+            config_spec=config_spec,
+            case=case,
+            spec_path=spec_path,
+            sample=0,
+            seed=42,
+            model="qwen-test",
+            temperature=0.0,
+            max_repairs=1,
+            out_dir=tmp_path,
+        )
+
+    row = one("on-on-ir", {**bench.CONFIGS["on-on"], "generator": "ir"})
+    assert seen["generate_fn"] is generate_fsm_rtl
+    assert seen["repair_fn"] is repair_fsm_rtl
+    assert row["generator"] == "ir"
+
+    seen.clear()
+    row = one("on-on", bench.CONFIGS["on-on"])
+    assert "generate_fn" not in seen and "repair_fn" not in seen
+    assert row["generator"] == "rtl"
+
+
 def test_summary_reports_rates_cis_and_distinct_designs():
     rows = [
         {

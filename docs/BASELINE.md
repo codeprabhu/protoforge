@@ -80,10 +80,25 @@ correct design for every benchmark case, including the 2- and 3-byte tasks.
 
 ## Real-model matrix
 
-Source: `results/bench/` (`runs.csv`, `summary.json`, `report.md`). The table is
-filled from the completed batch; see the CSV for per-case rows.
+Source: `results/bench/` (`runs.csv`, `runs.jsonl`, `summary.json`, `report.md`). All four files are regenerated from the same 96 run directories (`results/bench/runs/*/run.json`); a merge had left conflict markers in the index and a stale 36-row CSV, so the index was rebuilt from the per-run evidence and the table below is now internally consistent.
 
-<!-- MODEL_TABLE -->
+| Config | Runs | no candidate | pass@1 | pass@1 95% CI | pass after repair | after-repair 95% CI | recovered | distinct first | median latency (s) | median tokens |
+| --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |
+| `template` | 24 | 0 | 24/24 (100.0%) | [86.2%, 100.0%] | 24/24 (100.0%) | [86.2%, 100.0%] | 0 | 12/24 | 0.081 | 0.0 |
+| `on-on` | 24 | 0 | 16/24 (66.7%) | [46.7%, 82.0%] | 16/24 (66.7%) | [46.7%, 82.0%] | 0 | 12/24 | 187.238 | 2899.0 |
+| `retrieval-off` | 24 | 0 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 24/24 | 243.605 | 7744.0 |
+| `patcher-off` | 24 | 19 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 1/5 | 0.0 | 0.0 |
+
+**Reading the table.** `on-on` is the baseline to beat: 16 of 24 first
+attempts pass and repair recovers nothing, so the model's first answer is the
+whole result. Turning retrieval off drops to 0/24 with 24 distinct first
+designs, i.e. the model still writes 24 different answers but none is a valid
+master. `patcher-off` is dominated by a harness failure: 19 runs raised before
+the first gate and are recorded as `runner_error` (no candidate), and the
+remaining 5 failed structural checks. Those 19 are **not** model failures and
+must not be read as a 0% generation rate; the repair-crash guard added in
+steps 86–89 now records the same fault as `repair_error` with the triggering
+stage's outcome instead of losing the run.
 
 ## Metric definitions
 

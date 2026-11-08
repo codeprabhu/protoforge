@@ -14,6 +14,11 @@ Configurations (the 2x2 ablation shares the on/on cell):
 
 ``retrieval-on``/``patcher-on`` are accepted as aliases for ``on-on``.
 
+``--ir`` swaps the Verilog generator for the FSM JSON generator (Phase 7,
+step 90). Model configs then get an ``-ir`` suffix (``on-on-ir``) so the
+report can compare them with the committed RTL baseline; the regex patcher
+has no meaning on that path, so patcher-off collapses into on-on-ir.
+
 Retrieval memory is frozen during a benchmark by default: benchmark runs do
 not add new passing/failed examples, so later runs in the same batch do not see
 examples learned from earlier benchmark cases. Pass ``--learn`` to opt out.
@@ -35,6 +40,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from agent.ir_generator import generate_fsm_rtl, repair_fsm_rtl  # noqa: E402
 from agent_core.agent import run_once  # noqa: E402
 from agent_core.config import Config  # noqa: E402
 from baseline.template_master import generate_template_rtl  # noqa: E402
@@ -46,10 +52,19 @@ from tools.make_spec import (  # noqa: E402
 )
 
 CONFIGS: dict[str, dict[str, Any]] = {
-    "template": {"kind": "template", "retrieval": False, "patcher": True},
-    "on-on": {"kind": "model", "retrieval": True, "patcher": True},
-    "retrieval-off": {"kind": "model", "retrieval": False, "patcher": True},
-    "patcher-off": {"kind": "model", "retrieval": True, "patcher": False},
+    "template": {
+        "kind": "template", "retrieval": False, "patcher": True,
+        "generator": "template",
+    },
+    "on-on": {
+        "kind": "model", "retrieval": True, "patcher": True, "generator": "rtl",
+    },
+    "retrieval-off": {
+        "kind": "model", "retrieval": False, "patcher": True, "generator": "rtl",
+    },
+    "patcher-off": {
+        "kind": "model", "retrieval": True, "patcher": False, "generator": "rtl",
+    },
 }
 ALIASES = {
     "retrieval-on": "on-on",
@@ -66,6 +81,7 @@ CSV_FIELDS = [
     "max_repairs",
     "retrieval",
     "patcher",
+    "generator",
     "final",
     "first_attempt_pass",
     "recovered_after_repair",
@@ -96,10 +112,17 @@ def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, flo
     return (max(0.0, centre - half), min(1.0, centre + half))
 
 
-def resolve_configs(names: Iterable[str]) -> list[tuple[str, dict[str, Any]]]:
-    """Expand aliases, keep order, and drop duplicate configurations."""
+def resolve_configs(
+    names: Iterable[str], *, ir: bool = False
+) -> list[tuple[str, dict[str, Any]]]:
+    """Expand aliases, keep order, and drop duplicate configurations.
+
+    ``ir=True`` switches every model config to the JSON IR generator. The
+    regex patcher is not part of that path, so patcher-off collapses into the
+    retrieval-on cell instead of producing a duplicate run.
+    """
     resolved: list[tuple[str, dict[str, Any]]] = []
-    seen: set[tuple[bool, bool, str]] = set()
+    seen: set[tuple[str, bool, bool]] = set()
     for name in names:
         canonical = ALIASES.get(name, name)
         if canonical not in CONFIGS:
@@ -107,8 +130,12 @@ def resolve_configs(names: Iterable[str]) -> list[tuple[str, dict[str, Any]]]:
                 f"unknown config {name!r}; choose from {sorted(CONFIGS)} "
                 f"(aliases: {sorted(ALIASES)})"
             )
-        spec = CONFIGS[canonical]
-        key = (spec["retrieval"], spec["patcher"], spec["kind"])
+        spec = dict(CONFIGS[canonical])
+        if ir and spec["kind"] == "model":
+            spec["generator"] = "ir"
+            spec["patcher"] = True
+            canonical = f"{canonical}-ir"
+        key = (spec["generator"], spec["retrieval"], spec["patcher"])
         if key in seen:
             continue
         seen.add(key)
@@ -170,6 +197,9 @@ def run_one(
     hooks: dict[str, Any] = {}
     if config_spec["kind"] == "template":
         hooks["generate_fn"] = _template_generate
+    elif config_spec.get("generator") == "ir":
+        hooks["generate_fn"] = generate_fsm_rtl
+        hooks["repair_fn"] = repair_fsm_rtl
     if not learn:
         # Freeze retrieval memory: a benchmark must not teach itself.
         hooks["on_success"] = lambda *args, **kwargs: None
@@ -189,6 +219,7 @@ def run_one(
             "max_repairs": max_repairs,
             "retrieval": config_spec["retrieval"],
             "patcher": config_spec["patcher"],
+            "generator": config_spec["generator"],
             "final": "runner_error",
             "first_attempt_pass": False,
             "recovered_after_repair": False,
@@ -216,6 +247,7 @@ def run_one(
         "max_repairs": max_repairs,
         "retrieval": config_spec["retrieval"],
         "patcher": config_spec["patcher"],
+        "generator": config_spec["generator"],
         "final": log.get("final", "unknown"),
         "first_attempt_pass": bool(log.get("first_attempt_pass", False)),
         "recovered_after_repair": bool(log.get("recovered_after_repair", False)),
@@ -292,7 +324,12 @@ def _markdown_table(summary: dict[str, Any]) -> str:
         "| --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |"
     )
     lines = [header]
-    for name, stats in summary["configs"].items():
+    # Keep the report order stable regardless of dict loading order: a JSON
+    # round-trip sorts keys, but the table should still lead with the baseline.
+    names = [name for name in CONFIGS if name in summary["configs"]]
+    names += [name for name in summary["configs"] if name not in names]
+    for name in names:
+        stats = summary["configs"][name]
         ci1 = stats["pass_at_1_ci95"]
         cia = stats["pass_after_repair_ci95"]
         lines.append(
@@ -328,6 +365,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--out-dir", default="results/bench")
     parser.add_argument(
+        "--ir",
+        action="store_true",
+        help="use the FSM JSON generator/repair instead of free-form Verilog",
+    )
+    parser.add_argument(
         "--case-limit",
         type=int,
         default=0,
@@ -348,7 +390,8 @@ def main(argv: list[str] | None = None) -> int:
     if args.case_limit:
         cases = cases[: args.case_limit]
     configs = resolve_configs(
-        [name.strip() for name in args.configs.split(",") if name.strip()]
+        [name.strip() for name in args.configs.split(",") if name.strip()],
+        ir=args.ir,
     )
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -376,6 +419,7 @@ def main(argv: list[str] | None = None) -> int:
             "samples_per_case": args.samples,
             "cases": [case["id"] for case in cases],
             "retrieval_memory_frozen": not args.learn,
+            "ir": args.ir,
         })
         (out_dir / "summary.json").write_text(
             json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
