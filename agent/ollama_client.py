@@ -28,6 +28,12 @@ SYSTEM_PROMPT = (
     "prefer explicit clocked FSMs over delays or testbench constructs."
 )
 
+JSON_SYSTEM_PROMPT = (
+    "You are a careful digital design engineer. Reply with exactly one JSON "
+    "object that matches the supplied schema. Do not add prose, markdown, or "
+    "code fences."
+)
+
 # Response fields worth keeping for reproducibility (Ollama reports these).
 _METADATA_FIELDS = (
     "model",
@@ -98,6 +104,61 @@ def generate_verilog(
     """
     result = generate_verilog_with_metadata(
         prompt, model=model, temperature=temperature, seed=seed
+    )
+    return result if with_metadata else result["content"]
+
+
+def generate_json_with_metadata(
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    temperature: float | None = None,
+    seed: int = DEFAULT_SEED,
+    json_schema: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """Ask the model for JSON, optionally constrained by a JSON schema.
+
+    Ollama's ``format`` argument accepts either the string ``"json"`` (any
+    valid JSON) or a schema dict (grammar-constrained output, server >= 0.5).
+    The caller still parses and validates the result: a constrained response
+    can be syntactically valid and semantically wrong.
+    """
+    ollama = _require_ollama()
+    options = {
+        "temperature": DEFAULT_TEMPERATURE if temperature is None else temperature,
+        "seed": seed,
+        "num_ctx": DEFAULT_NUM_CTX,
+        "num_predict": DEFAULT_NUM_PREDICT,
+    }
+    response = ollama.chat(
+        model=model or DEFAULT_MODEL,
+        messages=[
+            {"role": "system", "content": JSON_SYSTEM_PROMPT},
+            {"role": "user", "content": prompt},
+        ],
+        format=json_schema if json_schema is not None else "json",
+        options=options,
+    )
+    content = response["message"]["content"]
+    metadata = {field: response.get(field) for field in _METADATA_FIELDS if field in response}
+    metadata["options"] = options
+    return {"content": content, **metadata}
+
+
+def generate_json(
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    temperature: float | None = None,
+    seed: int = DEFAULT_SEED,
+    with_metadata: bool = False,
+    json_schema: Optional[Dict[str, Any]] = None,
+) -> Any:
+    """Generate JSON text, or the full metadata dict when ``with_metadata``."""
+    result = generate_json_with_metadata(
+        prompt,
+        model=model,
+        temperature=temperature,
+        seed=seed,
+        json_schema=json_schema,
     )
     return result if with_metadata else result["content"]
 

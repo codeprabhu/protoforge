@@ -8,8 +8,8 @@ commit `086bf99`.
 
 ## Status board
 
-Last verified: 2026-11-07, commit `ccca20e`, `118 passed` from
-`.venv/bin/python -m pytest -q tests`.
+Last verified: 2026-11-08, `169 passed` from
+`.venv/bin/python -m pytest -q tests` (steps 86–89 committed).
 
 | Phase | Steps | State | Evidence |
 | --- | --- | --- | --- |
@@ -20,7 +20,7 @@ Last verified: 2026-11-07, commit `ccca20e`, `118 passed` from
 | 4 Harden the oracle | 47–60 | **done** | tag `oracle-v1` (`c0f2f54`), `tests/test_oracle_mutation.py`, `docs/ORACLE.md` |
 | 5 Template baseline + 2-byte task | 61–70 | **done** | tag `template-v1` (`a0c783d`), `tests/test_template_master.py` |
 | 6 Benchmark runner | 71–80 | **done** | `5fb83dd` + harness fixes in `ccca20e`, `tests/test_bench.py`, `docs/BASELINE.md` |
-| 7 FSM JSON intermediate representation | 81–92 | **not started** | — |
+| 7 FSM JSON intermediate representation | 81–92 | **steps 81–89 done; 90–92 pending** | `ir/`, `agent/ir_generator.py`, `tests/test_fsm_ir.py`, `tests/test_ir_generator.py` |
 | 8 Best-of-N | 93–95 | not started | — |
 | 9 Traces and v1 packaging | 96–100 | partially unblocked | `ui/dashboard.py` now renders real `stage_finished` events (`086bf99`) |
 

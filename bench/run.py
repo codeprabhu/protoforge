@@ -228,7 +228,7 @@ def run_one(
         "run_id": log.get("run_id", ""),
         "run_dir": log.get("run_dir", ""),
         # Why the run ended when it never produced a candidate; empty otherwise.
-        "error": log.get("generation_error") or log.get("tool_error") or "",
+        "error": log.get("generation_error") or log.get("tool_error") or log.get("repair_error") or "",
     }
 
 

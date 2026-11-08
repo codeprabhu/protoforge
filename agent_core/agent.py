@@ -180,7 +180,7 @@ def run_once(
         # omitted otherwise so a clean header stays clean.
         **{
             key: log[key]
-            for key in ("generation_error", "tool_error")
+            for key in ("generation_error", "tool_error", "repair_error")
             if log.get(key)
         },
     })

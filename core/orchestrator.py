@@ -90,6 +90,27 @@ class Orchestrator:
         )
         return repaired
 
+    def _repair_or_fail(
+        self,
+        log: Dict[str, Any],
+        candidate,
+        failed_results: List[ValidationResult],
+        *,
+        outcome: str,
+        **kwargs,
+    ):
+        """Run repair; a model/runtime crash ends the run at the stage that failed.
+
+        Without this guard a raising ``repair_fn`` escaped ``execute_task`` and
+        the benchmark recorded ``runner_error`` instead of the stage failure.
+        """
+        try:
+            return self._repair(candidate, failed_results, **kwargs)
+        except Exception as exc:  # model/runtime failure is a known outcome
+            log["repair_error"] = f"{type(exc).__name__}: {exc}"
+            log["final"] = outcome
+            return None
+
     @staticmethod
     def _close_attempt(record: AttemptRecord, run_dir: Optional[str], outcome: str) -> None:
         """Finish and persist one attempt record (when a run directory exists)."""
@@ -263,12 +284,16 @@ class Orchestrator:
                 })
                 if attempt < repair_budget:
                     self._close_attempt(record, run_dir, "repaired")
-                    candidate = self._repair(
-                        candidate, [struct_val],
+                    repaired = self._repair_or_fail(
+                        log, candidate, [struct_val],
+                        outcome=outcomes.STRUCTURAL_FAILED,
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
                     )
+                    if repaired is None:
+                        break
+                    candidate = repaired
                     continue
                 log["final"] = outcomes.STRUCTURAL_FAILED
                 self._close_attempt(record, run_dir, outcomes.STRUCTURAL_FAILED)
@@ -310,12 +335,16 @@ class Orchestrator:
                     break
                 if attempt < repair_budget:
                     self._close_attempt(record, run_dir, "repaired")
-                    candidate = self._repair(
-                        candidate, [compile_val],
+                    repaired = self._repair_or_fail(
+                        log, candidate, [compile_val],
+                        outcome=outcomes.COMPILE_FAILED,
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
                     )
+                    if repaired is None:
+                        break
+                    candidate = repaired
                     continue
                 log["final"] = outcomes.COMPILE_FAILED
                 self._close_attempt(record, run_dir, outcomes.COMPILE_FAILED)
@@ -345,12 +374,16 @@ class Orchestrator:
                     break
                 if attempt < repair_budget:
                     self._close_attempt(record, run_dir, "repaired")
-                    candidate = self._repair(
-                        candidate, [hw_val],
+                    repaired = self._repair_or_fail(
+                        log, candidate, [hw_val],
+                        outcome=outcomes.HARDWARE_FAILED,
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
                     )
+                    if repaired is None:
+                        break
+                    candidate = repaired
                     continue
                 log["final"] = outcomes.HARDWARE_FAILED
                 self._close_attempt(record, run_dir, outcomes.HARDWARE_FAILED)
@@ -420,12 +453,16 @@ class Orchestrator:
 
             if attempt < repair_budget:
                 self._close_attempt(record, run_dir, "repaired")
-                candidate = self._repair(
-                    candidate, [*val_results, verdict],
+                repaired = self._repair_or_fail(
+                    log, candidate, [*val_results, verdict],
+                    outcome=outcomes.SIM_CHECKS_FAILED,
                     model=selected_model, temperature=repair_temperature,
                     seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                     patcher=patcher, event_sink=event_sink,
                 )
+                if repaired is None:
+                    break
+                candidate = repaired
                 continue
 
             log["final"] = outcomes.SIM_CHECKS_FAILED
@@ -454,7 +491,11 @@ class Orchestrator:
         # Why the run ended must be on disk even when no attempt was staged:
         # without it a run that never reached the model is indistinguishable
         # from a model that produced nothing.
-        error = log.get("generation_error") or log.get("tool_error")
+        error = (
+            log.get("generation_error")
+            or log.get("tool_error")
+            or log.get("repair_error")
+        )
         return {
             "run_id": log.get("run_id"),
             "timestamp": log.get("timestamp"),
