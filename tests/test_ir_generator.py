@@ -482,6 +482,29 @@ def test_enrichment_notes_reach_the_attempt_trace(monkeypatch):
     assert embedded.state_by_name["DONE"].drive.done is ir_generator.Done.HIGH
 
 
+def test_ir_table_and_enrichment_are_persisted_in_the_attempt_record(monkeypatch):
+    from core.attempt_record import AttemptRecord
+    from core.schemas import CandidatePatch
+
+    fake, _ = _fake_model([_design_with(_drop_boilerplate)])
+    monkeypatch.setattr(ir_generator, "_model_call", fake)
+
+    trace = {}
+    rtl = ir_generator.generate_fsm_rtl(DEVICES, str(SPEC_1BYTE), trace=trace)
+    record = AttemptRecord.from_candidate(
+        CandidatePatch(target_file="top_glue.v", full_content=rtl, metadata=trace),
+        run_id="r1",
+        attempt=0,
+        model="qwen-test",
+    )
+
+    assert record.fsm_json == trace["fsm_json"]
+    assert record.enrichment == trace["enrichment"]
+    payload = json.loads(record.model_dump_json())
+    assert payload["fsm_json"]
+    assert payload["enrichment"]
+
+
 def test_repair_prompt_requires_a_default_for_every_wait():
     design, problems = parse_design(GOLDEN_TEXT)
     assert problems == []

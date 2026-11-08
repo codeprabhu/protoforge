@@ -66,6 +66,10 @@ class AttemptRecord(BaseModel):
     code_sha256: str = ""
     model_metadata: Dict[str, Any] = Field(default_factory=dict)
     retrieval: Dict[str, Any] = Field(default_factory=dict)
+    # IR path only: the table the model wrote and the protocol boilerplate the
+    # generator filled before compiling. Empty on the free-form RTL path.
+    fsm_json: str = ""
+    enrichment: List[str] = Field(default_factory=list)
     stages: List[StageRecord] = Field(default_factory=list)
 
     @classmethod
@@ -92,6 +96,8 @@ class AttemptRecord(BaseModel):
             code_sha256=hashlib.sha256(code.encode("utf-8")).hexdigest(),
             model_metadata=metadata.get("model_metadata", {}) or {},
             retrieval=metadata.get("retrieval", {}) or {},
+            fsm_json=metadata.get("fsm_json", "") or "",
+            enrichment=list(metadata.get("enrichment", []) or []),
         )
 
     def add_stage(self, result: ValidationResult, duration_sec: float | None = None) -> None:
