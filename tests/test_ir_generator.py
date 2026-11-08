@@ -92,6 +92,43 @@ def _mutate(**changes) -> str:
     return json.dumps(payload)
 
 
+def _design_with(mutator) -> str:
+    """Apply a structural edit to the golden table and return its JSON."""
+    payload = _golden()
+    mutator(payload)
+    return json.dumps(payload)
+
+
+def _drop_load_address(payload) -> None:
+    idle = next(state for state in payload["states"] if state["name"] == "IDLE")
+    idle["transitions"][0]["actions"] = []
+
+
+def _drop_started_wait(payload) -> None:
+    idle = next(state for state in payload["states"] if state["name"] == "IDLE")
+    idle["wait"] = None
+    idle["otherwise"] = None
+
+
+def _drop_bit_drive(payload) -> None:
+    for state in payload["states"]:
+        for drive in [state.get("drive", {})] + [
+            transition.get("drive", {}) for transition in state["transitions"]
+        ]:
+            if drive.get("sda") == "bit":
+                drive["sda"] = "high"
+
+
+def _drop_done(payload) -> None:
+    for state in payload["states"]:
+        for transition in state["transitions"]:
+            transition["actions"] = [
+                action for action in transition.get("actions", []) if action != "finish"
+            ]
+    done = next(state for state in payload["states"] if state["name"] == "DONE")
+    done["drive"]["done"] = "hold"
+
+
 # ---------------------------------------------------------------------------
 # Step 86/87: prompt and schema
 
@@ -214,8 +251,10 @@ def test_bad_json_is_retried_once_with_the_validator_feedback(monkeypatch):
     assert "invalid JSON" in calls[1]["prompt"]
     assert "Previous answer" in calls[1]["prompt"]
     assert ir_generator.extract_design_json(rtl) is not None
-    # Token accounting must follow the call that produced the candidate.
-    assert trace["model_metadata"]["eval_count"] == 10
+    # Token accounting must include both the rejected call and the retry.
+    assert trace["model_metadata"]["eval_count"] == 15
+    assert trace["model_calls"][0]["eval_count"] == 5
+    assert trace["model_calls"][1]["eval_count"] == 10
     assert len(trace["model_calls"]) == 2
 
 
@@ -300,6 +339,64 @@ def test_spec_mismatch_twice_is_fatal(monkeypatch):
 
     with pytest.raises(FsmError, match='data_bytes must be'):
         ir_generator.generate_fsm_rtl(DEVICES, str(SPEC_1BYTE))
+
+
+# ---------------------------------------------------------------------------
+# Generation-time protocol shape checks
+#
+# The first real model table compiled and simulated but had no address load,
+# no tb_start wait, no sda="bit" and no rising tb_done. Rejecting those at
+# generation time turns a ~3 minute simulate+repair failure into one retry.
+
+
+@pytest.mark.parametrize(
+    "mutator,fragment",
+    [
+        (_drop_load_address, "never loads the address byte"),
+        (_drop_started_wait, "never waits for started"),
+        (_drop_bit_drive, "never drives SDA from the data bits"),
+        (_drop_done, "tb_done never rises"),
+    ],
+    ids=["load_address", "started", "bit_drive", "done"],
+)
+def test_protocol_shape_problems_reject_the_table(mutator, fragment):
+    design, problems = ir_generator._evaluate_design(
+        _design_with(mutator), expected_addr="a0", expected_data=["3c"]
+    )
+
+    assert design is None
+    assert any(fragment in problem for problem in problems), problems
+
+
+def test_golden_table_has_no_protocol_shape_problems():
+    design, problems = ir_generator._evaluate_design(
+        GOLDEN_TEXT, expected_addr="a0", expected_data=["3c"]
+    )
+
+    assert design is not None
+    assert problems == []
+
+
+def test_protocol_shape_problem_costs_one_retry_not_a_simulation(monkeypatch):
+    bad = _design_with(_drop_load_address)
+    fake, calls = _fake_model([bad, GOLDEN_TEXT])
+    monkeypatch.setattr(ir_generator, "_model_call", fake)
+
+    ir_generator.generate_fsm_rtl(DEVICES, str(SPEC_1BYTE))
+
+    assert len(calls) == 2
+    assert "never loads the address byte" in calls[1]["prompt"]
+
+
+def test_repair_prompt_requires_a_default_for_every_wait():
+    design, problems = parse_design(GOLDEN_TEXT)
+    assert problems == []
+
+    prompt = ir_generator.build_repair_prompt(
+        design, "failed simulation checks", "SDA never fell"
+    )
+
+    assert "Every state that declares wait must also declare otherwise" in prompt
 
 
 # ---------------------------------------------------------------------------

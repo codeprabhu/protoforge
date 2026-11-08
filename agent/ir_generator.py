@@ -120,6 +120,28 @@ FSM_JSON_SCHEMA: Dict[str, Any] = {
 
 _SCHEMA_TEXT = json.dumps(FSM_JSON_SCHEMA, separators=(",", ":"))
 
+_CONDITION_HELP = (
+    "Condition meanings: started = tb_start is high; half_done = the "
+    "half-period counter reached HALF; bit_last = bit_idx == 0; bit_not_last = "
+    "bit_idx != 0; byte_done = byte_idx == the number of data bytes; "
+    "byte_not_last = byte_idx < the number of data bytes; always = "
+    "unconditional."
+)
+
+_SEQUENCE_HELP = (
+    "Required sequence (one slave, no clock stretching):\n"
+    "1. IDLE: release SDA/SCL, wait for started, then load_address.\n"
+    "2. START: SDA falls while SCL is high, then SCL falls.\n"
+    "3. For 8 bits, MSB first: drive sda=bit while SCL is low, raise SCL for "
+    "half a period, lower SCL; use next_bit after each non-final bit.\n"
+    "4. ACK: release SDA, raise SCL for half a period, lower SCL.\n"
+    "5. If byte_not_last, advance_byte and send the next byte; if byte_done, "
+    "go to STOP.\n"
+    "6. STOP: drive SDA low, then release it high while SCL is high, then "
+    "finish (tb_done rises and stays high).\n"
+    "Time the clock phases with wait = half_done and otherwise = tick."
+)
+
 
 def _model_call(
     prompt: str,
@@ -183,6 +205,8 @@ def build_generation_prompt(spec, *, retrieval: bool = True) -> str:
         "- After 8 bits, release SDA for the ACK bit and clock SCL high.",
         "- STOP: SDA rises while SCL is high, then tb_done rises and stays high.",
         "",
+        _SEQUENCE_HELP,
+        "",
         "JSON semantics:",
         '- state.drive is applied on every clock: sda "low"/"high"/"hold"/"bit" '
         '("bit" drives cur_byte[bit_idx]), scl "low"/"high"/"hold", '
@@ -193,6 +217,7 @@ def build_generation_prompt(spec, *, retrieval: bool = True) -> str:
         "- actions: load_address (cur_byte<=ADDR_BYTE), advance_byte "
         "(cur_byte<=next data byte), restart_bits (bit_idx<=7), next_bit "
         "(bit_idx--), finish (tb_done<=1), clear_done.",
+        _CONDITION_HELP,
         "",
         "Return exactly one JSON object matching this schema (no prose):",
         _SCHEMA_TEXT,
@@ -225,6 +250,11 @@ def build_repair_prompt(
             f'Keep address_byte "{design.address_byte}" and data_bytes '
             f"{json.dumps(design.data_bytes)} unchanged: they come from the spec.",
             "Keep the state names meaningful and the table valid.",
+            'Every state that declares wait must also declare otherwise ("tick" '
+            "for half_done waits); a missing default makes the table invalid.",
+            "",
+            _SEQUENCE_HELP,
+            _CONDITION_HELP,
             "",
             "Current JSON:",
             json.dumps(design.model_dump(mode="json"), sort_keys=True, separators=(",", ":")),
@@ -271,6 +301,60 @@ def _canon_hex(value: Any) -> str:
     return f"{int(text, 16):02x}"
 
 
+def _protocol_problems(design: FsmDesign) -> List[str]:
+    """Reject tables that cannot perform the transaction at all.
+
+    These are not style preferences and they are not part of the structural
+    validator: each one is a guaranteed protocol failure that the first real
+    model table exhibited (compile and simulation pass, then no address, no
+    data bits, no STOP). Catching them here costs one retry instead of a full
+    simulation plus repair cycle.
+    """
+    problems: List[str] = []
+    actions = {
+        action
+        for state in design.states
+        for transition in state.transitions
+        for action in transition.actions
+    }
+    drives = [
+        drive
+        for state in design.states
+        for drive in (state.drive, *(t.drive for t in state.transitions))
+    ]
+    conditions = {
+        condition
+        for state in design.states
+        for condition in (
+            *([state.wait] if state.wait is not None else []),
+            *(c for t in state.transitions for c in t.when),
+        )
+    }
+
+    if Action.LOAD_ADDRESS not in actions:
+        problems.append(
+            "the design never loads the address byte; add the load_address action"
+        )
+    if Cond.STARTED not in conditions:
+        problems.append(
+            "the design never waits for started (tb_start); wait for it before "
+            "sending the address byte"
+        )
+    if not any(drive.sda is Sda.BIT for drive in drives):
+        problems.append(
+            'the design never drives SDA from the data bits; use drive sda="bit" '
+            "in the bit states"
+        )
+    if Action.FINISH not in actions and not any(
+        drive.done is Done.HIGH for drive in drives
+    ):
+        problems.append(
+            'tb_done never rises; add the finish action or drive done="high" '
+            "after STOP"
+        )
+    return problems
+
+
 def _evaluate_design(
     raw: str,
     *,
@@ -282,6 +366,7 @@ def _evaluate_design(
         return None, problems
 
     problems = validate_design(design)
+    problems.extend(_protocol_problems(design))
     if expected_addr is not None and _canon_hex(design.address_byte) != _canon_hex(expected_addr):
         problems.append(
             f'address_byte must be "{expected_addr}" from the spec, '
@@ -396,14 +481,20 @@ def _record_trace(
 ) -> None:
     if trace is None:
         return
-    # ``model_metadata`` must be the last call so token accounting reads the
-    # attempt that produced the candidate; earlier calls stay auditable.
+    # ``model_metadata`` must be a flat dict so the benchmark's token reader
+    # sees this attempt. When a retry ran, sum both calls' token counts and
+    # keep the last call's timings; the full per-call records stay auditable.
+    last = dict(model_calls[-1]) if model_calls else {}
+    last["prompt_eval_count"] = sum(
+        int(call.get("prompt_eval_count") or 0) for call in model_calls
+    )
+    last["eval_count"] = sum(int(call.get("eval_count") or 0) for call in model_calls)
     trace.update(
         {
             "prompt": prompt,
             "raw_output": raw_output,
             "cleaned_code": rtl,
-            "model_metadata": model_calls[-1] if model_calls else {},
+            "model_metadata": last,
             "model_calls": model_calls,
             "retrieval": {
                 "enabled": retrieval,
