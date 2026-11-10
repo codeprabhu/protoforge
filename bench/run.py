@@ -22,6 +22,23 @@ has no meaning on that path, so patcher-off collapses into on-on-ir.
 Retrieval memory is frozen during a benchmark by default: benchmark runs do
 not add new passing/failed examples, so later runs in the same batch do not see
 examples learned from earlier benchmark cases. Pass ``--learn`` to opt out.
+
+Run Classifications (explicit, not collapsed):
+    generation_error   Model failed to produce a candidate (Ollama missing, timeout, etc.)
+    runner_error       Infrastructure failure (server down, import error, etc.)
+    compile_failure    Candidate produced but iverilog/verilator/yosys failed
+    lint_failure       Candidate failed Verilator/Yosys lint
+    simulation_failure Candidate compiled but vvp simulation failed
+    oracle_failure     Simulation passed but protocol judge rejected
+    pass               All gates passed (first attempt or after repair)
+
+Batch Validity Rules:
+    A batch is INVALID if:
+    - Preflight fails
+    - Infrastructure error rate exceeds threshold (default 50%)
+    - Most attempted runs are infrastructure errors
+    - Cannot establish intended model was actually invoked
+    Invalid batches must not produce valid pass-rate conclusions.
 """
 
 from __future__ import annotations
@@ -30,6 +47,7 @@ import argparse
 import csv
 import json
 import math
+import shutil
 import statistics
 import sys
 import time
@@ -71,6 +89,21 @@ ALIASES = {
     "patcher-on": "on-on",
     "default": "on-on",
 }
+
+# Explicit run classifications (never collapse these into a single failure category)
+RUN_CLASSIFICATIONS = [
+    "generation_error",   # Model failed to produce a candidate
+    "runner_error",       # Infrastructure failure (server down, import error, etc.)
+    "compile_failure",    # Candidate produced but iverilog/verilator/yosys failed
+    "lint_failure",       # Candidate failed Verilator/Yosys lint
+    "simulation_failure", # Candidate compiled but vvp simulation failed
+    "oracle_failure",     # Simulation passed but protocol judge rejected
+    "pass",               # All gates passed (first attempt or after repair)
+]
+
+INFRASTRUCTURE_CLASSIFICATIONS = {"generation_error", "runner_error"}
+CANDIDATE_FAILURE_CLASSIFICATIONS = {"compile_failure", "lint_failure", "simulation_failure", "oracle_failure"}
+
 CSV_FIELDS = [
     "config",
     "case_id",
@@ -94,7 +127,132 @@ CSV_FIELDS = [
     "run_id",
     "run_dir",
     "error",
+    # Explicit classification field
+    "explicit_classification",
+    # Batch validity fields
+    "batch_valid",
+    "batch_invalid_reason",
 ]
+
+
+def preflight_check(model: str, required_tools: list[str] | None = None) -> tuple[bool, str]:
+    """Preflight validation before starting any model experiment.
+    
+    Verifies:
+    - Ollama Python package is importable
+    - Ollama server is reachable
+    - Requested model exists
+    - Required configuration is valid
+    - Output directory is writable
+    - Required external tools are available
+    
+    Returns:
+        (success, message) - if success is False, message explains why
+    """
+    if required_tools is None:
+        required_tools = ["iverilog", "vvp", "verilator", "yosys"]
+    
+    # 1. Check Ollama Python package
+    try:
+        import ollama
+    except ImportError:
+        return False, "Ollama Python package is not importable"
+    
+    # 2. Check Ollama server reachable and model exists
+    try:
+        client = ollama.Client()
+        models = client.list()
+        model_names = [m.get("name", "") for m in models.get("models", [])]
+        if model not in model_names:
+            return False, f"Model '{model}' not found in Ollama (available: {model_names})"
+    except Exception as e:
+        return False, f"Ollama server not reachable: {e}"
+    
+    # 3. Check required external tools
+    missing_tools = []
+    for tool in required_tools:
+        if not shutil.which(tool):
+            missing_tools.append(tool)
+    if missing_tools:
+        return False, f"Required tools missing: {missing_tools}"
+    
+    return True, "Preflight OK"
+
+
+def classify_final_result(final: str, error: str = "") -> str:
+    """Map internal 'final' status to explicit run classification.
+    
+    Args:
+        final: The 'final' field from run log (e.g., 'pass', 'compile_error', etc.)
+        error: The 'error' field from run log
+        
+    Returns:
+        One of RUN_CLASSIFICATIONS
+    """
+    # Infrastructure failures
+    if final in ("generation_error", "runner_error"):
+        return final
+    
+    # Candidate verification failures
+    if final == "compile_error":
+        return "compile_failure"
+    if final == "lint_error":
+        return "lint_failure"
+    if final == "sim_checks_failed":
+        return "simulation_failure"
+    if final in ("judge_error", "protocol_error"):
+        return "oracle_failure"
+    
+    # Success
+    if final == "pass":
+        return "pass"
+    
+    # Unknown - default to oracle_failure for safety
+    return "oracle_failure"
+
+
+def assess_batch_validity(rows: list[dict[str, Any]], infra_threshold: float = 0.5) -> tuple[bool, str]:
+    """Assess whether a batch is valid for drawing pass-rate conclusions.
+    
+    A batch is INVALID if:
+    - Preflight failed (indicated by no valid model invocations)
+    - Infrastructure error rate exceeds threshold
+    - Most attempted runs are infrastructure errors
+    - Cannot establish intended model was actually invoked
+    
+    Args:
+        rows: List of result rows from the batch
+        infra_threshold: Maximum allowed infrastructure error rate (default 50%)
+        
+    Returns:
+        (is_valid, reason) - if not valid, reason explains why
+    """
+    if not rows:
+        return False, "No runs completed"
+    
+    total = len(rows)
+    infra_count = 0
+    candidate_count = 0
+    model_invoked = False
+    
+    for row in rows:
+        classification = classify_final_result(row.get("final", ""), row.get("error", ""))
+        if classification in INFRASTRUCTURE_CLASSIFICATIONS:
+            infra_count += 1
+        else:
+            candidate_count += 1
+            if row.get("attempts", 0) > 0:
+                model_invoked = True
+    
+    # Check if intended model was actually invoked
+    if not model_invoked:
+        return False, "No model invocations recorded (all runs were infrastructure failures)"
+    
+    # Check infrastructure error rate
+    if total > 0 and (infra_count / total) > infra_threshold:
+        return False, f"Infrastructure error rate {infra_count}/{total} = {infra_count/total:.1%} exceeds threshold {infra_threshold:.0%}"
+    
+    return True, "Batch valid"
 
 
 def wilson_interval(successes: int, n: int, z: float = 1.96) -> tuple[float, float]:
@@ -269,7 +427,7 @@ def _median(values: list[float]) -> float | None:
 
 
 def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
-    """Aggregate rows per configuration."""
+    """Aggregate rows per configuration with explicit classifications and batch validity."""
     summary: dict[str, Any] = {"configs": {}, "rows": len(rows)}
     names = []
     for row in rows:
@@ -284,20 +442,39 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
         first_hashes = [row["first_sha256"] for row in group if row["first_sha256"]]
         latencies = [float(row["elapsed_sec"]) for row in group if row["elapsed_sec"] is not None]
         tokens = [float(row["total_tokens"]) for row in group]
-        outcomes: dict[str, int] = {}
+        
+        # Explicit classification counts (never collapse into single failure category)
+        explicit_outcomes: dict[str, int] = {c: 0 for c in RUN_CLASSIFICATIONS}
         without_candidate = 0
+        infra_failures = 0
+        candidate_failures = 0
+        candidate_runs = 0
+        model_invoked = False
+        
         for row in group:
-            outcomes[row["final"]] = outcomes.get(row["final"], 0) + 1
+            classification = classify_final_result(row.get("final", ""), row.get("error", ""))
+            explicit_outcomes[classification] = explicit_outcomes.get(classification, 0) + 1
+            
             if not int(row.get("attempts") or 0):
                 without_candidate += 1
+            
+            if classification in INFRASTRUCTURE_CLASSIFICATIONS:
+                infra_failures += 1
+            else:
+                candidate_failures += 1
+                if row.get("attempts", 0) > 0:
+                    model_invoked = True
+                    candidate_runs += 1
+        
+        # Batch validity assessment
+        batch_valid, batch_reason = assess_batch_validity(group)
+        
         summary["configs"][name] = {
             "runs": n,
             "cases": len({row["case_id"] for row in group}),
             "samples": len({row["sample"] for row in group}),
-            # A run that never staged a candidate (generation_error /
-            # runner_error) says nothing about model quality; keep it out of
-            # the candidate denominator instead of silently counting it as a
-            # failed generation.
+            # Runs that never staged a candidate (generation_error / runner_error)
+            # say nothing about model quality; keep them visible separately.
             "runs_without_candidate": without_candidate,
             "candidate_runs": n - without_candidate,
             "pass_at_1": pass1,
@@ -312,16 +489,27 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             "median_latency_sec": _median(latencies),
             "total_tokens": int(sum(tokens)),
             "median_tokens_per_run": _median(tokens),
-            "outcomes": dict(sorted(outcomes.items())),
+            # Explicit classification breakdown (REQUIRED - never collapse)
+            "explicit_outcomes": dict(sorted(explicit_outcomes.items())),
+            # Legacy outcomes key for backward compatibility with existing artifacts
+            "outcomes": dict(sorted(explicit_outcomes.items())),
+            # Infrastructure vs candidate failure summary
+            "infrastructure_failures": infra_failures,
+            "candidate_verification_failures": candidate_failures,
+            "successful_candidates": explicit_outcomes.get("pass", 0),
+            # Batch validity
+            "batch_valid": batch_valid,
+            "batch_invalid_reason": batch_reason,
+            "model_invoked": model_invoked,
         }
     return summary
 
 
 def _markdown_table(summary: dict[str, Any]) -> str:
     header = (
-        "| Config | Runs | no candidate | pass@1 | pass@1 95% CI | pass after repair | "
+        "| Config | Runs | Infra | Candidate Fail | Pass | Batch Valid | pass@1 | pass@1 95% CI | pass after repair | "
         "after-repair 95% CI | recovered | distinct first | median latency (s) | median tokens |\n"
-        "| --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |"
+        "| --- | ---: | ---: | ---: | ---: | --- | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |"
     )
     lines = [header]
     # Keep the report order stable regardless of dict loading order: a JSON
@@ -332,9 +520,13 @@ def _markdown_table(summary: dict[str, Any]) -> str:
         stats = summary["configs"][name]
         ci1 = stats["pass_at_1_ci95"]
         cia = stats["pass_after_repair_ci95"]
+        infra = stats.get("infrastructure_failures", 0)
+        cand_fail = stats.get("candidate_verification_failures", 0)
+        passed = stats.get("successful_candidates", 0)
+        batch_valid = stats.get("batch_valid", True)
+        batch_status = "✅" if batch_valid else "❌"
         lines.append(
-            f"| {name} | {stats['runs']} | "
-            f"{stats['runs_without_candidate']} | "
+            f"| {name} | {stats['runs']} | {infra} | {cand_fail} | {passed} | {batch_status} | "
             f"{stats['pass_at_1']}/{stats['runs']} ({stats['pass_at_1_rate']:.1%}) | "
             f"[{ci1[0]:.1%}, {ci1[1]:.1%}] | "
             f"{stats['pass_after_repair']}/{stats['runs']} "
@@ -472,6 +664,19 @@ def main(argv: list[str] | None = None) -> int:
         [name.strip() for name in args.configs.split(",") if name.strip()],
         ir=args.ir,
     )
+    
+    # PREFLIGHT CHECK - Run before any model experiments
+    # Skip preflight for template-only configs (no model needed)
+    model_configs = [name for name, spec in configs if spec["kind"] == "model"]
+    if model_configs and not args.resume:
+        preflight_ok, preflight_msg = preflight_check(args.model)
+        if not preflight_ok:
+            print(f"PREFLIGHT FAILED: {preflight_msg}", file=sys.stderr)
+            print("Aborting benchmark - infrastructure not ready.", file=sys.stderr)
+            return 2  # Exit code 2 = preflight failure
+        if not args.quiet:
+            print(f"Preflight OK: {preflight_msg}")
+    
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     spec_dir = out_dir / "specs"

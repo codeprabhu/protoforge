@@ -216,9 +216,19 @@ def test_summary_separates_runs_that_never_produced_a_candidate():
     assert stats["runs"] == 3
     assert stats["runs_without_candidate"] == 2
     assert stats["candidate_runs"] == 1
-    assert stats["outcomes"] == {
-        "generation_error": 1, "pass": 1, "runner_error": 1,
-    }
+    # The new explicit_outcomes includes all RUN_CLASSIFICATIONS with zero counts
+    explicit = stats["explicit_outcomes"]
+    assert explicit["generation_error"] == 1
+    assert explicit["pass"] == 1
+    assert explicit["runner_error"] == 1
+    assert explicit["compile_failure"] == 0
+    assert explicit["lint_failure"] == 0
+    assert explicit["simulation_failure"] == 0
+    assert explicit["oracle_failure"] == 0
+    # Legacy outcomes key also present for backward compatibility
+    assert stats["outcomes"]["generation_error"] == 1
+    assert stats["outcomes"]["pass"] == 1
+    assert stats["outcomes"]["runner_error"] == 1
     assert stats["pass_at_1"] == 1
     # Denominators stay over every requested run, but the contamination is
     # visible instead of being reported as a flat 33% pass rate.

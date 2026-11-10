@@ -31,6 +31,8 @@ from bench.run import (  # noqa: E402
     resolve_configs,
     summarize,
     write_case_spec,
+    preflight_check,
+    classify_final_result,
 )
 from tools.make_spec import DEFAULT_CASES  # noqa: E402
 
@@ -192,6 +194,8 @@ def run_one_bon(
                 "run_id": "",
                 "run_dir": "",
                 "error": f"{type(exc).__name__}: {exc}",
+                # Explicit classification
+                "explicit_classification": "runner_error",
             }
             all_rows.append(row)
             if first_pass_row is None and candidate_idx == n - 1:
@@ -202,6 +206,9 @@ def run_one_bon(
         attempts = log.get("attempts") or []
         first_sha = attempts[0].get("sha256", "") if attempts else ""
 
+        final_status = log.get("final", "unknown")
+        explicit_class = classify_final_result(final_status, log.get("generation_error") or log.get("tool_error") or log.get("repair_error") or "")
+        
         row = {
             "config": config_name,
             "case_id": case["id"],
@@ -213,7 +220,7 @@ def run_one_bon(
             "retrieval": config_spec["retrieval"],
             "patcher": config_spec["patcher"],
             "generator": config_spec["generator"],
-            "final": log.get("final", "unknown"),
+            "final": final_status,
             "first_attempt_pass": bool(log.get("first_attempt_pass", False)),
             "recovered_after_repair": bool(log.get("recovered_after_repair", False)),
             "attempts": len(attempts),
@@ -225,6 +232,8 @@ def run_one_bon(
             "run_id": log.get("run_id", ""),
             "run_dir": log.get("run_dir", ""),
             "error": log.get("generation_error") or log.get("tool_error") or log.get("repair_error") or "",
+            # Explicit classification
+            "explicit_classification": explicit_class,
         }
         all_rows.append(row)
 
@@ -290,6 +299,18 @@ def main(argv: list[str] | None = None) -> int:
         ir=False,  # Bon only on RTL path for now
     )
 
+    # PREFLIGHT CHECK - Run before any model experiments
+    # Skip preflight for template-only configs (no model needed)
+    model_configs = [name for name, spec in configs if spec["kind"] == "model"]
+    if model_configs:
+        preflight_ok, preflight_msg = preflight_check(args.model)
+        if not preflight_ok:
+            print(f"PREFLIGHT FAILED: {preflight_msg}", file=sys.stderr)
+            print("Aborting benchmark - infrastructure not ready.", file=sys.stderr)
+            return 2  # Exit code 2 = preflight failure
+        if not args.quiet:
+            print(f"Preflight OK: {preflight_msg}")
+
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     spec_dir = out_dir / "specs"
@@ -333,18 +354,32 @@ def main(argv: list[str] | None = None) -> int:
                         print(
                             f"[{done}/{total}] {config_name} {case['id']} "
                             f"sample={sample} candidate={row.get('bon_candidate_index', '?')+1}/{row.get('bon_total_candidates', '?')} "
-                            f"seed={seed} -> {row['final']}",
+                            f"seed={seed} -> {row['final']} ({row.get('explicit_classification', '?')})",
                             flush=True,
                         )
 
     _write_csv(csv_path, rows)
     summary = _write_summary(out_dir, rows, args)
 
+    # Print batch validity summary
     if not args.quiet:
         print()
         print(_markdown_table(summary), end="")
         print(f"\nCSV: {out_dir / 'runs.csv'}")
         print(f"Summary: {out_dir / 'summary.json'}")
+        
+        # Print batch validity for each config
+        for config_name, config_stats in summary.get("configs", {}).items():
+            batch_valid = config_stats.get("batch_valid", True)
+            batch_reason = config_stats.get("batch_invalid_reason", "Batch valid")
+            status = "VALID" if batch_valid else "INVALID"
+            print(f"Batch validity [{config_name}]: {status} - {batch_reason}")
+            
+            # Print explicit outcome breakdown
+            explicit = config_stats.get("explicit_outcomes", {})
+            if explicit:
+                print(f"  Explicit outcomes: {dict(sorted(explicit.items()))}")
+    
     return 0
 
 
