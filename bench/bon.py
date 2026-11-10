@@ -12,11 +12,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import sys
-import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -26,10 +24,8 @@ from agent_core.agent import run_once  # noqa: E402
 from agent_core.config import Config  # noqa: E402
 from bench.run import (  # noqa: E402
     CSV_FIELDS,
-    _median,
     _token_counts,
     _write_csv,
-    _write_index,
     case_device_paths,
     load_cases,
     resolve_configs,
@@ -248,35 +244,6 @@ def run_one_bon(
     first_pass_row["bon_total_candidates"] = len(all_rows)
 
     return first_pass_row
-
-
-def _markdown_table(summary: dict[str, Any]) -> str:
-    header = (
-        "| Config | Runs | no candidate | pass@1 | pass@1 95% CI | pass after repair | "
-        "after-repair 95% CI | recovered | distinct first | median latency (s) | median tokens |\n"
-        "| --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |"
-    )
-    lines = [header]
-    names = [name for name in summary["configs"] if name in summary["configs"]]
-    names += [name for name in summary["configs"] if name not in names]
-    for name in names:
-        stats = summary["configs"][name]
-        ci1 = stats["pass_at_1_ci95"]
-        cia = stats["pass_after_repair_ci95"]
-        lines.append(
-            f"| {name} | {stats['runs']} | "
-            f"{stats['runs_without_candidate']} | "
-            f"{stats['pass_at_1']}/{stats['runs']} ({stats['pass_at_1_rate']:.1%}) | "
-            f"[{ci1[0]:.1%}, {ci1[1]:.1%}] | "
-            f"{stats['pass_after_repair']}/{stats['runs']} "
-            f"({stats['pass_after_repair_rate']:.1%}) | "
-            f"[{cia[0]:.1%}, {cia[1]:.1%}] | "
-            f"{stats['recovered_by_repair']} | "
-            f"{stats['distinct_first_designs']}/{stats['first_attempts_recorded']} | "
-            f"{stats['median_latency_sec']} | "
-            f"{stats['median_tokens_per_run']} |"
-        )
-    return "\n".join(lines) + "\n"
 
 
 def main(argv: list[str] | None = None) -> int:
