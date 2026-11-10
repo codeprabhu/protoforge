@@ -235,12 +235,14 @@ class I2CDomainAdapter(BaseDomainAdapter):
         # Simulation step (Icarus vvp)
         sim_fn = kwargs.get("sim_fn", run_simulation)
         spec = parse_i2c_spec(kwargs.get("spec_path") or self.spec_path)
+        # P0-S04: per-run nonce for result authentication
+        nonce = kwargs.get("nonce") or os.urandom(8).hex()
         plusargs = [
             f"+I2C_ADDR={spec.address_hex}",
             f"+I2C_DATA={spec.data_hex}",
             f"+I2C_NBYTES={spec.nbytes}",
         ]
-        sim_res = sim_fn(sim_out, plusargs=plusargs)
+        sim_res = sim_fn(sim_out, plusargs=plusargs, nonce=nonce)
         sim_passed = sim_res.get("success", False)
         sim_tool_missing = sim_res.get("tool_missing", False)
         sim_val = ValidationResult(
@@ -250,8 +252,9 @@ class I2CDomainAdapter(BaseDomainAdapter):
             stdout=sim_res.get("stdout", ""),
             stderr=sim_res.get("stderr", ""),
             metadata={
-                "raw": parse_result_line(sim_res.get("stdout", "")),
+                "raw": parse_result_line(sim_res.get("stdout", ""), nonce=nonce),
                 "spec_path": kwargs.get("spec_path") or self.spec_path,
+                "nonce": nonce,
             },
         )
         results.append(sim_val)

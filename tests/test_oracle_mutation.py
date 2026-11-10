@@ -7,6 +7,7 @@ describes its fault. Without this, a passing run only shows the oracle is
 lenient, not that the design is correct.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -45,12 +46,14 @@ def _simulate(
         capture_output=True, text=True, timeout=30,
     )
     assert comp.returncode == 0, comp.stderr
+    nonce = os.urandom(8).hex()
+    all_plusargs = (plusargs or []) + [f"+NONCE={nonce}"]
     run = subprocess.run(
-        ["vvp", str(out), *(plusargs or [])],
+        ["vvp", str(out), *all_plusargs],
         capture_output=True, text=True, timeout=30, cwd=tmp_path,
     )
     return judge(
-        parse_result_line(run.stdout),
+        parse_result_line(run.stdout, nonce=nonce),
         expected_addr=expected_addr,
         expected_data=expected_data,
     ), run.stdout

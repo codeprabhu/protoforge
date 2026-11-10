@@ -54,7 +54,15 @@ def _open_drain(code: str, net: str) -> bool:
 
 
 def structural_checks(rtl: str, required_instances: list) -> dict:
-    """Catch structural/protocol anti-patterns before invoking a compiler."""
+    """Catch structural/protocol anti-patterns before invoking a compiler.
+
+    G0 integrity rules (P0-S03) forbid constructs that can forge the oracle:
+    - Any $… system task/function
+    - force / release
+    - Hierarchical references to testbench or $root
+    - `include / `define that redefine oracle macros
+    - initial blocks, # delays, wait statements
+    """
     code_only = _strip_comments(rtl)
     header_match = re.search(r"\bmodule\s+top_glue\s*\((.*?)\)\s*;", code_only, re.I | re.S)
     header = header_match.group(1) if header_match else ""
@@ -87,6 +95,13 @@ def structural_checks(rtl: str, required_instances: list) -> dict:
         "open_drain_scl": _open_drain(code_only, "scl"),
         "no_procedural_bus_writes": not bool(re.search(r"\b(?:sda|scl)\s*(?:<=|=(?!=))", no_bus_assign_lines, re.I)),
         "has_tb_done_logic": bool(re.search(r"\btb_done\s*<=", code_only)),
+        # G0 integrity rules (P0-S03) — forbid oracle-forging constructs
+        "no_system_tasks": not bool(re.search(r"\$\w+\s*\(", code_only)),
+        "no_force_release": not bool(re.search(r"\b(force|release)\s*\(", code_only, re.I)),
+        "no_testbench_hier_refs": not bool(re.search(r"\b(testbench|tb_)\.", code_only, re.I)),
+        "no_root_hier_refs": not bool(re.search(r"\$root\b", code_only)),
+        "no_include_directives": not bool(re.search(r"`include\b", code_only)),
+        "no_define_directives": not bool(re.search(r"`define\b", code_only)),
     }
 
     for name in required_instances:
@@ -111,6 +126,13 @@ STRUCTURAL_EXPLANATIONS = {
     "open_drain_scl": "SCL must be driven open-drain: assign scl = scl_drive_low ? 1'b0 : 1'bz (with an internal drive-low signal).",
     "no_procedural_bus_writes": "Never assign SDA or SCL inside an always block; only drive them through open-drain continuous assigns.",
     "has_tb_done_logic": "tb_done must be assigned by the sequential control logic after STOP.",
+    # G0 integrity rules (P0-S03)
+    "no_system_tasks": "The RTL uses a $… system task/function (e.g. $display, $finish, $fopen). These can forge simulation output.",
+    "no_force_release": "The RTL uses force or release. These are not synthesizable and can corrupt the DUT/tb boundary.",
+    "no_testbench_hier_refs": "The RTL references testbench internals (testbench., tb_.). The DUT must not reach into the testbench.",
+    "no_root_hier_refs": "The RTL uses $root hierarchical references. These are forbidden.",
+    "no_include_directives": "The RTL uses `include. Only the harness may include files.",
+    "no_define_directives": "The RTL uses `define. Macro definitions are controlled by the oracle.",
 }
 
 

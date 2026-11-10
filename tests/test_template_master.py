@@ -8,6 +8,7 @@ impossible target. Real Icarus/Verilator/Yosys are used when available.
 from __future__ import annotations
 
 import json
+import os
 import shutil
 from pathlib import Path
 
@@ -70,9 +71,11 @@ def _run_gates(
         f"+I2C_DATA={spec.data_hex}",
         f"+I2C_NBYTES={spec.nbytes}",
     ]
+    nonce = os.urandom(8).hex()
+    plusargs.append(f"+NONCE={nonce}")
     simulated = run_simulation(str(vvp), plusargs=plusargs)
     assert simulated["success"], simulated["stderr"]
-    parsed = parse_result_line(simulated["stdout"])
+    parsed = parse_result_line(simulated["stdout"], nonce=nonce)
     verdict = judge(
         parsed,
         expected_addr=spec.address_hex,

@@ -106,6 +106,10 @@ def _fresh_gates(
             f"+I2C_DATA={spec.data_hex}",
             f"+I2C_NBYTES={spec.nbytes}",
         ]
+        # P0-S04: generate a nonce for authenticated result parsing
+        import os
+        nonce = os.urandom(8).hex()
+        plusargs.append(f"+NONCE={nonce}")
         sim = run_simulation(vvp, plusargs=plusargs)
         stages.append({
             "stage": "simulation",
@@ -115,7 +119,7 @@ def _fresh_gates(
         if sim.get("tool_missing"):
             return {"outcome": "tool_missing", "stages": stages}
 
-        raw = parse_result_line(sim.get("stdout", ""))
+        raw = parse_result_line(sim.get("stdout", ""), nonce=nonce)
         verdict = judge(
             raw,
             expected_addr=spec.address_hex,

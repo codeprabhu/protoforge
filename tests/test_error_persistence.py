@@ -64,6 +64,14 @@ def test_successful_run_header_has_no_error_field(tmp_path):
     cfg = _config(tmp_path, "clean")
     good = "protocols/i2c/reference/good_master_reset_safe.v"
     code = open(good, encoding="utf-8").read()
+    captured_nonce = {"value": None}
+    def fake_sim(*args, **kwargs):
+        captured_nonce["value"] = kwargs.get("nonce")
+        return {
+            "success": True,
+            "stdout": f"RESULT:NONCE={captured_nonce['value']} saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=a0 data=3c",
+            "stderr": "",
+        }
     log = run_once(
         config=cfg,
         generate_fn=lambda *a, **k: code,
@@ -71,11 +79,7 @@ def test_successful_run_header_has_no_error_field(tmp_path):
         on_failure=lambda *a, **k: None,
         compile_fn=lambda *a, **k: {"success": True, "stdout": "", "stderr": "", "returncode": 0},
         hardware_check_fn=lambda *a, **k: {"success": True, "stage": "hardware_pass"},
-        sim_fn=lambda *a, **k: {
-            "success": True,
-            "stdout": "RESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=a0 data=3c",
-            "stderr": "",
-        },
+        sim_fn=fake_sim,
     )
     assert log["final"] == outcomes.PASS
 

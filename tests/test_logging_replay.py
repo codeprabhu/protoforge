@@ -17,8 +17,10 @@ from tools.replay import replay_run
 ROOT = Path(__file__).resolve().parents[1]
 GOOD = (ROOT / "protocols/i2c/reference/good_master_reset_safe.v").read_text()
 BROKEN = (ROOT / "protocols/i2c/reference/broken_master_no_stop_reset_safe.v").read_text()
-RESULT_OK = (
-    "RESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 "
+# The adapter generates its own nonce and passes it to both sim_fn and parse_result_line.
+# The stubbed sim_fn must capture the nonce and include it in the RESULT line.
+RESULT_OK_TEMPLATE = (
+    "RESULT:NONCE={nonce} saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 "
     "addr=a0 data=3c tb_done=1 starts=1 stops=1\n"
 )
 
@@ -31,12 +33,19 @@ def _stub_model(monkeypatch, code: str = GOOD):
 
 
 def _fast_gates() -> dict:
+    captured_nonce = {"value": None}
+    def fake_sim(*args, **kwargs):
+        captured_nonce["value"] = kwargs.get("nonce", "0000000000000000")
+        return {
+            "success": True,
+            "stdout": RESULT_OK_TEMPLATE.format(nonce=captured_nonce["value"]),
+            "stderr": "",
+            "timeout": False,
+        }
     return {
         "compile_fn": lambda *a, **k: {"success": True, "stdout": "", "stderr": ""},
         "hardware_check_fn": lambda *a, **k: {"success": True, "stage": "passed"},
-        "sim_fn": lambda *a, **k: {
-            "success": True, "stdout": RESULT_OK, "stderr": "", "timeout": False,
-        },
+        "sim_fn": fake_sim,
         "on_success": lambda *a, **k: None,
         "on_failure": lambda *a, **k: None,
     }

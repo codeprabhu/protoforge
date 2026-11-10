@@ -17,6 +17,7 @@ feedback loop that makes that viable for a small model:
 from __future__ import annotations
 
 import json
+import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -311,16 +312,18 @@ def test_generated_ir_output_passes_all_five_gates(monkeypatch, tmp_path):
     assert hardware["success"], hardware
 
     spec = parse_i2c_spec(str(SPEC_1BYTE))
+    nonce = os.urandom(8).hex()
     simulated = run_simulation(
         str(vvp),
         plusargs=[
             f"+I2C_ADDR={spec.address_hex}",
             f"+I2C_DATA={spec.data_hex}",
             f"+I2C_NBYTES={spec.nbytes}",
+            f"+NONCE={nonce}",
         ],
     )
     assert simulated["success"], simulated["stderr"]
-    parsed = parse_result_line(simulated["stdout"])
+    parsed = parse_result_line(simulated["stdout"], nonce=nonce)
     verdict = judge(
         parsed,
         expected_addr=spec.address_hex,

@@ -1,0 +1,31 @@
+# I²C timing profile — source of truth for the timing monitor (G6)
+# Values from NXP UM10204 (I²C-bus specification and user manual), Rev. 7, 2021.
+# The monitor reads this file; the Architect's plan and the benchmark read this file.
+# Do not hard-code timing values anywhere else.
+
+spec_revision: "UM10204 Rev. 7 (2021)"
+mode: "standard"        # "standard" (100 kHz) or "fast" (400 kHz)
+
+# All values in nanoseconds (integers).
+# The divider in the RTL rounds UP (ceil) so generated SCL is never faster.
+# The monitor allows +1 clk tolerance on lower bounds only.
+
+timing_ns:
+  tHD_STA: 4000       # hold after (repeated) START; first SCL fall
+  tLOW:    4700       # SCL low period
+  tHIGH:   4000       # SCL high period
+  tSU_STA: 4700       # repeated START setup
+  tSU_DAT: 250        # data setup
+  tHD_DAT: 0          # data hold (spec minimum; monitor checks >= 0)
+  tSU_STO: 4000       # STOP setup
+  tBUF:    4700       # bus free between STOP and next START
+
+# Derived/operational parameters
+clock:
+  CLK_HZ: 100_000_000     # system clock frequency (Hz)
+  SCL_HZ: 100_000         # target SCL frequency (Hz)
+  # divider = ceil(CLK_HZ / (2 * SCL_HZ))  -> 500 cycles per half-period at 100 MHz / 100 kHz
+  # HALF = divider (the half-period counter terminal count)
+
+# Stretch timeout for L4 (clock stretching)
+stretch_timeout_us: 1000

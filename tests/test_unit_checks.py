@@ -46,6 +46,7 @@ def test_result_line_parsing():
     )
     assert parsed == {
         "parsed": True,
+        "authenticated": False,
         "saw_start": 1,
         "saw_stop": 1,
         "saw_ack_addr": 1,

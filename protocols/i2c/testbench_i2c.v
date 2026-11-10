@@ -20,6 +20,10 @@ module testbench_i2c;
     wire tb_done;
     wire sda, scl;
 
+    // Per-run nonce (P0-S04): only RESULT lines carrying this nonce are parsed.
+    // The parser takes the LAST valid nonce-matching line to defeat forgery.
+    reg [63:0] nonce;
+
     // Bus pull-ups (open-drain bus model)
     pullup(sda);
     pullup(scl);
@@ -139,6 +143,7 @@ module testbench_i2c;
         plusarg_dummy = $value$plusargs("I2C_ADDR=%h", expected_addr_byte);
         plusarg_dummy = $value$plusargs("I2C_DATA=%h", expected_data_byte);
         plusarg_dummy = $value$plusargs("I2C_NBYTES=%d", expected_nbytes);
+        plusarg_dummy = $value$plusargs("NONCE=%h", nonce);
         // VCD tracing is opt-in to keep batch evaluation from producing
         // hundreds of megabytes of waveforms by default. Run with +dump_vcd
         // when a waveform is actually needed for debugging.
@@ -162,8 +167,8 @@ module testbench_i2c;
 
         #50; // let any trailing STOP condition settle before we sample
 
-        $display("RESULT:saw_start=%0d saw_stop=%0d saw_ack_addr=%0d saw_ack_data=%0d addr=%02h data=%02h tb_done=%0d starts=%0d stops=%0d sda_glitches=%0d bytes=%0d",
-                  saw_start, saw_stop, saw_ack_addr, saw_ack_data, captured_addr, captured_data,
+        $display("RESULT:NONCE=%016h saw_start=%0d saw_stop=%0d saw_ack_addr=%0d saw_ack_data=%0d addr=%02h data=%02h tb_done=%0d starts=%0d stops=%0d sda_glitches=%0d bytes=%0d",
+                  nonce, saw_start, saw_stop, saw_ack_addr, saw_ack_data, captured_addr, captured_data,
                   (tb_done || saw_done) ? 1 : 0, n_start, n_stop, sda_glitches, byte_count);
         $finish;
     end

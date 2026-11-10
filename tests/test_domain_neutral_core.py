@@ -130,6 +130,16 @@ def test_orchestrator_passes_when_every_gate_accepts_the_candidate(tmp_path):
         },
     )
 
+    captured_nonce = {"value": None}
+    def fake_sim(*args, **kwargs):
+        # Capture the nonce the adapter passes to sim_fn
+        captured_nonce["value"] = kwargs.get("nonce")
+        return {
+            "success": True,
+            "stdout": f"RESULT:NONCE={captured_nonce['value']} saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=a0 data=3c",
+            "stderr": "",
+        }
+
     result = Orchestrator(adapter).execute_task(
         task,
         max_repairs=1,
@@ -137,11 +147,7 @@ def test_orchestrator_passes_when_every_gate_accepts_the_candidate(tmp_path):
         generate_fn=lambda *args, **kwargs: good,
         compile_fn=lambda *args, **kwargs: {"success": True, "stdout": "", "stderr": "", "returncode": 0},
         hardware_check_fn=lambda *args, **kwargs: {"success": True, "stage": "hardware_pass"},
-        sim_fn=lambda *args, **kwargs: {
-            "success": True,
-            "stdout": "RESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=a0 data=3c",
-            "stderr": "",
-        },
+        sim_fn=fake_sim,
     )
 
     assert result["final"] == "pass"
