@@ -1,3 +1,0 @@
-results/bon_n4/runs/20261110T210500-8b641184/attempt_1.v:184: error: Unable to bind wire/reg/memory `DATA_BYTE1' in `testbench_i2c.dut'
-results/bon_n4/runs/20261110T210500-8b641184/attempt_1.v:189: error: Unable to bind wire/reg/memory `DATA_BYTE2' in `testbench_i2c.dut'
-2 error(s) during elaboration.
