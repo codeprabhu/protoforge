@@ -37,6 +37,7 @@ jobs:
         run: |
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt
+          .venv/bin/pip install -r requirements-dev.txt
 
       - name: Run tests (no Ollama)
         run: |
@@ -70,6 +71,7 @@ jobs:
         run: |
           .venv/bin/python -m pip install --upgrade pip
           .venv/bin/pip install -r requirements.txt
+          .venv/bin/pip install -r requirements-dev.txt
 
       - name: Run 3-case template benchmark (no Ollama)
         run: |
