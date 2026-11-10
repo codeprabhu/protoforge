@@ -8,7 +8,7 @@ This defeats the F-01 forgery where the DUT printed fake RESULT lines.
 import re
 import subprocess
 
-# Legacy regex (no nonce) for backwards compatibility
+# Legacy regex (no nonce) for backwards compatibility (replay only)
 RESULT_RE_LEGACY = re.compile(
     r"RESULT:saw_start=(\d) saw_stop=(\d) saw_ack_addr=(\d) saw_ack_data=(\d) "
     r"addr=([0-9a-fA-F]+) data=([0-9a-fA-F]+)"
@@ -76,27 +76,6 @@ def run_simulation(executable: str, timeout: float = 8.0, plusargs=None, nonce: 
     }
 
 
-def _parse_with_nonce(stdout: str, nonce: str | None) -> dict | None:
-    """Return the parsed RESULT dict for the LAST line matching ``nonce``.
-
-    If ``nonce`` is None, fall back to the legacy parser (first match).
-    """
-    if nonce is None:
-        # Legacy mode: first match wins (for backwards compatibility with
-        # old run directories that lack the nonce).
-        m = RESULT_RE_LEGACY.search(stdout or "")
-        if not m:
-            return None
-        return _parse_legacy_match(m, stdout)
-
-    # Nonce mode: collect all matching lines, take the last.
-    matches = list(RESULT_RE.finditer(stdout or ""))
-    for m in reversed(matches):
-        if m.group(1).lower() == nonce.lower():
-            return _parse_nonce_match(m, stdout)
-    return None
-
-
 def _parse_nonce_match(m: re.Match, stdout: str) -> dict:
     nonce, saw_start, saw_stop, saw_ack_addr, saw_ack_data, addr, data, tb_done, starts, stops, \
         sda_glitches, byte_count = m.groups()
@@ -121,6 +100,46 @@ def _parse_nonce_match(m: re.Match, stdout: str) -> dict:
     }
 
 
+def parse_result_line(stdout: str, nonce: str | None = None, *, allow_legacy: bool = False) -> dict:
+    """Parse the RESULT line emitted by protocols/i2c/testbench_i2c.v.
+
+    With a nonce (P0-S04): only the LAST line with that nonce is accepted.
+    With ``allow_legacy=True`` (for replaying pre-nonce logs only): falls back
+    to the legacy format (no nonce), first match wins.
+    Without a nonce and without ``allow_legacy``: rejects unparseable output.
+    """
+    if nonce is not None:
+        # Nonce mode: collect all matching lines, take the last.
+        matches = list(RESULT_RE.finditer(stdout or ""))
+        for m in reversed(matches):
+            if m.group(1).lower() == nonce.lower():
+                return _parse_nonce_match(m, stdout)
+        return {
+            "parsed": False,
+            "timeout": "EVENT:TIMEOUT" in (stdout or ""),
+            "raw_stdout": stdout or "",
+        }
+
+    if allow_legacy:
+        # Legacy mode: first match wins (for backwards compatibility with
+        # old run directories that lack the nonce).
+        m = RESULT_RE_LEGACY.search(stdout or "")
+        if not m:
+            return {
+                "parsed": False,
+                "timeout": "EVENT:TIMEOUT" in (stdout or ""),
+                "raw_stdout": stdout or "",
+            }
+        return _parse_legacy_match(m, stdout)
+
+    # No nonce and no legacy flag: reject
+    return {
+        "parsed": False,
+        "timeout": "EVENT:TIMEOUT" in (stdout or ""),
+        "raw_stdout": stdout or "",
+    }
+
+
 def _parse_legacy_match(m: re.Match, stdout: str) -> dict:
     saw_start, saw_stop, saw_ack_addr, saw_ack_data, addr, data, tb_done, starts, stops, \
         sda_glitches, byte_count = m.groups()
@@ -142,21 +161,4 @@ def _parse_legacy_match(m: re.Match, stdout: str) -> dict:
         "saw_ack_data": int(saw_ack_data),
         "addr": addr.lower(),
         "data": data.lower(),
-    }
-
-
-def parse_result_line(stdout: str, nonce: str | None = None) -> dict:
-    """Parse the RESULT line emitted by protocols/i2c/testbench_i2c.v.
-
-    With a nonce (P0-S04): only the LAST line with that nonce is accepted.
-    Without a nonce: first match wins (legacy compatibility).
-    """
-    parsed = _parse_with_nonce(stdout, nonce)
-    if parsed is not None:
-        return parsed
-
-    return {
-        "parsed": False,
-        "timeout": "EVENT:TIMEOUT" in (stdout or ""),
-        "raw_stdout": stdout or "",
     }

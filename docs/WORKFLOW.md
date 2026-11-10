@@ -8,12 +8,12 @@ commit `086bf99`.
 
 ## Status board
 
-Last verified: 2026-11-10, `188 passed` from
-`.venv/bin/python -m pytest -q tests` (steps 81–92 **complete**).
+Last verified: 2026-11-10, `189 passed` from
+`.venv/bin/python -m pytest -q tests` (v1 Phase 7 complete; v2 Phase 0 **complete**).
 
 | Phase | Steps | State | Evidence |
 | --- | --- | --- | --- |
-| 0 Snapshot and environment | 1–10 | **done** | tag `pre-cleanup` (`9acd76d`), tag `baseline-v0` (`2a28978`), `docs/ENV.md` |
+| 0 Snapshot and environment | 1–10 | **done** | tag `pre-cleanup` (`9acd76d`), tag `baseline-v0` (`2a28978`), `docs/ENV.md`; v2 Phase 0 (P0-S01..P0-S04) in `oracle/`, G0 rules, nonce (`b9b88ff`) |
 | 1 Clean the orchestrator | 11–20 | **done** | `01cddcf`; `agents/`, `archive/`, `core/task_graph.py` removed for good in `086bf99` |
 | 2 Remove file handoff / import-time config | 21–34 | **done** | `cb15497`, `tests/test_run_isolation.py` |
 | 3 Replayable logging | 35–46 | **done** | tag `logging-v1` (`6038b46`), `tests/test_logging_replay.py`, `tools/replay.py` |

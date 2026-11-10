@@ -13,39 +13,40 @@ BASE = "RESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=a0 data
 
 
 def test_legacy_result_line_still_parses_and_passes():
-    parsed = parse_result_line(BASE)
+    parsed = parse_result_line(BASE, allow_legacy=True)
     assert parsed["parsed"] and "tb_done" not in parsed
     assert judge(parsed)["pass"]
 
 
 def test_extended_result_line_passes_when_clean():
-    parsed = parse_result_line(BASE + " tb_done=1 starts=1 stops=1")
+    parsed = parse_result_line(BASE + " tb_done=1 starts=1 stops=1", allow_legacy=True)
     assert (parsed["tb_done"], parsed["starts"], parsed["stops"]) == (1, 1, 1)
     assert judge(parsed)["pass"]
 
 
 def test_wrong_data_byte_fails_protocol_judge():
-    parsed = parse_result_line(BASE.replace("data=3c", "data=00"))
+    parsed = parse_result_line(BASE.replace("data=3c", "data=00"), allow_legacy=True)
     verdict = judge(parsed)
     assert not verdict["pass"]
     assert verdict["failed_checks"] == ["correct_data"]
 
 
 def test_missing_tb_done_fails():
-    v = judge(parse_result_line(BASE + " tb_done=0 starts=1 stops=1"))
+    v = judge(parse_result_line(BASE + " tb_done=0 starts=1 stops=1", allow_legacy=True))
     assert not v["pass"] and v["failed_checks"] == ["tb_done"]
     assert "tb_done" in explain_failures(v["failed_checks"])
 
 
 def test_glitch_and_extra_byte_fail_only_when_reported():
     parsed = parse_result_line(
-        BASE + " tb_done=1 starts=1 stops=1 sda_glitches=1 bytes=3"
+        BASE + " tb_done=1 starts=1 stops=1 sda_glitches=1 bytes=3",
+        allow_legacy=True,
     )
     assert (parsed["sda_glitches"], parsed["bytes"]) == (1, 3)
     v = judge(parsed)
     assert set(v["failed_checks"]) == {"sda_stable", "byte_count"}
 
-    legacy = parse_result_line(BASE + " tb_done=1 starts=1 stops=1")
+    legacy = parse_result_line(BASE + " tb_done=1 starts=1 stops=1", allow_legacy=True)
     assert "sda_glitches" not in legacy and "bytes" not in legacy
     assert judge(legacy)["pass"]
 
@@ -61,7 +62,7 @@ def test_explanations_name_the_actual_expected_values():
 
 
 def test_repeated_start_and_extra_stop_fail():
-    v = judge(parse_result_line(BASE + " tb_done=1 starts=2 stops=2"))
+    v = judge(parse_result_line(BASE + " tb_done=1 starts=2 stops=2", allow_legacy=True))
     assert set(v["failed_checks"]) == {"single_start", "single_stop"}
 
 

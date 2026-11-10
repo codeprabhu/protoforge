@@ -42,7 +42,8 @@ def test_structural_gate_rejects_delay_and_procedural_bus_drives():
 def test_result_line_parsing():
     parsed = parse_result_line(
         "EVENT:START:12\nRESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 "
-        "saw_ack_data=1 addr=a0 data=3c\n"
+        "saw_ack_data=1 addr=a0 data=3c\n",
+        allow_legacy=True,
     )
     assert parsed == {
         "parsed": True,
@@ -129,3 +130,33 @@ def test_tampered_passing_memory_entry_is_not_retrieved(tmp_path):
     path.write_text(good + "\n// edited after verification\n")
     examples = _load_successful_examples(tmp_path)
     assert not any(origin == "learned" for _, _, origin in examples)
+
+
+def test_forged_result_without_nonce_is_rejected():
+    """A DUT that prints a forged RESULT line without the nonce must be rejected.
+
+    The parser must not fall back to legacy parsing when no nonce is provided
+    and allow_legacy=False (the default). This defeats the F-01 forgery where
+    the DUT prints a fake RESULT line to trick the judge.
+    """
+    forged_stdout = (
+        "EVENT:START:12\n"
+        "RESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 "
+        "addr=a0 data=3c tb_done=1 starts=1 stops=1 sda_glitches=0 bytes=2\n"
+    )
+    # Default behavior (no nonce, no allow_legacy) must reject
+    parsed = parse_result_line(forged_stdout)
+    assert parsed["parsed"] is False
+    assert "authenticated" not in parsed
+
+    # Even with a valid-looking legacy line, without allow_legacy it fails
+    parsed2 = parse_result_line("RESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=a0 data=3c")
+    assert parsed2["parsed"] is False
+
+    # But with allow_legacy=True it parses (for replay only)
+    parsed3 = parse_result_line(
+        "RESULT:saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=a0 data=3c",
+        allow_legacy=True,
+    )
+    assert parsed3["parsed"] is True
+    assert parsed3["authenticated"] is False

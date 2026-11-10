@@ -153,3 +153,28 @@ def test_replay_matches_stored_verdict_and_detects_tampering(run_config, monkeyp
     second = replay_run(run_dir, verbose=False)
     assert second["matched"] is False
     assert second["attempts"][0]["replay_outcome"] == "sim_checks_failed"
+
+    # Second tamper case: alter the stored verdict (attempt_0.json) to claim pass
+    # while keeping the original good code. Replay must detect the mismatch.
+    result = _run(run_config, monkeypatch)
+    run_dir2 = Path(result["run_dir"])
+    first2 = replay_run(run_dir2, verbose=False)
+    assert first2["matched"] is True
+
+    # Modify the stored attempt record to change the judge outcome to "pass"
+    # even though the code is the original good code (which should pass).
+    # We change the judge stage to fail to simulate a tampered verdict.
+    attempt_record = json.loads((run_dir2 / "attempt_0.json").read_text())
+    # Find the judge stage and flip its passed flag
+    for stage in attempt_record["stages"]:
+        if stage["stage"] == "judge":
+            stage["passed"] = False
+            stage["failed_checkes"] = ["tampered"]
+            break
+    (run_dir2 / "attempt_0.json").write_text(json.dumps(attempt_record), encoding="utf-8")
+
+    third = replay_run(run_dir2, verbose=False)
+    assert third["matched"] is False
+    # The replay outcome should still be pass (code is good), but the stored
+    # verdict claims fail, so matched=False
+    assert third["attempts"][0]["replay_outcome"] == "pass"
