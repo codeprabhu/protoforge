@@ -1,0 +1,144 @@
+{
+  "run_id": "20261110T200328-0c508795",
+  "task_id": "i2c-20261110T200328-0c508795",
+  "domain": "i2c",
+  "start_time": 1794321208.9268727,
+  "end_time": 1794321209.006715,
+  "status": "completed",
+  "events": [
+    {
+      "event_id": "b8373c6c-e72e-44e7-b62c-68852c79c5e2",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321208.9268866,
+      "event_type": "run_started",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "config": {
+          "device_paths": [
+            "/home/shrivathssp/Desktop/protoforge/devices/device_sensor.v",
+            "/home/shrivathssp/Desktop/protoforge/devices/device_controller.v"
+          ],
+          "spec_path": "results/bon_test/specs/c02-alt-address-1byte.md",
+          "tb_path": "protocols/i2c/testbench_i2c.v",
+          "max_repairs": 2,
+          "model": "template",
+          "seed": 42,
+          "temperature": 0.25,
+          "retrieval": false,
+          "patcher": true,
+          "output_root": "results/bon_test/runs",
+          "results_log": "results/bon_test/runs.jsonl",
+          "trace_dir": "results/bon_test/traces",
+          "target_name": "top_glue.v"
+        },
+        "git_commit": "407e6c888599123dbf49ebfd7598eab75d47da67"
+      }
+    },
+    {
+      "event_id": "465779ce-5ec8-485e-b089-83c487b4ea97",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321208.9271119,
+      "event_type": "model_invoked",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "model": "template",
+        "repair": false,
+        "prompt_chars": 0,
+        "raw_output_chars": 0,
+        "candidate_hash": "d6f8a8e9351b5bfd"
+      }
+    },
+    {
+      "event_id": "be65b7a3-d276-4765-a040-70a8356195bd",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321208.928217,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "structural",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "b25efaa2-cf8f-4f60-be89-9adeec2c5a0c",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321209.0062354,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "compile",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "c99928e5-bfa5-449b-99ae-0e0d2633fa78",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321209.0062478,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "hardware",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "5fd340c8-3de3-4941-b293-bd3dc38d5e51",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321209.0062559,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "simulation",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "fb47f753-042e-47c1-aca7-6f9ae59d33a6",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321209.0063262,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "judge",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "0af0867c-884d-4e7a-b15e-954c7a7c1431",
+      "run_id": "20261110T200328-0c508795",
+      "timestamp": 1794321209.006733,
+      "event_type": "run_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "final": "pass",
+        "run_dir": "results/bon_test/runs/20261110T200328-0c508795"
+      }
+    }
+  ],
+  "decision_records": [],
+  "summary": {
+    "final": "pass",
+    "attempts": 1,
+    "first_attempt_pass": true,
+    "recovered_after_repair": false,
+    "run_dir": "results/bon_test/runs/20261110T200328-0c508795"
+  }
+}

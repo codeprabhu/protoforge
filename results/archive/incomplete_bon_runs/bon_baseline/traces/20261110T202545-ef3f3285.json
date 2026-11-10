@@ -1,0 +1,144 @@
+{
+  "run_id": "20261110T202545-ef3f3285",
+  "task_id": "i2c-20261110T202545-ef3f3285",
+  "domain": "i2c",
+  "start_time": 1794322545.3622065,
+  "end_time": 1794322808.2644126,
+  "status": "completed",
+  "events": [
+    {
+      "event_id": "99695d9b-236b-4040-bde5-55e575e33dcf",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322545.3622544,
+      "event_type": "run_started",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "config": {
+          "device_paths": [
+            "/home/shrivathssp/Desktop/protoforge/devices/device_sensor.v",
+            "/home/shrivathssp/Desktop/protoforge/devices/device_controller.v"
+          ],
+          "spec_path": "results/bon_baseline/specs/c03-zero-payload.md",
+          "tb_path": "protocols/i2c/testbench_i2c.v",
+          "max_repairs": 2,
+          "model": "qwen2.5-coder:7b",
+          "seed": 42,
+          "temperature": 0.25,
+          "retrieval": true,
+          "patcher": true,
+          "output_root": "results/bon_baseline/runs",
+          "results_log": "results/bon_baseline/runs.jsonl",
+          "trace_dir": "results/bon_baseline/traces",
+          "target_name": "top_glue.v"
+        },
+        "git_commit": "407e6c888599123dbf49ebfd7598eab75d47da67"
+      }
+    },
+    {
+      "event_id": "f2362db9-e90d-4273-945d-6e1d5803ad89",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322808.080841,
+      "event_type": "model_invoked",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "model": "qwen2.5-coder:7b",
+        "repair": false,
+        "prompt_chars": 8079,
+        "raw_output_chars": 4418,
+        "candidate_hash": "49d78f7d274f809f"
+      }
+    },
+    {
+      "event_id": "8960822d-2d46-4121-b62f-fb016dd2467e",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322808.0826054,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "structural",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "1049d06e-b20e-40b2-8eed-8be8b5ca0993",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322808.2626283,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "compile",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "a28a5a1c-144f-4167-a460-839f33ff230f",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322808.2626615,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "hardware",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "279dfc1a-f2e7-44a5-8267-6109c147f5a3",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322808.2626832,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "simulation",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "353b7bc6-182d-4513-a275-f276d75e0e01",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322808.2629614,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "judge",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "83a6cecd-6935-48b9-a113-d59e9f63c853",
+      "run_id": "20261110T202545-ef3f3285",
+      "timestamp": 1794322808.2644694,
+      "event_type": "run_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "final": "pass",
+        "run_dir": "results/bon_baseline/runs/20261110T202545-ef3f3285"
+      }
+    }
+  ],
+  "decision_records": [],
+  "summary": {
+    "final": "pass",
+    "attempts": 1,
+    "first_attempt_pass": true,
+    "recovered_after_repair": false,
+    "run_dir": "results/bon_baseline/runs/20261110T202545-ef3f3285"
+  }
+}

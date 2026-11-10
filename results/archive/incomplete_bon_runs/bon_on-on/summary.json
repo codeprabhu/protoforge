@@ -1,0 +1,45 @@
+{
+  "base_seed": 42,
+  "bon": 2,
+  "cases": [
+    "c01-default-1byte",
+    "c02-alt-address-1byte",
+    "c03-zero-payload"
+  ],
+  "configs": {
+    "on-on": {
+      "candidate_runs": 3,
+      "cases": 3,
+      "distinct_first_designs": 3,
+      "first_attempts_recorded": 3,
+      "median_latency_sec": 136.495,
+      "median_tokens_per_run": 2899.0,
+      "outcomes": {
+        "pass": 3
+      },
+      "pass_after_repair": 3,
+      "pass_after_repair_ci95": [
+        0.4385,
+        1.0
+      ],
+      "pass_after_repair_rate": 1.0,
+      "pass_at_1": 3,
+      "pass_at_1_ci95": [
+        0.4385,
+        1.0
+      ],
+      "pass_at_1_rate": 1.0,
+      "recovered_by_repair": 0,
+      "runs": 3,
+      "runs_without_candidate": 0,
+      "samples": 1,
+      "total_tokens": 8690
+    }
+  },
+  "max_repairs": 2,
+  "model": "qwen2.5-coder:7b",
+  "retrieval_memory_frozen": true,
+  "rows": 3,
+  "samples_per_case": 1,
+  "temperature": 0.25
+}
