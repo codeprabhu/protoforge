@@ -18,6 +18,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REFERENCE = PROJECT_ROOT / "protocols" / "i2c" / "reference" / "good_master_reset_safe.v"
+DEFAULT_REFERENCE_2BYTE = PROJECT_ROOT / "protocols" / "i2c" / "reference" / "good_master_2byte_reset_safe.v"
 DEFAULT_MEMORY_DIR = PROJECT_ROOT / "results" / "rtl_memory"
 
 _TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*|0x[0-9a-fA-F]+")
@@ -87,7 +88,9 @@ def _load_successful_examples(memory_dir: Path) -> list[tuple[str, str, str]]:
     # known-good oracle. It preserves the bus sequencing while keeping LLM
     # context free from initial blocks and declaration-time initialization.
     if DEFAULT_REFERENCE.is_file():
-        examples.append(("validated I2C reference", DEFAULT_REFERENCE.read_text(encoding="utf-8"), "seed"))
+        examples.append(("validated I2C reference (1-byte)", DEFAULT_REFERENCE.read_text(encoding="utf-8"), "seed"))
+    if DEFAULT_REFERENCE_2BYTE.is_file():
+        examples.append(("validated I2C reference (2-byte)", DEFAULT_REFERENCE_2BYTE.read_text(encoding="utf-8"), "seed"))
 
     passing_dir = memory_dir / "passing"
     if passing_dir.is_dir():
@@ -151,8 +154,13 @@ def retrieve_rtl_examples(
         # than the generic seed once enough examples have accumulated.
         if origin == "learned":
             score += 0.08
+        # Seed references are authoritative ground truth; always include them
+        # by giving them a baseline boost so they appear even when token
+        # overlap is low (common for high-level queries vs. low-level code).
+        if origin == "seed":
+            score += 0.10
         ranked.append((score, origin, label, code))
-    ranked.sort(key=lambda item: (-item[0], item[1] != "learned", item[2]))
+    ranked.sort(key=lambda item: (-item[0], item[1] != "learned", item[1] != "seed", item[2]))
 
     sections = [
         "RETRIEVED VERIFIED EXAMPLE(S) — use as behavioral guidance, not as text to copy blindly.",
