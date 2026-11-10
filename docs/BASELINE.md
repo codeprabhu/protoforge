@@ -111,12 +111,12 @@ the six candidates that did compile still failed the judge on address/data/ACK/
 STOP timing, and repair then produced invalid tables (recorded as `repair_error`).
 The RTL path's 66.7% pass rate is not improved; the IR path is **not kept**.
 
-**Note:** The `on-on-ir` and `retrieval-off-ir` rows in the table above represent
-a partially completed experiment (only 72 runs instead of the full 72 due to
-early termination). The `on-on-ir` configuration had 18 generation errors and
-6 simulation failures; `retrieval-off-ir` had 18 generation errors and 6
-simulation failures. These results are included for transparency but should not
-be treated as a complete, validated benchmark.
+**Note:** The `on-on-ir` and `retrieval-off-ir` configurations in the table above
+each completed 24 runs (12 cases × 2 samples), for 48 IR-path runs total.
+`on-on-ir`: 18 generation errors (model omitted `drive sda="bit"`), 6 simulation
+failures (compiled but failed judge). `retrieval-off-ir`: 18 generation errors,
+6 simulation failures. These 48 IR runs are complete for their configurations
+but the IR path was abandoned (0/24 pass@1) and is not a validated benchmark.
 
 ## Metric definitions
 
