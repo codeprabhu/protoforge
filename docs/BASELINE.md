@@ -88,6 +88,8 @@ Source: `results/bench/` (`runs.csv`, `runs.jsonl`, `summary.json`, `report.md`)
 | `on-on` | 24 | 0 | 16/24 (66.7%) | [46.7%, 82.0%] | 16/24 (66.7%) | [46.7%, 82.0%] | 0 | 12/24 | 187.238 | 2899.0 |
 | `retrieval-off` | 24 | 0 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 24/24 | 243.605 | 7744.0 |
 | `patcher-off` | 24 | 19 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 1/5 | 0.0 | 0.0 |
+| `on-on-ir` | 24 | 18 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 6/6 | 173.364 | 0.0 |
+| `retrieval-off-ir` | 24 | 18 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 6/6 | 203.782 | 0.0 |
 
 **Reading the table.** `on-on` is the baseline to beat: 16 of 24 first
 attempts pass and repair recovers nothing, so the model's first answer is the
@@ -99,6 +101,15 @@ remaining 5 failed structural checks. Those 19 are **not** model failures and
 must not be read as a 0% generation rate; the repair-crash guard added in
 steps 86–89 now records the same fault as `repair_error` with the triggering
 stage's outcome instead of losing the run.
+
+**IR comparison (steps 91–92).** The `--ir` benchmark (72 runs, same 12 cases,
+2 samples, same model/seed/temperature) shows the JSON path fails to close the
+gap: `on-on-ir` is 0/24 with 18 runs that never produced a candidate because
+the model omitted `drive sda="bit"` — the one thing the compiler cannot
+invent. Enrichment fills `otherwise`/`load_address`/`restart_bits`/`done`, but
+the six candidates that did compile still failed the judge on address/data/ACK/
+STOP timing, and repair then produced invalid tables (recorded as `repair_error`).
+The RTL path's 66.7% pass rate is not improved; the IR path is **not kept**.
 
 ## Metric definitions
 

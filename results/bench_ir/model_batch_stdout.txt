@@ -1,0 +1,81 @@
+[1/72] on-on-ir c01-default-1byte sample=0 seed=42 -> generation_error
+[2/72] on-on-ir c01-default-1byte sample=1 seed=43 -> generation_error
+[3/72] on-on-ir c02-alt-address-1byte sample=0 seed=42 -> generation_error
+[4/72] on-on-ir c02-alt-address-1byte sample=1 seed=43 -> generation_error
+[5/72] on-on-ir c03-zero-payload sample=0 seed=42 -> sim_checks_failed
+[6/72] on-on-ir c03-zero-payload sample=1 seed=43 -> sim_checks_failed
+[7/72] on-on-ir c04-all-ones-payload sample=0 seed=42 -> generation_error
+[8/72] on-on-ir c04-all-ones-payload sample=1 seed=43 -> sim_checks_failed
+[9/72] on-on-ir c05-low-address sample=0 seed=42 -> sim_checks_failed
+[10/72] on-on-ir c05-low-address sample=1 seed=43 -> generation_error
+[11/72] on-on-ir c06-two-byte sample=0 seed=42 -> generation_error
+[12/72] on-on-ir c06-two-byte sample=1 seed=43 -> generation_error
+[13/72] on-on-ir c07-two-byte-alt sample=0 seed=42 -> generation_error
+[14/72] on-on-ir c07-two-byte-alt sample=1 seed=43 -> generation_error
+[15/72] on-on-ir c08-three-byte sample=0 seed=42 -> sim_checks_failed
+[16/72] on-on-ir c08-three-byte sample=1 seed=43 -> generation_error
+[17/72] on-on-ir c09-single-device sample=0 seed=42 -> generation_error
+[18/72] on-on-ir c09-single-device sample=1 seed=43 -> generation_error
+[19/72] on-on-ir c10-three-devices sample=0 seed=42 -> generation_error
+[20/72] on-on-ir c10-three-devices sample=1 seed=43 -> generation_error
+[21/72] on-on-ir c11-three-devices-two-byte sample=0 seed=42 -> sim_checks_failed
+[22/72] on-on-ir c11-three-devices-two-byte sample=1 seed=43 -> generation_error
+[23/72] on-on-ir c12-top-address sample=0 seed=42 -> generation_error
+[24/72] on-on-ir c12-top-address sample=1 seed=43 -> generation_error
+[25/72] retrieval-off-ir c01-default-1byte sample=0 seed=42 -> generation_error
+[26/72] retrieval-off-ir c01-default-1byte sample=1 seed=43 -> generation_error
+[27/72] retrieval-off-ir c02-alt-address-1byte sample=0 seed=42 -> generation_error
+[28/72] retrieval-off-ir c02-alt-address-1byte sample=1 seed=43 -> generation_error
+[29/72] retrieval-off-ir c03-zero-payload sample=0 seed=42 -> generation_error
+[30/72] retrieval-off-ir c03-zero-payload sample=1 seed=43 -> generation_error
+[31/72] retrieval-off-ir c04-all-ones-payload sample=0 seed=42 -> sim_checks_failed
+[32/72] retrieval-off-ir c04-all-ones-payload sample=1 seed=43 -> generation_error
+[33/72] retrieval-off-ir c05-low-address sample=0 seed=42 -> generation_error
+[34/72] retrieval-off-ir c05-low-address sample=1 seed=43 -> generation_error
+[35/72] retrieval-off-ir c06-two-byte sample=0 seed=42 -> generation_error
+[36/72] retrieval-off-ir c06-two-byte sample=1 seed=43 -> sim_checks_failed
+[37/72] retrieval-off-ir c07-two-byte-alt sample=0 seed=42 -> sim_checks_failed
+[38/72] retrieval-off-ir c07-two-byte-alt sample=1 seed=43 -> generation_error
+[39/72] retrieval-off-ir c08-three-byte sample=0 seed=42 -> sim_checks_failed
+[40/72] retrieval-off-ir c08-three-byte sample=1 seed=43 -> sim_checks_failed
+[41/72] retrieval-off-ir c09-single-device sample=0 seed=42 -> generation_error
+[42/72] retrieval-off-ir c09-single-device sample=1 seed=43 -> generation_error
+[43/72] retrieval-off-ir c10-three-devices sample=0 seed=42 -> generation_error
+[44/72] retrieval-off-ir c10-three-devices sample=1 seed=43 -> generation_error
+[45/72] retrieval-off-ir c11-three-devices-two-byte sample=0 seed=42 -> generation_error
+[46/72] retrieval-off-ir c11-three-devices-two-byte sample=1 seed=43 -> sim_checks_failed
+[47/72] retrieval-off-ir c12-top-address sample=0 seed=42 -> generation_error
+[48/72] retrieval-off-ir c12-top-address sample=1 seed=43 -> generation_error
+[49/72] template c01-default-1byte sample=0 seed=42 -> pass
+[50/72] template c01-default-1byte sample=1 seed=43 -> pass
+[51/72] template c02-alt-address-1byte sample=0 seed=42 -> pass
+[52/72] template c02-alt-address-1byte sample=1 seed=43 -> pass
+[53/72] template c03-zero-payload sample=0 seed=42 -> pass
+[54/72] template c03-zero-payload sample=1 seed=43 -> pass
+[55/72] template c04-all-ones-payload sample=0 seed=42 -> pass
+[56/72] template c04-all-ones-payload sample=1 seed=43 -> pass
+[57/72] template c05-low-address sample=0 seed=42 -> pass
+[58/72] template c05-low-address sample=1 seed=43 -> pass
+[59/72] template c06-two-byte sample=0 seed=42 -> pass
+[60/72] template c06-two-byte sample=1 seed=43 -> pass
+[61/72] template c07-two-byte-alt sample=0 seed=42 -> pass
+[62/72] template c07-two-byte-alt sample=1 seed=43 -> pass
+[63/72] template c08-three-byte sample=0 seed=42 -> pass
+[64/72] template c08-three-byte sample=1 seed=43 -> pass
+[65/72] template c09-single-device sample=0 seed=42 -> pass
+[66/72] template c09-single-device sample=1 seed=43 -> pass
+[67/72] template c10-three-devices sample=0 seed=42 -> pass
+[68/72] template c10-three-devices sample=1 seed=43 -> pass
+[69/72] template c11-three-devices-two-byte sample=0 seed=42 -> pass
+[70/72] template c11-three-devices-two-byte sample=1 seed=43 -> pass
+[71/72] template c12-top-address sample=0 seed=42 -> pass
+[72/72] template c12-top-address sample=1 seed=43 -> pass
+
+| Config | Runs | no candidate | pass@1 | pass@1 95% CI | pass after repair | after-repair 95% CI | recovered | distinct first | median latency (s) | median tokens |
+| --- | ---: | ---: | ---: | --- | ---: | --- | ---: | ---: | ---: | ---: |
+| template | 24 | 0 | 24/24 (100.0%) | [86.2%, 100.0%] | 24/24 (100.0%) | [86.2%, 100.0%] | 0 | 12/24 | 0.087 | 0.0 |
+| on-on-ir | 24 | 18 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 6/6 | 173.364 | 0.0 |
+| retrieval-off-ir | 24 | 18 | 0/24 (0.0%) | [0.0%, 13.8%] | 0/24 (0.0%) | [0.0%, 13.8%] | 0 | 6/6 | 203.782 | 0.0 |
+
+CSV: results/bench_ir/runs.csv
+Summary: results/bench_ir/summary.json
