@@ -128,6 +128,43 @@ def test_ir_config_installs_the_json_generator_hooks(tmp_path, monkeypatch):
     assert row["generator"] == "rtl"
 
 
+def test_resume_skips_completed_runs_and_repairs_a_partial_csv(tmp_path):
+    """A long batch can restart after a crash without rerunning finished work."""
+    from bench.run import main
+
+    out = tmp_path / "bench"
+    args = [
+        "--cases", str(CASES), "--case-limit", "2", "--samples", "1",
+        "--configs", "template", "--out-dir", str(out), "--quiet",
+    ]
+    assert main(args) == 0
+    first = list(csv.DictReader((out / "runs.csv").open(encoding="utf-8")))
+    assert len(first) == 2
+    finished_ids = {row["run_id"] for row in first}
+
+    # Resume with an intact csv: nothing is rerun.
+    assert main([*args, "--resume"]) == 0
+    again = list(csv.DictReader((out / "runs.csv").open(encoding="utf-8")))
+    assert {row["run_id"] for row in again} == finished_ids
+
+    # Simulate a crash after one row was flushed: the missing run is redone,
+    # the finished one is kept, and the index has exactly one line per row.
+    lines = (out / "runs.csv").read_text(encoding="utf-8").splitlines()
+    (out / "runs.csv").write_text("\n".join(lines[:-1]) + "\n", encoding="utf-8")
+    assert main([*args, "--resume"]) == 0
+
+    final = list(csv.DictReader((out / "runs.csv").open(encoding="utf-8")))
+    index = [
+        json.loads(line)
+        for line in (out / "runs.jsonl").read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    summary = json.loads((out / "summary.json").read_text(encoding="utf-8"))
+    assert len(final) == len(index) == summary["rows"] == 2
+    assert {row["run_id"] for row in final} == {row["run_id"] for row in index}
+    assert len({row["run_id"] for row in final}) == 2
+
+
 def test_summary_reports_rates_cis_and_distinct_designs():
     rows = [
         {

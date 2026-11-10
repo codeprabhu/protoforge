@@ -350,6 +350,80 @@ def _markdown_table(summary: dict[str, Any]) -> str:
 
 
 
+def _coerce_row(row: dict[str, str]) -> dict[str, Any]:
+    """Turn a CSV row back into the typed dict ``summarize`` expects."""
+    typed: dict[str, Any] = {key: row.get(key, "") for key in CSV_FIELDS}
+    for key in ("sample", "seed", "max_repairs", "attempts"):
+        typed[key] = int(float(typed[key] or 0))
+    for key in (
+        "temperature",
+        "elapsed_sec",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+    ):
+        typed[key] = float(typed[key] or 0.0)
+    for key in (
+        "retrieval",
+        "patcher",
+        "first_attempt_pass",
+        "recovered_after_repair",
+    ):
+        typed[key] = str(typed[key]) in {"True", "true", "1"}
+    return typed
+
+
+def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore")
+        writer.writeheader()
+        writer.writerows(rows)
+
+
+def _run_started_at(run_dir: str) -> float:
+    if not run_dir:
+        return 0.0
+    try:
+        header = json.loads((Path(run_dir) / "run.json").read_text(encoding="utf-8"))
+        return float(header.get("started_at") or 0.0)
+    except (OSError, ValueError, TypeError):
+        return 0.0
+
+
+def _write_index(path: Path, rows: list[dict[str, Any]]) -> None:
+    """Write one JSON line per CSV row; the CSV is the source of truth.
+
+    Deriving the index here (instead of relying only on the orchestrator's
+    append) means a resumed batch, a crash or a re-run can never leave the csv
+    and the jsonl describing different runs.
+    """
+    entries = [
+        {
+            "run_id": row["run_id"],
+            "timestamp": _run_started_at(row["run_dir"]),
+            "task_id": f"i2c-{row['run_id']}",
+            "domain": "i2c",
+            "model": row["model"],
+            "seed": row["seed"],
+            "temperature": row["temperature"],
+            "retrieval_enabled": row["retrieval"],
+            "final": row["final"],
+            "error": row["error"] or None,
+            "first_attempt_pass": row["first_attempt_pass"],
+            "recovered_after_repair": row["recovered_after_repair"],
+            "attempts": row["attempts"],
+            "first_attempt_hash": (row["first_sha256"] or "")[:16] or None,
+            "elapsed_sec": row["elapsed_sec"],
+            "run_dir": row["run_dir"],
+        }
+        for row in rows
+    ]
+    path.write_text(
+        "".join(json.dumps(entry, sort_keys=True) + "\n" for entry in entries),
+        encoding="utf-8",
+    )
+
+
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--cases", default=str(DEFAULT_CASES))
@@ -380,6 +454,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="let benchmark runs update retrieval memory (default: frozen)",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="keep completed (config, case, sample) rows already in runs.csv",
+    )
     parser.add_argument("--quiet", action="store_true")
     return parser.parse_args(argv)
 
@@ -399,15 +478,26 @@ def main(argv: list[str] | None = None) -> int:
     spec_paths = {case["id"]: write_case_spec(case, spec_dir) for case in cases}
 
     rows: list[dict[str, Any]] = []
+    requested = {name for name, _ in configs}
     total = len(configs) * len(cases) * args.samples
-    done = 0
     csv_path = out_dir / "runs.csv"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # The orchestrator appends to results_log, while the csv is truncated on
-    # every invocation. Truncate the jsonl here too so csv, jsonl and
-    # summary.json always describe the same set of runs.
-    (out_dir / "runs.jsonl").write_text("", encoding="utf-8")
+    completed: set[tuple[str, str, int]] = set()
+    if args.resume and csv_path.exists():
+        with csv_path.open(encoding="utf-8") as handle:
+            for raw in csv.DictReader(handle):
+                if raw.get("config") not in requested:
+                    continue
+                row = _coerce_row(raw)
+                rows.append(row)
+                completed.add((row["config"], row["case_id"], row["sample"]))
+
+    if not args.resume:
+        # A fresh batch starts from an empty index; the orchestrator appends to
+        # it, and _write_index derives the final file from the CSV rows.
+        (out_dir / "runs.jsonl").write_text("", encoding="utf-8")
+    done = len(rows)
 
     def _write_summary() -> None:
         summary = summarize(rows)
@@ -425,17 +515,23 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
         (out_dir / "report.md").write_text(_markdown_table(summary), encoding="utf-8")
+        _write_index(out_dir / "runs.jsonl", rows)
         return summary
 
     # One CSV row per run, flushed immediately so an interrupted batch still
-    # leaves auditable partial results.
-    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+    # leaves auditable partial results. On resume the existing header stays and
+    # only missing runs are appended.
+    csv_mode = "a" if completed else "w"
+    with csv_path.open(csv_mode, newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore")
-        writer.writeheader()
-        handle.flush()
+        if not completed:
+            writer.writeheader()
+            handle.flush()
         for config_name, config_spec in configs:
             for case in cases:
                 for sample in range(args.samples):
+                    if (config_name, case["id"], sample) in completed:
+                        continue
                     seed = args.base_seed + sample
                     row = run_one(
                         config_name=config_name,
@@ -463,6 +559,9 @@ def main(argv: list[str] | None = None) -> int:
             # A completed config is a useful checkpoint on a long batch.
             _write_summary()
 
+    # Normalise the CSV from the in-memory rows (a resumed file may have been
+    # appended to) and refresh the derived artifacts from that same list.
+    _write_csv(csv_path, rows)
     summary = _write_summary()
     if not args.quiet:
         print()
