@@ -16,7 +16,7 @@ All criteria are verifiable by running the commands listed.
 
 **Expected:** `189 passed`, pyflakes clean (0 errors).
 
-**Status:** ✅ **MET** — 189 passed, pyflakes clean.
+**Status:** ❌ **UNMET** — Local tests pass (189 passed, pyflakes clean), but this criterion **requires a GitHub Actions run URL for the final commit**. A local test result must never be presented as GitHub CI evidence. The CI run URL will be recorded here once the final commit is pushed and GitHub Actions completes.
 
 ## 2. Every Oracle Mutant Caught
 
@@ -130,17 +130,17 @@ RUN_ID=$(ls /tmp/verify/runs/ | head -1)
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| 1 | Test suite green in CI | ✅ MET (189 passed) |
+| 1 | Test suite green in CI | ❌ UNMET (requires GitHub Actions run URL) |
 | 2 | Every oracle mutant caught | ✅ MET (14/14) |
 | 3 | Benchmark artifacts consistent | ✅ MET (4/4 tests) |
 | 4 | Pass rate floor ≥ 45% | ✅ MET (lower bound 46.7%) |
 | 5 | Replay verification | ✅ MET (3/3 tests) |
 | 6 | Oracle forgery resistance | ✅ MET (1/1 test) |
 
-**Overall:** All six acceptance criteria are **MET**.
+**Overall:** 5 of 6 acceptance criteria are **MET**. Criterion 1 requires GitHub Actions verification.
 
 ## Tagging Decision
 
-All acceptance criteria are satisfied. The repository is ready for `v1.0` tagging.
+**Not ready for `v1.0` tagging.** Criterion 1 (CI green) is UNMET pending GitHub Actions run on the final commit. Do not tag until all criteria are verified with CI evidence.
 
-**Next step:** Await human confirmation to tag `v1.0`.
+**Next step:** Push final commit, wait for GitHub Actions to complete, record run URL, then re-evaluate.
