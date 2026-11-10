@@ -85,14 +85,14 @@ from-scratch RTL competence. Keep that distinction explicit in reports.
 
 **Status: Not yet validly measured.**
 
-A Best-of-4 trial was *claimed* in earlier versions but **has not been validly executed**. The experiment would require 12 cases × 4 samples = 48 runs, but only 10 partial runs exist (5 cases × 2 samples in `results/bon_n4/` and 3 cases × 1 sample in `results/bon_on-on/`).
+An earlier version claimed a Best-of-4 trial was run (5/12 cases at 41.7%). **This claim was incorrect.** The file `results/bon/bon_results.json` (archived at `results/archive/invalid_bon_runs/bon/bon_results.json`) contains 48 recorded runs (12 cases × 4 samples), but **all 48 failed with `generation_error: "The Ollama Python package is missing"`** — these are infrastructure failures, not model failures. No model was actually invoked.
 
 | Config | Cases | Samples | First-pass cases | Pass rate |
 | --- | --- | --- | --- | --- |
 | on-on (Best-of-4) | 12 | 4 | **Not measured** | **Not measured** |
 | on-on (baseline, N=1) | 12 | 2 | 8/12 | **66.7%** |
 
-**Result:** Best-of-4 has **not been validly measured**. The previous claim of 41.7% pass rate was based on incomplete/non-existent data. The baseline remains the on-on single-sample path at 66.7%.
+**Result:** Best-of-4 has **not been validly measured**. The 48 runs in `bon_results.json` are infrastructure failures (Ollama Python missing). The baseline remains the on-on single-sample path at 66.7%.
 
 A proper Best-of-4 experiment (12 cases × 4 samples = 48 runs) is planned but has not yet been executed due to the multi-byte generation bottleneck (see Known Limitations).
 
