@@ -1,0 +1,3 @@
+/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T173659-a3e687fc/attempt_1.v:184: error: Unable to bind wire/reg/memory `DATA_BYTE1' in `testbench_i2c.dut'
+/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T173659-a3e687fc/attempt_1.v:189: error: Unable to bind wire/reg/memory `DATA_BYTE2' in `testbench_i2c.dut'
+2 error(s) during elaboration.

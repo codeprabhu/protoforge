@@ -1,0 +1,59 @@
+{
+  "run_id": "20261110T164951-35091648",
+  "task_id": "i2c-20261110T164951-35091648",
+  "domain": "i2c",
+  "start_time": 1794309591.4754817,
+  "end_time": 1794309591.4785733,
+  "status": "failed",
+  "events": [
+    {
+      "event_id": "ec431ed8-a8bc-40c7-b8e1-96ebd03da937",
+      "run_id": "20261110T164951-35091648",
+      "timestamp": 1794309591.4754932,
+      "event_type": "run_started",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "config": {
+          "device_paths": [
+            "/home/shrivathssp/Desktop/protoforge/devices/device_sensor.v",
+            "/home/shrivathssp/Desktop/protoforge/devices/device_controller.v"
+          ],
+          "spec_path": "/home/shrivathssp/Desktop/protoforge/results/bon/specs/c08-three-byte.md",
+          "tb_path": "protocols/i2c/testbench_i2c.v",
+          "max_repairs": 2,
+          "model": "qwen2.5-coder:7b",
+          "seed": 45,
+          "temperature": 0.25,
+          "retrieval": true,
+          "patcher": true,
+          "output_root": "/home/shrivathssp/Desktop/protoforge/results/bon/runs",
+          "results_log": "/home/shrivathssp/Desktop/protoforge/results/bon/runs.jsonl",
+          "trace_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/traces",
+          "target_name": "top_glue.v"
+        },
+        "git_commit": "176723bb20c7e909b4a40b1e6abbef16b6e4875e"
+      }
+    },
+    {
+      "event_id": "af04df8a-c043-48f3-a6d6-145553cc4849",
+      "run_id": "20261110T164951-35091648",
+      "timestamp": 1794309591.4785917,
+      "event_type": "run_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "final": "generation_error",
+        "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-35091648"
+      }
+    }
+  ],
+  "decision_records": [],
+  "summary": {
+    "final": "generation_error",
+    "attempts": 0,
+    "first_attempt_pass": false,
+    "recovered_after_repair": false,
+    "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-35091648"
+  }
+}

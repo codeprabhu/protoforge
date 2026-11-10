@@ -1,0 +1,6 @@
+EVENT:START:95000
+EVENT:ADDR:06:765000
+EVENT:DATA:81:1495000
+EVENT:STOP:1675000
+RESULT:NONCE=d590d2ae57e2ad8a saw_start=1 saw_stop=1 saw_ack_addr=1 saw_ack_data=1 addr=06 data=81 tb_done=1 starts=1 stops=1 sda_glitches=0 bytes=2
+protocols/i2c/testbench_i2c.v:173: $finish called at 5100000 (1ps)

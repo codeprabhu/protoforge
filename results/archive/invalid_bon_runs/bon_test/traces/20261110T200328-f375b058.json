@@ -1,0 +1,144 @@
+{
+  "run_id": "20261110T200328-f375b058",
+  "task_id": "i2c-20261110T200328-f375b058",
+  "domain": "i2c",
+  "start_time": 1794321208.8455904,
+  "end_time": 1794321208.925985,
+  "status": "completed",
+  "events": [
+    {
+      "event_id": "146ef3c8-18ad-4a1c-9c7d-e0005055eb59",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.845613,
+      "event_type": "run_started",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "config": {
+          "device_paths": [
+            "/home/shrivathssp/Desktop/protoforge/devices/device_sensor.v",
+            "/home/shrivathssp/Desktop/protoforge/devices/device_controller.v"
+          ],
+          "spec_path": "results/bon_test/specs/c01-default-1byte.md",
+          "tb_path": "protocols/i2c/testbench_i2c.v",
+          "max_repairs": 2,
+          "model": "template",
+          "seed": 42,
+          "temperature": 0.25,
+          "retrieval": false,
+          "patcher": true,
+          "output_root": "results/bon_test/runs",
+          "results_log": "results/bon_test/runs.jsonl",
+          "trace_dir": "results/bon_test/traces",
+          "target_name": "top_glue.v"
+        },
+        "git_commit": "407e6c888599123dbf49ebfd7598eab75d47da67"
+      }
+    },
+    {
+      "event_id": "2cfbdf3a-e07f-4834-84a5-2eedc290f28d",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.8460438,
+      "event_type": "model_invoked",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "model": "template",
+        "repair": false,
+        "prompt_chars": 0,
+        "raw_output_chars": 0,
+        "candidate_hash": "97dd581c141891ea"
+      }
+    },
+    {
+      "event_id": "aec527c5-d38c-4034-86f5-f5005094776a",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.847984,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "structural",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "b74ec058-386c-4679-9b85-2d40d4c390fb",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.925475,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "compile",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "aa517a51-65aa-4d68-8ccb-95d07f528966",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.925492,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "hardware",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "6eb7aae9-3c83-482f-86b5-22c451fc7f43",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.9255006,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "simulation",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "c4f8082c-812f-415b-8f07-395084669fd2",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.9255686,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "stage": "judge",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "84e76e8d-436f-44de-a3a1-a79a0dbfacd1",
+      "run_id": "20261110T200328-f375b058",
+      "timestamp": 1794321208.926017,
+      "event_type": "run_finished",
+      "agent_role": null,
+      "model": "template",
+      "data": {
+        "final": "pass",
+        "run_dir": "results/bon_test/runs/20261110T200328-f375b058"
+      }
+    }
+  ],
+  "decision_records": [],
+  "summary": {
+    "final": "pass",
+    "attempts": 1,
+    "first_attempt_pass": true,
+    "recovered_after_repair": false,
+    "run_dir": "results/bon_test/runs/20261110T200328-f375b058"
+  }
+}

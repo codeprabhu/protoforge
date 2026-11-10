@@ -111,6 +111,13 @@ the six candidates that did compile still failed the judge on address/data/ACK/
 STOP timing, and repair then produced invalid tables (recorded as `repair_error`).
 The RTL path's 66.7% pass rate is not improved; the IR path is **not kept**.
 
+**Note:** The `on-on-ir` and `retrieval-off-ir` rows in the table above represent
+a partially completed experiment (only 72 runs instead of the full 72 due to
+early termination). The `on-on-ir` configuration had 18 generation errors and
+6 simulation failures; `retrieval-off-ir` had 18 generation errors and 6
+simulation failures. These results are included for transparency but should not
+be treated as a complete, validated benchmark.
+
 ## Metric definitions
 
 - **pass@1** — the first generated candidate passed every gate with no repair.

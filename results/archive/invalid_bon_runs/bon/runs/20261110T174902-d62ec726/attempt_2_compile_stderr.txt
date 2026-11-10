@@ -1,0 +1,2 @@
+/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T174902-d62ec726/attempt_2.v:222: error: 'half_done' has already been declared in this scope.
+/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T174902-d62ec726/attempt_2.v:74:      : It was declared here as a net.

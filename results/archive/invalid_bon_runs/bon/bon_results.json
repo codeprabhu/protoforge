@@ -1,0 +1,1753 @@
+{
+  "N": 4,
+  "model": "qwen2.5-coder:7b",
+  "temperature": 0.25,
+  "max_repairs": 2,
+  "retrieval": true,
+  "patcher": true,
+  "cases": [
+    "c01-default-1byte",
+    "c02-alt-address-1byte",
+    "c03-zero-payload",
+    "c04-all-ones-payload",
+    "c05-low-address",
+    "c06-two-byte",
+    "c07-two-byte-alt",
+    "c08-three-byte",
+    "c09-single-device",
+    "c10-three-devices",
+    "c11-three-devices-two-byte",
+    "c12-top-address"
+  ],
+  "first_pass_rate": 0.0,
+  "results": [
+    {
+      "case_id": "c01-default-1byte",
+      "sample": 0,
+      "timestamp": 1794309591.3600042,
+      "task_id": "i2c-20261110T164951-1c4ff620",
+      "run_id": "20261110T164951-1c4ff620",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-1c4ff620",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.018,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-1c4ff620.json"
+    },
+    {
+      "case_id": "c01-default-1byte",
+      "sample": 1,
+      "timestamp": 1794309591.366759,
+      "task_id": "i2c-20261110T164951-c761a66b",
+      "run_id": "20261110T164951-c761a66b",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-c761a66b",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-c761a66b.json"
+    },
+    {
+      "case_id": "c01-default-1byte",
+      "sample": 2,
+      "timestamp": 1794309591.3705735,
+      "task_id": "i2c-20261110T164951-8cb9e560",
+      "run_id": "20261110T164951-8cb9e560",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-8cb9e560",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-8cb9e560.json"
+    },
+    {
+      "case_id": "c01-default-1byte",
+      "sample": 3,
+      "timestamp": 1794309591.3740928,
+      "task_id": "i2c-20261110T164951-dc5b4b74",
+      "run_id": "20261110T164951-dc5b4b74",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-dc5b4b74",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-dc5b4b74.json"
+    },
+    {
+      "case_id": "c02-alt-address-1byte",
+      "sample": 0,
+      "timestamp": 1794309591.3776832,
+      "task_id": "i2c-20261110T164951-1550fcb1",
+      "run_id": "20261110T164951-1550fcb1",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-1550fcb1",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "54",
+        "data": "5a"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-1550fcb1.json"
+    },
+    {
+      "case_id": "c02-alt-address-1byte",
+      "sample": 1,
+      "timestamp": 1794309591.3811991,
+      "task_id": "i2c-20261110T164951-9d9efe22",
+      "run_id": "20261110T164951-9d9efe22",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-9d9efe22",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "54",
+        "data": "5a"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-9d9efe22.json"
+    },
+    {
+      "case_id": "c02-alt-address-1byte",
+      "sample": 2,
+      "timestamp": 1794309591.3849742,
+      "task_id": "i2c-20261110T164951-0a56953a",
+      "run_id": "20261110T164951-0a56953a",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-0a56953a",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "54",
+        "data": "5a"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-0a56953a.json"
+    },
+    {
+      "case_id": "c02-alt-address-1byte",
+      "sample": 3,
+      "timestamp": 1794309591.388626,
+      "task_id": "i2c-20261110T164951-768af002",
+      "run_id": "20261110T164951-768af002",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-768af002",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "54",
+        "data": "5a"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-768af002.json"
+    },
+    {
+      "case_id": "c03-zero-payload",
+      "sample": 0,
+      "timestamp": 1794309591.3922336,
+      "task_id": "i2c-20261110T164951-0670ac55",
+      "run_id": "20261110T164951-0670ac55",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-0670ac55",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "20",
+        "data": "00"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-0670ac55.json"
+    },
+    {
+      "case_id": "c03-zero-payload",
+      "sample": 1,
+      "timestamp": 1794309591.395748,
+      "task_id": "i2c-20261110T164951-b5444219",
+      "run_id": "20261110T164951-b5444219",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-b5444219",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "20",
+        "data": "00"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-b5444219.json"
+    },
+    {
+      "case_id": "c03-zero-payload",
+      "sample": 2,
+      "timestamp": 1794309591.3993065,
+      "task_id": "i2c-20261110T164951-92876c7c",
+      "run_id": "20261110T164951-92876c7c",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-92876c7c",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "20",
+        "data": "00"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-92876c7c.json"
+    },
+    {
+      "case_id": "c03-zero-payload",
+      "sample": 3,
+      "timestamp": 1794309591.403126,
+      "task_id": "i2c-20261110T164951-bd184554",
+      "run_id": "20261110T164951-bd184554",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-bd184554",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "20",
+        "data": "00"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-bd184554.json"
+    },
+    {
+      "case_id": "c04-all-ones-payload",
+      "sample": 0,
+      "timestamp": 1794309591.4067476,
+      "task_id": "i2c-20261110T164951-9df39390",
+      "run_id": "20261110T164951-9df39390",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-9df39390",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "ee",
+        "data": "ff"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-9df39390.json"
+    },
+    {
+      "case_id": "c04-all-ones-payload",
+      "sample": 1,
+      "timestamp": 1794309591.4102917,
+      "task_id": "i2c-20261110T164951-f00bf850",
+      "run_id": "20261110T164951-f00bf850",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-f00bf850",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "ee",
+        "data": "ff"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-f00bf850.json"
+    },
+    {
+      "case_id": "c04-all-ones-payload",
+      "sample": 2,
+      "timestamp": 1794309591.4139059,
+      "task_id": "i2c-20261110T164951-a897e62e",
+      "run_id": "20261110T164951-a897e62e",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-a897e62e",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "ee",
+        "data": "ff"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-a897e62e.json"
+    },
+    {
+      "case_id": "c04-all-ones-payload",
+      "sample": 3,
+      "timestamp": 1794309591.4174356,
+      "task_id": "i2c-20261110T164951-692a6e32",
+      "run_id": "20261110T164951-692a6e32",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-692a6e32",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "ee",
+        "data": "ff"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-692a6e32.json"
+    },
+    {
+      "case_id": "c05-low-address",
+      "sample": 0,
+      "timestamp": 1794309591.420876,
+      "task_id": "i2c-20261110T164951-2e8f5835",
+      "run_id": "20261110T164951-2e8f5835",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-2e8f5835",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "06",
+        "data": "81"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-2e8f5835.json"
+    },
+    {
+      "case_id": "c05-low-address",
+      "sample": 1,
+      "timestamp": 1794309591.4243195,
+      "task_id": "i2c-20261110T164951-ebcf783a",
+      "run_id": "20261110T164951-ebcf783a",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-ebcf783a",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "06",
+        "data": "81"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-ebcf783a.json"
+    },
+    {
+      "case_id": "c05-low-address",
+      "sample": 2,
+      "timestamp": 1794309591.4277883,
+      "task_id": "i2c-20261110T164951-508d2ca8",
+      "run_id": "20261110T164951-508d2ca8",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-508d2ca8",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "06",
+        "data": "81"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-508d2ca8.json"
+    },
+    {
+      "case_id": "c05-low-address",
+      "sample": 3,
+      "timestamp": 1794309591.431189,
+      "task_id": "i2c-20261110T164951-21e826a1",
+      "run_id": "20261110T164951-21e826a1",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-21e826a1",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "06",
+        "data": "81"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-21e826a1.json"
+    },
+    {
+      "case_id": "c06-two-byte",
+      "sample": 0,
+      "timestamp": 1794309591.4346886,
+      "task_id": "i2c-20261110T164951-687c821e",
+      "run_id": "20261110T164951-687c821e",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-687c821e",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "11"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-687c821e.json"
+    },
+    {
+      "case_id": "c06-two-byte",
+      "sample": 1,
+      "timestamp": 1794309591.4381561,
+      "task_id": "i2c-20261110T164951-b5476675",
+      "run_id": "20261110T164951-b5476675",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-b5476675",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "11"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-b5476675.json"
+    },
+    {
+      "case_id": "c06-two-byte",
+      "sample": 2,
+      "timestamp": 1794309591.4417317,
+      "task_id": "i2c-20261110T164951-c3f92ba8",
+      "run_id": "20261110T164951-c3f92ba8",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-c3f92ba8",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "11"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-c3f92ba8.json"
+    },
+    {
+      "case_id": "c06-two-byte",
+      "sample": 3,
+      "timestamp": 1794309591.4453733,
+      "task_id": "i2c-20261110T164951-bfc79be8",
+      "run_id": "20261110T164951-bfc79be8",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-bfc79be8",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "11"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-bfc79be8.json"
+    },
+    {
+      "case_id": "c07-two-byte-alt",
+      "sample": 0,
+      "timestamp": 1794309591.4491873,
+      "task_id": "i2c-20261110T164951-22bc757d",
+      "run_id": "20261110T164951-22bc757d",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-22bc757d",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "90",
+        "data": "de"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-22bc757d.json"
+    },
+    {
+      "case_id": "c07-two-byte-alt",
+      "sample": 1,
+      "timestamp": 1794309591.4528272,
+      "task_id": "i2c-20261110T164951-f7e15333",
+      "run_id": "20261110T164951-f7e15333",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-f7e15333",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "90",
+        "data": "de"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-f7e15333.json"
+    },
+    {
+      "case_id": "c07-two-byte-alt",
+      "sample": 2,
+      "timestamp": 1794309591.456498,
+      "task_id": "i2c-20261110T164951-a9c06a46",
+      "run_id": "20261110T164951-a9c06a46",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-a9c06a46",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "90",
+        "data": "de"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-a9c06a46.json"
+    },
+    {
+      "case_id": "c07-two-byte-alt",
+      "sample": 3,
+      "timestamp": 1794309591.4601684,
+      "task_id": "i2c-20261110T164951-86bbf7b5",
+      "run_id": "20261110T164951-86bbf7b5",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-86bbf7b5",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "90",
+        "data": "de"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-86bbf7b5.json"
+    },
+    {
+      "case_id": "c08-three-byte",
+      "sample": 0,
+      "timestamp": 1794309591.463827,
+      "task_id": "i2c-20261110T164951-091168f3",
+      "run_id": "20261110T164951-091168f3",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-091168f3",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "01"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-091168f3.json"
+    },
+    {
+      "case_id": "c08-three-byte",
+      "sample": 1,
+      "timestamp": 1794309591.4678032,
+      "task_id": "i2c-20261110T164951-c4da033d",
+      "run_id": "20261110T164951-c4da033d",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-c4da033d",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "01"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-c4da033d.json"
+    },
+    {
+      "case_id": "c08-three-byte",
+      "sample": 2,
+      "timestamp": 1794309591.4717243,
+      "task_id": "i2c-20261110T164951-1f50ce29",
+      "run_id": "20261110T164951-1f50ce29",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-1f50ce29",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "01"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-1f50ce29.json"
+    },
+    {
+      "case_id": "c08-three-byte",
+      "sample": 3,
+      "timestamp": 1794309591.475498,
+      "task_id": "i2c-20261110T164951-35091648",
+      "run_id": "20261110T164951-35091648",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-35091648",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "01"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-35091648.json"
+    },
+    {
+      "case_id": "c09-single-device",
+      "sample": 0,
+      "timestamp": 1794309591.479145,
+      "task_id": "i2c-20261110T164951-a77b9bcd",
+      "run_id": "20261110T164951-a77b9bcd",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-a77b9bcd",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-a77b9bcd.json"
+    },
+    {
+      "case_id": "c09-single-device",
+      "sample": 1,
+      "timestamp": 1794309591.4827192,
+      "task_id": "i2c-20261110T164951-b9b20b57",
+      "run_id": "20261110T164951-b9b20b57",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-b9b20b57",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.003,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-b9b20b57.json"
+    },
+    {
+      "case_id": "c09-single-device",
+      "sample": 2,
+      "timestamp": 1794309591.4863002,
+      "task_id": "i2c-20261110T164951-44248e6c",
+      "run_id": "20261110T164951-44248e6c",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-44248e6c",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-44248e6c.json"
+    },
+    {
+      "case_id": "c09-single-device",
+      "sample": 3,
+      "timestamp": 1794309591.4898815,
+      "task_id": "i2c-20261110T164951-95c95be1",
+      "run_id": "20261110T164951-95c95be1",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-95c95be1",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-95c95be1.json"
+    },
+    {
+      "case_id": "c10-three-devices",
+      "sample": 0,
+      "timestamp": 1794309591.493585,
+      "task_id": "i2c-20261110T164951-a89ea894",
+      "run_id": "20261110T164951-a89ea894",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-a89ea894",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-a89ea894.json"
+    },
+    {
+      "case_id": "c10-three-devices",
+      "sample": 1,
+      "timestamp": 1794309591.497319,
+      "task_id": "i2c-20261110T164951-4e6a8356",
+      "run_id": "20261110T164951-4e6a8356",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-4e6a8356",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-4e6a8356.json"
+    },
+    {
+      "case_id": "c10-three-devices",
+      "sample": 2,
+      "timestamp": 1794309591.5010471,
+      "task_id": "i2c-20261110T164951-bab1f0fc",
+      "run_id": "20261110T164951-bab1f0fc",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-bab1f0fc",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-bab1f0fc.json"
+    },
+    {
+      "case_id": "c10-three-devices",
+      "sample": 3,
+      "timestamp": 1794309591.5048752,
+      "task_id": "i2c-20261110T164951-bc659503",
+      "run_id": "20261110T164951-bc659503",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-bc659503",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "a0",
+        "data": "3c"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-bc659503.json"
+    },
+    {
+      "case_id": "c11-three-devices-two-byte",
+      "sample": 0,
+      "timestamp": 1794309591.5086694,
+      "task_id": "i2c-20261110T164951-1eeffdfc",
+      "run_id": "20261110T164951-1eeffdfc",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-1eeffdfc",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "42",
+        "data": "a5"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-1eeffdfc.json"
+    },
+    {
+      "case_id": "c11-three-devices-two-byte",
+      "sample": 1,
+      "timestamp": 1794309591.5123909,
+      "task_id": "i2c-20261110T164951-3a4cb850",
+      "run_id": "20261110T164951-3a4cb850",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-3a4cb850",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "42",
+        "data": "a5"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-3a4cb850.json"
+    },
+    {
+      "case_id": "c11-three-devices-two-byte",
+      "sample": 2,
+      "timestamp": 1794309591.5160766,
+      "task_id": "i2c-20261110T164951-5b9b11af",
+      "run_id": "20261110T164951-5b9b11af",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-5b9b11af",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "42",
+        "data": "a5"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-5b9b11af.json"
+    },
+    {
+      "case_id": "c11-three-devices-two-byte",
+      "sample": 3,
+      "timestamp": 1794309591.5197902,
+      "task_id": "i2c-20261110T164951-52324266",
+      "run_id": "20261110T164951-52324266",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-52324266",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "42",
+        "data": "a5"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-52324266.json"
+    },
+    {
+      "case_id": "c12-top-address",
+      "sample": 0,
+      "timestamp": 1794309591.523517,
+      "task_id": "i2c-20261110T164951-082d8239",
+      "run_id": "20261110T164951-082d8239",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-082d8239",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 42,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "fe",
+        "data": "7f"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-082d8239.json"
+    },
+    {
+      "case_id": "c12-top-address",
+      "sample": 1,
+      "timestamp": 1794309591.527159,
+      "task_id": "i2c-20261110T164951-b602d6cc",
+      "run_id": "20261110T164951-b602d6cc",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-b602d6cc",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 43,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "fe",
+        "data": "7f"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-b602d6cc.json"
+    },
+    {
+      "case_id": "c12-top-address",
+      "sample": 2,
+      "timestamp": 1794309591.530808,
+      "task_id": "i2c-20261110T164951-da6a9c42",
+      "run_id": "20261110T164951-da6a9c42",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-da6a9c42",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 44,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "fe",
+        "data": "7f"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-da6a9c42.json"
+    },
+    {
+      "case_id": "c12-top-address",
+      "sample": 3,
+      "timestamp": 1794309591.5344348,
+      "task_id": "i2c-20261110T164951-3062ce33",
+      "run_id": "20261110T164951-3062ce33",
+      "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T164951-3062ce33",
+      "domain": "i2c",
+      "model": "qwen2.5-coder:7b",
+      "temperature_policy": "generation=0.25; repair increases slightly per attempt",
+      "generation_temperature": 0.25,
+      "seed": 45,
+      "retrieval_enabled": true,
+      "max_repairs": 2,
+      "protocol": {
+        "address": "fe",
+        "data": "7f"
+      },
+      "rtl_memory_before_run": {
+        "seed_examples": 1,
+        "learned_passing_examples": 4
+      },
+      "requirements": [
+        "I2C-ADDR",
+        "I2C-DATA",
+        "I2C-START",
+        "I2C-STOP",
+        "I2C-ACK",
+        "I2C-OPEN-DRAIN"
+      ],
+      "attempts": [],
+      "final": "generation_error",
+      "generation_error": "RuntimeError: The Ollama Python package is missing. Install project dependencies with `python -m pip install -r requirements.txt`, then ensure the Ollama service is running and the selected model has been pulled.",
+      "elapsed_sec": 0.004,
+      "trace_path": "/home/shrivathssp/Desktop/protoforge/results/bon/traces/20261110T164951-3062ce33.json"
+    }
+  ]
+}

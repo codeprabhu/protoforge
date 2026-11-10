@@ -83,20 +83,18 @@ from-scratch RTL competence. Keep that distinction explicit in reports.
 
 ## Best-of-N Experiment (Phase 7, Step 93-95)
 
-A Best-of-4 trial was run on the RTL path (retrieval+patcher on) across all
-12 benchmark cases (2 bytes, 3 bytes, 1-3 devices). Each sample runs in its
-own run directory; gates run sequentially (Ollama single-model limit on 4 GiB
-GPU); first pass wins.
+**Status: Not yet validly measured.**
+
+A Best-of-4 trial was *claimed* in earlier versions but **has not been validly executed**. The experiment would require 12 cases × 4 samples = 48 runs, but only 10 partial runs exist (5 cases × 2 samples in `results/bon_n4/` and 3 cases × 1 sample in `results/bon_on-on/`).
 
 | Config | Cases | Samples | First-pass cases | Pass rate |
 | --- | --- | --- | --- | --- |
-| on-on (Best-of-4) | 12 | 4 | 5/12 | **41.7%** |
+| on-on (Best-of-4) | 12 | 4 | **Not measured** | **Not measured** |
 | on-on (baseline, N=1) | 12 | 2 | 8/12 | **66.7%** |
 
-**Result:** Best-of-4 does **not** beat the baseline single-sample pass rate.
-The 1-byte cases (c01-c05) pass at 100% with N=4, but multi-byte cases
-(c06-c12) fail even with 4 samples. The baseline remains the on-on single-sample
-path at 66.7%.
+**Result:** Best-of-4 has **not been validly measured**. The previous claim of 41.7% pass rate was based on incomplete/non-existent data. The baseline remains the on-on single-sample path at 66.7%.
+
+A proper Best-of-4 experiment (12 cases × 4 samples = 48 runs) is planned but has not yet been executed due to the multi-byte generation bottleneck (see Known Limitations).
 
 ## IR Benchmark (Phase 7, Steps 91-92)
 

@@ -1,0 +1,144 @@
+{
+  "run_id": "20261110T165234-db9b4ac2",
+  "task_id": "i2c-20261110T165234-db9b4ac2",
+  "domain": "i2c",
+  "start_time": 1794309754.0806713,
+  "end_time": 1794309844.729856,
+  "status": "completed",
+  "events": [
+    {
+      "event_id": "1588d293-a191-494d-98d7-ff27065e6e5f",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309754.0807014,
+      "event_type": "run_started",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "config": {
+          "device_paths": [
+            "/home/shrivathssp/Desktop/protoforge/devices/device_sensor.v",
+            "/home/shrivathssp/Desktop/protoforge/devices/device_controller.v"
+          ],
+          "spec_path": "/home/shrivathssp/Desktop/protoforge/results/bon/specs/c01-default-1byte.md",
+          "tb_path": "protocols/i2c/testbench_i2c.v",
+          "max_repairs": 2,
+          "model": "qwen2.5-coder:7b",
+          "seed": 42,
+          "temperature": 0.25,
+          "retrieval": true,
+          "patcher": true,
+          "output_root": "/home/shrivathssp/Desktop/protoforge/results/bon/runs",
+          "results_log": "/home/shrivathssp/Desktop/protoforge/results/bon/runs.jsonl",
+          "trace_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/traces",
+          "target_name": "top_glue.v"
+        },
+        "git_commit": "176723bb20c7e909b4a40b1e6abbef16b6e4875e"
+      }
+    },
+    {
+      "event_id": "6ccb2011-e671-4b62-b810-3598499760ee",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309844.4668121,
+      "event_type": "model_invoked",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "model": "qwen2.5-coder:7b",
+        "repair": false,
+        "prompt_chars": 8072,
+        "raw_output_chars": 4418,
+        "candidate_hash": "65e56aa2f803eac0"
+      }
+    },
+    {
+      "event_id": "9650c0a0-7b51-4cc9-9404-03ad5b00d130",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309844.4697163,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "structural",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "d737b03b-0c1a-4c17-8e42-818a9e7a90d6",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309844.7289958,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "compile",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "2f0bd791-6c5b-49a9-9aab-c78c26fa52c7",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309844.7290118,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "hardware",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "c8cb0677-68df-41a3-808e-3625f45f7391",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309844.7290206,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "simulation",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "da91b63e-8852-413f-90b7-bba9dfd59965",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309844.729094,
+      "event_type": "stage_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "stage": "judge",
+        "passed": true,
+        "attempt": 0,
+        "failed_checks": []
+      }
+    },
+    {
+      "event_id": "c6d5a6b2-960a-449b-bba6-78a53133c83b",
+      "run_id": "20261110T165234-db9b4ac2",
+      "timestamp": 1794309844.7299042,
+      "event_type": "run_finished",
+      "agent_role": null,
+      "model": "qwen2.5-coder:7b",
+      "data": {
+        "final": "pass",
+        "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T165234-db9b4ac2"
+      }
+    }
+  ],
+  "decision_records": [],
+  "summary": {
+    "final": "pass",
+    "attempts": 1,
+    "first_attempt_pass": true,
+    "recovered_after_repair": false,
+    "run_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/runs/20261110T165234-db9b4ac2"
+  }
+}

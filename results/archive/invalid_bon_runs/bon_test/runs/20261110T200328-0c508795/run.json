@@ -1,0 +1,34 @@
+{
+  "attempts": 1,
+  "config": {
+    "device_paths": [
+      "/home/shrivathssp/Desktop/protoforge/devices/device_sensor.v",
+      "/home/shrivathssp/Desktop/protoforge/devices/device_controller.v"
+    ],
+    "max_repairs": 2,
+    "model": "template",
+    "output_root": "results/bon_test/runs",
+    "patcher": true,
+    "results_log": "results/bon_test/runs.jsonl",
+    "retrieval": false,
+    "seed": 42,
+    "spec_path": "results/bon_test/specs/c02-alt-address-1byte.md",
+    "target_name": "top_glue.v",
+    "tb_path": "protocols/i2c/testbench_i2c.v",
+    "temperature": 0.25,
+    "trace_dir": "results/bon_test/traces"
+  },
+  "elapsed_sec": 0.08,
+  "final": "pass",
+  "finished_at": 1794321209.006645,
+  "first_attempt_pass": true,
+  "git_commit": "407e6c888599123dbf49ebfd7598eab75d47da67",
+  "git_describe": "template-v1-26-g407e6c8",
+  "model": "template",
+  "model_digest": null,
+  "recovered_after_repair": false,
+  "run_id": "20261110T200328-0c508795",
+  "seed": 42,
+  "started_at": 1794321208.9264636,
+  "temperature": 0.25
+}

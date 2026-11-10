@@ -1,0 +1,34 @@
+{
+  "attempts": 1,
+  "config": {
+    "device_paths": [
+      "/home/shrivathssp/Desktop/protoforge/devices/device_sensor.v",
+      "/home/shrivathssp/Desktop/protoforge/devices/device_controller.v"
+    ],
+    "max_repairs": 2,
+    "model": "qwen2.5-coder:7b",
+    "output_root": "/home/shrivathssp/Desktop/protoforge/results/bon/runs",
+    "patcher": true,
+    "results_log": "/home/shrivathssp/Desktop/protoforge/results/bon/runs.jsonl",
+    "retrieval": true,
+    "seed": 44,
+    "spec_path": "/home/shrivathssp/Desktop/protoforge/results/bon/specs/c02-alt-address-1byte.md",
+    "target_name": "top_glue.v",
+    "tb_path": "protocols/i2c/testbench_i2c.v",
+    "temperature": 0.25,
+    "trace_dir": "/home/shrivathssp/Desktop/protoforge/results/bon/traces"
+  },
+  "elapsed_sec": 83.991,
+  "final": "pass",
+  "finished_at": 1794310695.8283932,
+  "first_attempt_pass": true,
+  "git_commit": "176723bb20c7e909b4a40b1e6abbef16b6e4875e",
+  "git_describe": "template-v1-21-g176723b",
+  "model": "qwen2.5-coder:7b",
+  "model_digest": "dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364",
+  "recovered_after_repair": false,
+  "run_id": "20261110T170651-9b5c3c36",
+  "seed": 44,
+  "started_at": 1794310611.8371124,
+  "temperature": 0.25
+}
