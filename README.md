@@ -13,11 +13,11 @@ protocol judge → up to two bounded repairs.
 | Check | Command | Result |
 | --- | --- | --- |
 | GitHub Actions | [run 43026139295](https://github.com/codeprabhu/protoforge/actions/runs/43026139295) | both jobs success |
-| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **230 passed** |
+| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **235 passed** |
 | Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
 | Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all 10 mutants killed |
 | Template upper bound | `results/bench_template_20x/` | 240/240 pass |
-| Valid baseline (on-on, 24 runs) | `results/bench_baseline_v2/` | **0/24 pass@1; 16/24 (66.7%) after repair** |
+| Corrected baseline (on-on, 24 runs) | `results/bench_baseline_v3/` | **16/24 (66.7%) pass@1; 16/24 after repair** |
 | Historical baseline (on-on) | `results/bench/` | 16/24 (66.7%) pass@1 (incomplete provenance) |
 | Retrieval ablation | `results/bench/` | 0/24 pass@1 |
 | Patcher ablation | `results/bench/` | 0/24 pass@1 (19 runner_error) |
@@ -100,7 +100,7 @@ An earlier version claimed a Best-of-4 trial was run (5/12 cases at 41.7%). **Th
 **Result:** Best-of-4 has **not been validly measured**. The 48 runs in
 `results/archive/invalid_bon_runs/bon/bon_results.json` are infrastructure
 failures (Ollama Python missing), not model failures. The provenance-complete
-single-agent baseline is `results/bench_baseline_v2/`; see
+single-agent baseline is `results/bench_baseline_v3/`; see
 `docs/research/VALID_BASELINE_REPORT.md`.
 
 Best-of-N orchestration is now covered by deterministic mock-generator tests
@@ -172,19 +172,24 @@ Tools:
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**230 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
+**235 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
 are all installed). Four suites carry `skipif` guards and skip only where a
 tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 `test_logging_replay`, `test_template_master`.
 
 ## Known Limitations
 
-- **Retrieval dependence:** In the valid baseline, retrieval-on reaches 16/24
-  (66.7%) after repair but 0/24 pass@1; retrieval-off was 0/24 in the
-  historical batch. The model is not generating I²C masters from scratch; it
-  is adapting a known-good reference and needs repair.
-- **Multi-byte weakness:** The prompt scaffold is one-byte-oriented; the
-  generator does not yet specialize all data literals for 2/3-byte payloads.
+- **Retrieval dependence:** In the corrected baseline, retrieval-on reaches
+  16/24 (66.7%) pass@1 and retrieval-off was 0/24 in the historical batch. The
+  model adapts a known-good reference rather than synthesising from scratch.
+- **Multi-byte weakness:** 0/8 multi-byte runs pass, on the first attempt or
+  after repair (2 `compile_failure`, 4 `simulation_failure`,
+  2 `structural_failure`). Two deterministic scaffold defects were found and
+  fixed while establishing the baseline (see
+  `docs/research/VALID_BASELINE_REPORT.md`).
+- **Multi-byte prompt gap:** the prompt scaffold specializes only the first data
+  byte, so multi-byte payloads reach the model without the extra `DATA_BYTE1` /
+  `DATA_BYTE2` literals it needs (`c06` compiles with `DATA_BYTE1` undefined).
 - **IR path does not beat RTL:** The JSON IR path (0/24) fails on the one
   thing the compiler cannot invent: `drive sda="bit"`.
 - **Hardware validation is simulation-only:** A physical board driver or FPGA

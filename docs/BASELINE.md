@@ -8,9 +8,11 @@ template.
 > **Historical artifact.** These results were recorded before the runner
 > recorded a retrieval corpus hash or an explicit failure classification.
 > The provenance-complete baseline is in
-> `docs/research/VALID_BASELINE_REPORT.md` and `results/bench_baseline_v2/`:
-> 0/24 pass@1 and 16/24 (66.7%) after repair, 0 infrastructure failures. Do not
-> pool the two batches.
+> `docs/research/VALID_BASELINE_REPORT.md` and `results/bench_baseline_v3/`:
+> 16/24 (66.7%) pass@1 and 16/24 after repair, 0 infrastructure failures and
+> 0 repair recoveries. The pre-fix `results/bench_baseline_v2/` is retained as
+> evidence for a scaffold defect, not as a capability measurement. Do not pool
+> these batches.
 
 ## Environment
 

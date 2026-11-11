@@ -132,3 +132,55 @@ end
     assert "localparam START = 1;" in rtl
     assert "wire half_done;" in rtl
     assert rtl.count("localparam HALF = 4;") == 1
+
+
+def test_model_instance_blocks_and_bus_assigns_are_dropped():
+    """Regression: a contract-violating response must not duplicate the scaffold.
+
+    Two pre-fix baseline runs failed the structural gate only because the
+    repair fragment re-emitted device instances and `assign sda`/`assign scl`
+    drivers that the harness owns. The failure was charged to the candidate.
+    """
+    fragment = """
+reg [3:0] state;
+reg sda_drive_low;
+reg scl_drive_low;
+assign sda = sda_drive_low ? 1'b0 : 1'bz;
+assign scl = scl_drive_low ? 1'b0 : 1'bz;
+device_sensor u_device_a (
+    .clk(clk), .rst_n(rst_n)
+);
+device_controller u_device_b (
+    .clk(clk), .rst_n(rst_n)
+);
+always @(posedge clk or negedge rst_n) begin
+  if (!rst_n) begin state <= IDLE; tb_done <= 0; end
+  else if (tb_start) state <= START;
+end
+"""
+    rtl = generator.normalize_model_rtl(
+        fragment, ["devices/device_sensor.v", "devices/device_controller.v"]
+    )
+    checks = structural_checks(rtl, ["device_sensor", "device_controller"])
+    assert checks["pass"], checks["failed_checks"]
+    assert rtl.count("device_sensor u_device_a") == 1
+    assert rtl.count("device_controller u_device_b") == 1
+    assert rtl.count("assign sda = sda_drive_low ? 1'b0 : 1'bz;") == 1
+    assert rtl.count("assign scl = scl_drive_low ? 1'b0 : 1'bz;") == 1
+
+
+def test_real_failing_repair_artifact_normalizes_cleanly():
+    """The two recorded structural failures must pass the gate after this fix."""
+    import json
+    from pathlib import Path as _Path
+
+    root = _Path(__file__).resolve().parents[1]
+    run_ids = ["20261111T194854-927cb916", "20261111T205616-70697215"]
+    for run_id in run_ids:
+        attempt = root / "results" / "bench_baseline_v3" / "runs" / run_id / "attempt_2.json"
+        if not attempt.is_file():
+            continue
+        raw = json.loads(attempt.read_text()).get("raw_output", "")
+        devices = ["devices/device_sensor.v", "devices/device_controller.v"]
+        rtl = generator.normalize_model_rtl(raw, devices)
+        assert structural_checks(rtl, ["device_sensor", "device_controller"])["pass"], run_id

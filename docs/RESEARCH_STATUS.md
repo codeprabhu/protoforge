@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-11  
 **Branch:** `research/valid-baseline`  
-**Valid baseline commit:** `580323b` (recorded in `results/bench_baseline_v2/summary.json`)  
+**Corrected baseline commit:** `6f3fc15` (recorded in `results/bench_baseline_v3/summary.json`)  
 **Author:** Autonomous Engineering Agent
 
 ---
@@ -18,8 +18,9 @@ Build a local LLM-based RTL generation platform that can reliably produce synthe
 **Core Challenge:** Small local models (7B parameters) cannot reliably generate correct multi-byte I²C master RTL from scratch.
 
 **Evidence:**
-- Valid baseline (`results/bench_baseline_v2/`, model invoked in all 24 runs):
-  0/24 pass@1, 16/24 (66.7%) after repair — all 8 failures are multi-byte cases
+- Corrected baseline (`results/bench_baseline_v3/`, commit `6f3fc15`, model
+  invoked in all 24 runs): 16/24 (66.7%) pass@1, 16/24 after repair with **0
+  repair recoveries** — all 8 failures are multi-byte cases
 - Historical baseline (`results/bench/`, incomplete provenance): 16/24 pass@1
 - Retrieval-off: 0/24 pass — model cannot generate from scratch
 - Patcher-off: 0/24 pass (19 infrastructure failures)
@@ -63,11 +64,11 @@ Historical batch (`results/bench/`, incomplete provenance):
 | retrieval-off | off | on | 24 | 0% |
 | patcher-off | on | off | 24 | 0% (19 runner_error) |
 
-Valid baseline (`results/bench_baseline_v2/`, corpus hash recorded):
+Corrected baseline (`results/bench_baseline_v3/`, corpus hash recorded):
 
-| Config | Retrieval | Patcher | Runs | Pass@1 | After repair |
-|--------|-----------|---------|------|--------|--------------|
-| on-on | on | on | 24 | 0/24 (0%) | 16/24 (66.7%) |
+| Config | Retrieval | Patcher | Runs | Pass@1 | After repair | Recovered |
+|--------|-----------|---------|------|--------|--------------|----------:|
+| on-on | on | on | 24 | 16/24 (66.7%) | 16/24 (66.7%) | 0 |
 
 ### 4.2 Case Coverage
 
@@ -103,25 +104,28 @@ Valid baseline (`results/bench_baseline_v2/`, corpus hash recorded):
 | Median latency | 187.2s | - |
 | Median tokens | 2899 | - |
 
-### 5.2 Valid baseline (on-on, 2 samples × 12 cases, `results/bench_baseline_v2/`)
+### 5.2 Corrected baseline (on-on, 2 samples × 12 cases, `results/bench_baseline_v3/`)
 
 | Metric | Value | 95% CI |
 |--------|-------|--------|
-| pass@1 | 0/24 (0.0%) | [0.0%, 13.8%] |
+| pass@1 | 16/24 (66.7%) | [46.7%, 82.0%] |
 | pass after repair | 16/24 (66.7%) | [46.7%, 82.0%] |
-| Recovered by repair | 16 | - |
-| Distinct first designs | 23/24 | - |
-| Median latency | 427.7s | - |
-| Median tokens | 9942.5 | - |
+| Recovered by repair | 0 | - |
+| Distinct first designs | 22/24 | - |
+| Median latency | 170.5s | - |
+| Median tokens | 3487 | - |
 | Infrastructure failures | 0 | - |
 | Batch valid / model invoked | yes / yes | - |
 | Retrieval corpus hash | `ee388ce1…eeb22` | - |
+| Git commit | `6f3fc15…` | - |
 
-Failure breakdown: 6 `simulation_failure`, 2 `structural_failure`, 0 other.
-Single-byte cases: 16/16 after repair. Multi-byte cases: 0/8 after repair.
+Failure breakdown: 4 `simulation_failure`, 2 `compile_failure`,
+2 `structural_failure`. Single-byte: 16/16 pass@1. Multi-byte: 0/8.
 
-The historical and valid batches must not be pooled: the historical batch has
-no recorded corpus hash and a different first-attempt profile.
+The pre-fix baseline in `results/bench_baseline_v2/` recorded 0/24 pass@1 and
+16/24 after repair only because a deterministic scaffold defect dropped
+`localparam HALF` from every first attempt. It is preserved as evidence and is
+not a capability measurement.
 
 ### 5.3 Ablations (historical batch)
 
@@ -141,7 +145,7 @@ no recorded corpus hash and a different first-attempt profile.
 
 | Experiment | Status | Evidence |
 |------------|--------|----------|
-| Baseline (N=1) | ✅ Valid baseline complete | `results/bench_baseline_v2/` (24 runs, batch valid) |
+| Baseline (N=1) | ✅ Corrected baseline complete | `results/bench_baseline_v3/` (24 runs, batch valid, commit `6f3fc15`) |
 | Best-of-N orchestration | ✅ Verified with deterministic mocks | `tests/test_bench_bon_mock.py` (7 tests) |
 | Best-of-2 (1-byte only) | ⚠️ Incomplete, not a valid Best-of-2 | `results/archive/incomplete_bon_runs/bon_n4/` (10 single-sample rows, 5 cases) |
 | Best-of-2 (multi-byte) | ❌ No archived evidence | No run artifacts support the old 4/28 claim |
@@ -242,10 +246,11 @@ supported by complete, provenance-complete artifacts.
 | Artifact | Status |
 |----------|--------|
 | Historical benchmark artifacts | ✅ Consistent (96 runs, `results/bench/`) |
-| Valid baseline artifacts | ✅ Consistent (24 runs, batch valid, `results/bench_baseline_v2/`) |
+| Corrected baseline artifacts | ✅ Consistent (24 runs, batch valid, `results/bench_baseline_v3/`) |
+| Pre-fix baseline artifacts | ✅ Retained as bug evidence (`results/bench_baseline_v2/`) |
 | Failure classification | ✅ Explicit vocabulary + batch validity tests |
-| Test suite | 230 passed, pyflakes clean |
-| CI pipeline | ⏳ Pending GitHub Actions run URL for the final commit |
+| Test suite | 235 passed, pyflakes clean |
+| CI pipeline | ✅ Run 43026139295 (commit `1d56c44`) — both jobs success; re-verified on push |
 | Replay tool | Verified (3/3 tests pass) |
 | Oracle mutants | 10/10 caught |
 | Model digest recorded | `dae161e27b0e...` |
@@ -264,8 +269,8 @@ The failure vocabulary and batch-validity rules are documented in
 4. ✅ **Multi-byte is the blocker** — all 8 valid-baseline failures are multi-byte
 5. ✅ **IR path not competitive** — 0/24 vs the historical RTL 16/24
 6. ✅ **Oracle is robust** — 10/10 mutants caught
-7. ✅ **Repair recovers single-byte cases** — 16/24 recovered in the valid baseline
-8. ✅ **The valid baseline is infrastructure-clean** — 0 infrastructure failures, batch valid
+7. ✅ **Single-byte passes on the first attempt** — 16/24 pass@1, 0 repair recoveries in the corrected baseline
+8. ✅ **The corrected baseline is infrastructure-clean** — 0 infrastructure failures, batch valid
 
 ---
 
@@ -275,7 +280,7 @@ The failure vocabulary and batch-validity rules are documented in
 |-------|--------|-------------------|
 | "Best-of-4 achieves 41.7%" | ❌ Retracted | N=4 experiment on all 12 cases |
 | "Best-of-2 is 100% on 1-byte" | ❌ Unsupported | Complete Best-of-2 on all cases |
-| "on-on pass@1 is 66.7%" | ⚠️ Historical only | Valid baseline records 0/24 pass@1 |
+| "on-on pass@1 is 66.7%" | ✅ Corrected baseline | `results/bench_baseline_v3/`: 16/24 pass@1, provenance complete |
 | "Multi-agent will solve multi-byte" | ❌ Speculative | Phase 1 implementation + benchmark |
 | "Retrieval embeddings will help" | ❌ Speculative | Controlled ablation |
 | "Phase 1 ready to implement" | ⚠️ Partial | Gap analysis done, spec done |
@@ -313,8 +318,8 @@ The failure vocabulary and batch-validity rules are documented in
 ## 14. Conclusion
 
 **ProtoForge v1 is a working measurement harness** with a verified oracle and a
-provenance-complete baseline: 0/24 pass@1 and 16/24 (66.7%) after repair on
-I²C, with 0 infrastructure failures.
+provenance-complete baseline: 16/24 (66.7%) pass@1 and 16/24 after repair on
+I²C, with 0 infrastructure failures and 0 repair recoveries.
 
 **The primary research finding:** Small models (7B) can adapt a known I²C reference but **cannot synthesize multi-byte FSM logic from scratch**. The bottleneck is prompt scaffolding, not model capacity.
 

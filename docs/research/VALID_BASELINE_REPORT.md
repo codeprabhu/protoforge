@@ -1,218 +1,174 @@
 # Valid Baseline Report
 
-**Experiment date:** 2026-11-11  
-**Experiment commit:** `580323b` (runner hardening; recorded in every `run.json`)  
-**Branch:** `research/valid-baseline`  
-**Output directory:** `results/bench_baseline_v2/`
-
-This is the first baseline in which the model was actually invoked for every
-run. It replaces the earlier "16/24 baseline" as the *provenance-complete*
-baseline while preserving the historical artifact in `results/bench/`.
+**Experiment date:** 2026-11-11
+**Baseline commit:** `6f3fc1575e7fc716b3c70c3e243ae505859f6887`
+**Branch:** `research/valid-baseline`
+**Corrected baseline:** `results/bench_baseline_v3/`
+**Pre-fix baseline (evidence only):** `results/bench_baseline_v2/`
 
 ---
 
-## 1. Experiment Provenance
+## 1. Provenance of the corrected baseline
 
 | Parameter | Value |
 |-----------|-------|
-| **Git commit at run time** | `580323b82ea74259dd7d7f0f0c3ce5f1fe8c8e12` |
-| **Model** | `qwen2.5-coder:7b` |
-| **Model digest** | `dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364` |
-| **Temperature** | `0.25` |
-| **Max repairs** | `2` |
-| **Base seed** | `42` (samples use seeds 42, 43) |
-| **Samples per case** | `2` |
-| **Configurations** | `on-on` (retrieval on, patcher on, RTL generator) |
-| **Cases** | 12 (`c01`–`c12`) |
-| **Total runs** | 24 (12 cases × 2 samples) |
-| **Retrieval memory** | Frozen during the batch (`--learn` not passed) |
-| **Retrieval corpus hash** | `ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22` |
-| **Preflight** | Ollama import, server, model, `iverilog`, `vvp`, `verilator`, `yosys` all passed |
+| Git commit | `6f3fc1575e7fc716b3c70c3e243ae505859f6887` |
+| Model | `qwen2.5-coder:7b` |
+| Model digest | `dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364` |
+| Temperature | `0.25` |
+| Max repairs | `2` |
+| Base seed | `42` (samples use seeds 42, 43) |
+| Samples per case | `2` |
+| Config | `on-on` (retrieval on, patcher on, RTL generator) |
+| Cases | 12 (`c01`–`c12`) |
+| Runs | 24 (12 cases × 2 samples) |
+| Retrieval memory | Frozen (no learning during the batch) |
+| Retrieval corpus hash | `ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22` |
+| Preflight | ollama import, server, model, `iverilog`, `vvp`, `verilator`, `yosys` all passed |
 
-The corpus hash covers every example retrieval could serve: the two checked-in
-seed references plus four verified learned examples in `results/rtl_memory/`.
-It is emitted in `summary.json` by `tools.rtl_memory.retrieval_corpus_hash()` so
-future batches can be checked for corpus drift.
-
-**Reproduction command**
+Command:
 
 ```bash
 .venv/bin/python -m bench.run \
   --configs on-on --samples 2 --case-limit 12 \
-  --out-dir results/bench_baseline_v2 --quiet
+  --out-dir results/bench_baseline_v3 --quiet
 ```
 
-The first invocation stalled after 15 rows (external process interruption, not a
-model failure). The run was completed with the same command plus `--resume`;
-the CSV, JSONL and summary were regenerated from the 24 audited rows.
+Preflight passed, so the model was invoked on every run and the batch is valid:
+
+- runs: 24, `infrastructure_failures`: 0, `model_invoked`: true,
+  `batch_valid`: true, `runs_without_candidate`: 0.
 
 ---
 
-## 2. Baseline Results
+## 2. Corrected baseline results
 
 | Metric | Value |
 |--------|-------|
-| Total runs | 24 |
+| Runs | 24 |
 | Infrastructure failures | 0 |
 | Candidate verification failures | 8 |
-| Successful candidates | 16 |
-| **pass@1** | **0/24 (0.0%)**, Wilson 95% CI [0.0%, 13.8%] |
-| **pass after repair** | **16/24 (66.7%)**, Wilson 95% CI [46.7%, 82.0%] |
-| Recovered by repair | 16 |
-| Distinct first designs | 23/24 |
-| Median latency | 427.709 s |
-| Median tokens per run | 9,942.5 |
-| Total tokens | 289,827 |
-| **Batch valid** | **Yes** |
-| **Model invoked** | **Yes** |
+| **pass@1 (first attempt)** | **16/24 (66.7%)**, Wilson 95% CI [46.7%, 82.0%] |
+| **Pass after repair** | **16/24 (66.7%)**, Wilson 95% CI [46.7%, 82.0%] |
+| Recovered by repair | **0** |
+| Distinct first designs | 22/24 |
+| Median latency | 170.461 s |
+| Median tokens per run | 3,487 |
+| Total tokens | 174,550 |
 
-### Batch validity
+Explicit classifications: `pass` 16, `simulation_failure` 4,
+`compile_failure` 2, `structural_failure` 2; `generation_error`,
+`runner_error`, `lint_failure` and `oracle_failure` are 0.
 
-`assess_batch_validity()` returned `(True, "Batch valid")`:
-
-- 0 of 24 runs were infrastructure failures;
-- all 24 recorded at least one model attempt;
-- the intended model and digest were recorded in each `run.json`.
+Pass@1 and pass-after-repair are reported separately. **Every success in this
+baseline came on the first attempt; the repair loop recovered nothing.**
+The earlier 427–463 s median latency and 16 recoveries were the signature of
+the scaffold defect described in §4, not of a model that learns per attempt.
 
 ---
 
-## 3. Per-Case Results
+## 3. Per-case results (first attempt and after repair reported separately)
 
-### Single-byte cases (c01–c05, c09, c10, c12): 16/16 after repair
+### Single-byte (c01–c05, c09, c10, c12) — 16 runs, all first-attempt passes
 
-| Case | Description | Runs | pass@1 | Pass after repair |
-|------|-------------|-----:|-------:|------------------:|
-| c01 | default 1-byte | 2 | 0/2 | 2/2 |
-| c02 | alternate address, 1-byte | 2 | 0/2 | 2/2 |
-| c03 | zero payload | 2 | 0/2 | 2/2 |
-| c04 | all-ones payload | 2 | 0/2 | 2/2 |
-| c05 | low address | 2 | 0/2 | 2/2 |
-| c09 | single device | 2 | 0/2 | 2/2 |
-| c10 | three devices | 2 | 0/2 | 2/2 |
-| c12 | top address | 2 | 0/2 | 2/2 |
+| Case | Description | Runs | pass@1 | After repair | Attempts |
+|------|-------------|-----:|-------:|-------------:|----------|
+| c01 | default 1-byte | 2 | 2/2 | 2/2 | 1 |
+| c02 | alternate address | 2 | 2/2 | 2/2 | 1 |
+| c03 | zero payload | 2 | 2/2 | 2/2 | 1 |
+| c04 | all-ones payload | 2 | 2/2 | 2/2 | 1 |
+| c05 | low address | 2 | 2/2 | 2/2 | 1 |
+| c09 | single device | 2 | 2/2 | 2/2 | 1 |
+| c10 | three devices | 2 | 2/2 | 2/2 | 1 |
+| c12 | top address | 2 | 2/2 | 2/2 | 1 |
 
-**Single-byte total: 16/16 (100%) after repair.**
+### Multi-byte (c06–c08, c11) — 8 runs, no pass on the first attempt or after repair
 
-### Multi-byte cases (c06–c08, c11): 0/8 after repair
+| Case | Runs | pass@1 | After repair | Final classification |
+|------|-----:|-------:|-------------:|----------------------|
+| c06 two-byte | 2 | 0/2 | 0/2 | `compile_failure` (undefined `DATA_BYTE1`) |
+| c07 two-byte alt | 2 | 0/2 | 0/2 | `simulation_failure`, `structural_failure` |
+| c08 three-byte | 2 | 0/2 | 0/2 | `simulation_failure` |
+| c11 three devices two-byte | 2 | 0/2 | 0/2 | `simulation_failure`, `structural_failure` |
 
-| Case | Description | Runs | pass@1 | Pass after repair | Failure |
-|------|-------------|-----:|-------:|------------------:|---------|
-| c06 | two-byte | 2 | 0/2 | 0/2 | simulation_failure (`sim_checks_failed`) |
-| c07 | two-byte, alternate address | 2 | 0/2 | 0/2 | simulation_failure (`sim_checks_failed`) |
-| c08 | three-byte | 2 | 0/2 | 0/2 | structural_failure (`structural_failed`) |
-| c11 | three devices, two-byte | 2 | 0/2 | 0/2 | simulation_failure (`sim_checks_failed`) |
-
-**Multi-byte total: 0/8 (0%) after repair.**
-
----
-
-## 4. Explicit Outcome Classification
-
-| Classification | Count | Share |
-|----------------|------:|------:|
-| `pass` | 16 | 66.7% |
-| `simulation_failure` | 6 | 25.0% |
-| `structural_failure` | 2 | 8.3% |
-| `generation_error` | 0 | 0.0% |
-| `runner_error` | 0 | 0.0% |
-| `compile_failure` | 0 | 0.0% |
-| `lint_failure` | 0 | 0.0% |
-| `oracle_failure` | 0 | 0.0% |
-
-All eight failures are candidate verification failures. None are
-infrastructure failures, and none are counted as model failures caused by the
-harness.
+The multi-byte failures are still candidate verification failures, not
+infrastructure failures: the model produced candidates, they compiled or
+elaborated, and the simulation judge rejected them.
 
 ---
 
-## 5. Artifact Locations
+## 4. Why the numbers changed: two scaffold defects, both fixed
+
+### 4.1 `HALF` was omitted from every first attempt (fixed, regression-tested)
+
+`_normalize_fragment_scaffold` decided that a protocol constant was already
+declared if its name appeared **anywhere** in a `wire`/`reg` statement. The
+model almost always writes `wire half_done = (half_cnt == HALF - 1);`, so the
+`localparam HALF = 4;` line was dropped and every first attempt failed with:
 
 ```
-results/bench_baseline_v2/
-├── runs.csv              # 24 audited rows (header + 24)
-├── runs.jsonl            # 24 derived index entries
-├── summary.json          # summary + provenance + corpus hash
-├── report.md             # rendered markdown table
-├── specs/                # 12 generated case specs (gitignored)
-├── runs/                 # 24 run directories (gitignored)
-└── traces/               # event traces (gitignored)
+error: Unable to bind wire/reg/memory `HALF'
 ```
 
-Each run directory contains `run.json`, `attempt_N.json`, `attempt_N.v`,
-`attempt_N.vvp` (when compiled), the prompt, compiler stderr, and simulation
-stdout. Raw artifacts stay local; the tracked CSV/JSONL/summary/report are
-sufficient to reproduce the aggregate.
+Evidence: in the pre-fix baseline (`results/bench_baseline_v2/`) 24/24 first
+attempts carry that compiler error, 0/24 pass@1, and 16/24 only pass after
+repair. In the corrected baseline 0/24 attempts mention `HALF` in a compiler
+error and 24/24 first attempts that reference `half_done` carry exactly one
+`localparam HALF = 4;`.
+
+Fix: an already-declared constant now requires a real
+`localparam|parameter … NAME =` declaration. Test:
+`tests/test_fragment_scaffold.py::test_half_referenced_inside_wire_declaration_is_not_treated_as_declared`.
+
+Independent verification of the fix on the recorded artifacts:
+
+- 0/24 first attempts produced a `HALF` compiler error.
+- 0/24 first attempts reference `half_done` without `localparam HALF`.
+- Structural gate re-run on the recorded RTL with each run's own device list:
+  38 checks passed, 2 failed, both on repaired multi-byte attempts where the
+  model itself broke the contract (see §4.2).
+
+### 4.2 Contract-violating repair responses duplicated scaffold-owned code (fixed, regression-tested)
+
+Two recorded multi-byte runs ended `structural_failed` because the repair
+response re-emitted `device_sensor`/`device_controller` instance blocks and its
+own `assign sda` / `assign scl` drivers. The structural gate requires exactly
+one open-drain driver and exactly one instance per device, so the assembled
+RTL failed and the defect was charged to the candidate even though the model
+had written a valid FSM fragment.
+
+Fix: the normalization path drops model-supplied `assign sda`/`assign scl`
+drivers and model-supplied device instance blocks before the deterministic
+wrapper is added. Tests:
+`tests/test_fragment_scaffold.py::test_model_instance_blocks_and_bus_assigns_are_dropped`
+and
+`::test_real_failing_repair_artifact_normalizes_cleanly`, which replays the two
+recorded failing artifacts and asserts the gate now passes.
 
 ---
 
-## 6. Comparison with the Historical Baseline
-
-| Metric | Historical `results/bench/` | Current `results/bench_baseline_v2/` |
-|--------|-----------------------------|--------------------------------------|
-| Runs | 24 | 24 |
-| pass@1 | 16/24 (66.7%) | 0/24 (0.0%) |
-| pass after repair | 16/24 (66.7%) | 16/24 (66.7%) |
-| Single-byte after repair | 16/16 (100%) | 16/16 (100%) |
-| Multi-byte after repair | 0/8 (0%) | 0/8 (0%) |
-| Infrastructure failures | 0 | 0 |
-| Retrieval corpus hash recorded | No | Yes |
-
-The final pass-after-repair rate is identical, and the split between single-byte
-(100%) and multi-byte (0%) cases is identical. The difference is in *when* the
-pass happened: the historical batch had 16 first-attempt passes, while this
-batch had none and recovered all 16 through repair. Candidate, prompt and
-corpus provenance for the historical batch is incomplete, so the two batches
-should not be pooled into a single pass@1 estimate.
-
----
-
-## 7. Conclusions and Limits
-
-1. This is a valid baseline: the model was invoked in all 24 runs and no
-   infrastructure failure contributed to the result.
-2. Single-byte I²C generation is reliable after repair (16/16); multi-byte
-   generation remains the bottleneck (0/8).
-3. pass@1 is 0/24 in this batch. The harness should not claim a 66.7% first-try
-   rate for this corpus without another valid batch.
-4. Best-of-N remains unmeasured. The earlier 48 "Best-of-4" runs are
-   infrastructure failures and are archived under
-   `results/archive/invalid_bon_runs/`.
-5. Before a Best-of-N experiment, Best-of-N orchestration must pass the
-   deterministic mock-generator tests in `tests/test_bench_bon_mock.py`.
-
----
-
-## 8. Reproducibility Check
+## 5. Reproducibility check
 
 ```bash
 cd /home/shrivathssp/Desktop/protoforge
 .venv/bin/python -m bench.run \
   --configs on-on --samples 2 --case-limit 12 \
-  --out-dir results/bench_repro --quiet
+  --out-dir results/bench_baseline_v4 --quiet
 ```
 
-Expected: 24 runs, 0 infrastructure failures, batch valid, 16/24 pass after
-repair, 0/24 pass@1 on the recorded corpus. Sampling variation may change which
-candidates pass, so compare the corpus hash and classification breakdown before
-comparing rates.
+Expected on the recorded corpus: 24 runs, 0 infrastructure failures, batch
+valid, 16/24 pass@1, 16/24 after repair, 0 recovery by repair, single-byte
+16/16 and multi-byte 0/8. Sampling variation moves individual cases, so
+compare the corpus hash and classification breakdown before comparing rates.
 
----
+## 6. What is and is not established
 
-## 9. Validation
-
-| Check | Command | Result |
-|-------|---------|--------|
-| Full suite | `.venv/bin/python -q -m pytest tests -q` | **230 passed** |
-| Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
-| Baseline artifacts | `pytest tests/test_valid_baseline_artifacts.py` | 7 passed |
-| Best-of-N mocks | `pytest tests/test_bench_bon_mock.py` | 7 passed |
-| Template smoke | `bench.run --configs template --samples 1 --case-limit 3` | 3/3 passed |
-| RTL verification | `test_oracle_mutation`, `test_e2e_real_sim`, `test_logging_replay`, `test_template_master`, `test_structural_gate`, `test_unit_checks` | 44 passed |
-
-**GitHub Actions:** run
-[`43026139295`](https://github.com/codeprabhu/protoforge/actions/runs/43026139295)
-on commit `1d56c44f252d2f690d2c37018ccb286c19a26065` — both the test job and
-the template smoke job succeeded.
-
-The committed baseline is `results/bench_baseline_v2/`; the archived invalid
-Best-of-4 data remains at `results/archive/invalid_bon_runs/bon/`.
+1. A **valid** baseline exists: model invoked in all 24 runs, no
+   infrastructure failure, full provenance.
+2. Single-byte I²C generation is **reliable on the first attempt** (16/16).
+3. Multi-byte remains **unmeasured as solved**: 0/8 after repair, with a
+   mixture of simulation, compile and structural failures.
+4. The pre-fix 0/24 pass@1 was a harness defect, not model capability. Do not
+   quote it as a capability result.
+5. Best-of-N is **still unmeasured**. The archived 48-run "Best-of-4" batch is
+   invalid (the model was never invoked) and must not be used for comparisons.

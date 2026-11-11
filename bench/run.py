@@ -406,6 +406,7 @@ def run_one(
             "run_id": "",
             "run_dir": "",
             "error": f"{type(exc).__name__}: {exc}",
+            "explicit_classification": "runner_error",
         }
 
     prompt_tokens, completion_tokens = _token_counts(log.get("run_dir"))
@@ -435,6 +436,10 @@ def run_one(
         "run_dir": log.get("run_dir", ""),
         # Why the run ended when it never produced a candidate; empty otherwise.
         "error": log.get("generation_error") or log.get("tool_error") or log.get("repair_error") or "",
+        "explicit_classification": classify_final_result(
+            log.get("final", "unknown"),
+            log.get("generation_error") or log.get("tool_error") or log.get("repair_error") or "",
+        ),
     }
 
 

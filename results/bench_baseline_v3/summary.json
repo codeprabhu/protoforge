@@ -1,0 +1,80 @@
+{
+  "base_seed": 42,
+  "cases": [
+    "c01-default-1byte",
+    "c02-alt-address-1byte",
+    "c03-zero-payload",
+    "c04-all-ones-payload",
+    "c05-low-address",
+    "c06-two-byte",
+    "c07-two-byte-alt",
+    "c08-three-byte",
+    "c09-single-device",
+    "c10-three-devices",
+    "c11-three-devices-two-byte",
+    "c12-top-address"
+  ],
+  "configs": {
+    "on-on": {
+      "batch_invalid_reason": "Batch valid",
+      "batch_valid": true,
+      "candidate_runs": 24,
+      "candidate_verification_failures": 8,
+      "cases": 12,
+      "distinct_first_designs": 22,
+      "explicit_outcomes": {
+        "compile_failure": 2,
+        "generation_error": 0,
+        "lint_failure": 0,
+        "oracle_failure": 0,
+        "pass": 16,
+        "runner_error": 0,
+        "simulation_failure": 4,
+        "structural_failure": 2
+      },
+      "first_attempts_recorded": 24,
+      "infrastructure_failures": 0,
+      "median_latency_sec": 170.461,
+      "median_tokens_per_run": 3487.0,
+      "model_invoked": true,
+      "outcomes": {
+        "compile_failure": 2,
+        "generation_error": 0,
+        "lint_failure": 0,
+        "oracle_failure": 0,
+        "pass": 16,
+        "runner_error": 0,
+        "simulation_failure": 4,
+        "structural_failure": 2
+      },
+      "pass_after_repair": 16,
+      "pass_after_repair_ci95": [
+        0.4671,
+        0.8203
+      ],
+      "pass_after_repair_rate": 0.6667,
+      "pass_at_1": 16,
+      "pass_at_1_ci95": [
+        0.4671,
+        0.8203
+      ],
+      "pass_at_1_rate": 0.6667,
+      "recovered_by_repair": 0,
+      "runs": 24,
+      "runs_without_candidate": 0,
+      "samples": 2,
+      "successful_candidates": 16,
+      "total_tokens": 174550
+    }
+  },
+  "git_commit": "6f3fc1575e7fc716b3c70c3e243ae505859f6887",
+  "ir": false,
+  "max_repairs": 2,
+  "model": "qwen2.5-coder:7b",
+  "model_digest": "dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364",
+  "retrieval_corpus_hash": "ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22",
+  "retrieval_memory_frozen": true,
+  "rows": 24,
+  "samples_per_case": 2,
+  "temperature": 0.25
+}

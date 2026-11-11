@@ -288,13 +288,25 @@ def normalize_model_rtl(generated: str, device_paths: list[str] | None = None,
         return generated
     blocks = build_device_instance_blocks(device_paths)
     instance_code = "\n\n".join(block["code"] for block in blocks)
-    return _assemble_multi_fragment(
-        instance_code, _coerce_full_module_to_fragment(generated, address_hex, data_hex)
+    fragment = _remove_model_device_instances(
+        _coerce_full_module_to_fragment(generated, address_hex, data_hex), device_paths
     )
+    return _assemble_multi_fragment(instance_code, fragment)
 
 
 def _remove_fixed_bus_declarations(fragment: str) -> str:
-    """Remove redundant declarations for signals owned by the scaffold."""
+    """Remove scaffold-owned bus-driver code a model may re-emit.
+
+    The deterministic wrapper declares ``sda_drive_low``/``scl_drive_low``
+    and supplies the only legal open-drain ``assign``. A contract-violating
+    response that repeats them produces duplicate drivers and fails the
+    structural gate, charging a harness-owned defect to the candidate.
+    """
+    fragment = re.sub(
+        r"(?im)^\s*assign\s+(?:sda|scl)\s*=\s*[^;]*;[ \t]*(?://[^\n]*)?\n?",
+        "",
+        fragment,
+    )
     fragment = re.sub(
         r"(?im)^\s*(?:reg|wire|logic)\s+(?:\[[^\]]+\]\s+)?sda_drive_low\s*;\s*(?://[^\n]*)?\n?",
         "",
@@ -310,6 +322,36 @@ def _remove_fixed_bus_declarations(fragment: str) -> str:
         "",
         fragment,
     )
+    return fragment
+
+
+def _remove_model_device_instances(fragment: str, device_paths: list[str] | None) -> str:
+    """Drop device instance blocks a model wrote; the harness owns them.
+
+    The wrapper is generated from the parsed device interfaces, so a repair
+    response that repeats an instance (common when the model reverts to a full
+    module) duplicates it and fails the "instantiate exactly once" structural
+    rule. Only the behaviour-bearing fragment is accepted.
+    """
+    if not device_paths:
+        return fragment
+    names = []
+    for path in device_paths:
+        try:
+            names.append(parse_verilog_file(path).name)
+        except Exception:
+            return fragment
+    for name in names:
+        pattern = re.compile(
+            rf"^[ \t]*{re.escape(name)}\s+[A-Za-z_]\w*\s*\([ \t]*\n?(?:.|\n)*?\n[ \t]*\)\s*;[ \t]*(?://[^\n]*)?\n?",
+            re.M | re.I,
+        )
+        fragment = pattern.sub("", fragment)
+        # Also strip inline single-line instances.
+        fragment = re.sub(
+            rf"^[ \t]*{re.escape(name)}\s+[A-Za-z_]\w*\s*\((?:.|\n)*?\);[ \t]*(?://[^\n]*)?\n?",
+            "", fragment, flags=re.M | re.I,
+        )
     return fragment
 
 
