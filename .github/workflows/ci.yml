@@ -2,9 +2,17 @@ name: ProtoForge CI
 
 on:
   push:
-    branches: [ main, phase0/ci-root-cause ]
+    branches:
+      - main
+      - phase0/ci-root-cause
+      - release/v1-validation
+      - research/valid-baseline
   pull_request:
-    branches: [ main, phase0/ci-root-cause ]
+    branches:
+      - main
+      - phase0/ci-root-cause
+      - release/v1-validation
+      - research/valid-baseline
 
 env:
   PYTHON_VERSION: "3.12"
