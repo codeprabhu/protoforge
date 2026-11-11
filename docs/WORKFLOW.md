@@ -8,7 +8,7 @@ commit `086bf99`.
 
 ## Status board
 
-Last verified: 2026-11-11, `235 passed` from
+Last verified: 2026-11-11, `236 passed` from
 `.venv/bin/python -m pytest -q tests` (v1 Phase 7 complete; v2 Phase 0
 **complete**; corrected baseline recorded in `results/bench_baseline_v3/`).
 

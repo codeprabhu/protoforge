@@ -249,7 +249,7 @@ supported by complete, provenance-complete artifacts.
 | Corrected baseline artifacts | ✅ Consistent (24 runs, batch valid, `results/bench_baseline_v3/`) |
 | Pre-fix baseline artifacts | ✅ Retained as bug evidence (`results/bench_baseline_v2/`) |
 | Failure classification | ✅ Explicit vocabulary + batch validity tests |
-| Test suite | 235 passed, pyflakes clean |
+| Test suite | 236 passed, pyflakes clean |
 | CI pipeline | ✅ Run 43026139295 (commit `1d56c44`) — both jobs success; re-verified on push |
 | Replay tool | Verified (3/3 tests pass) |
 | Oracle mutants | 10/10 caught |
@@ -293,12 +293,13 @@ The failure vocabulary and batch-validity rules are documented in
 |----------|------------|------------|------|
 | 1 | Multi-byte prompt scaffolding | Fixes 8/24 failures | 20 model calls |
 | 2 | Verified multi-byte examples in retrieval | Improves multi-byte recall | 10 model calls |
-| 3 | Best-of-N=4 on all cases | Quantify sampling benefit | 48 model calls |
-| 4 | Retrieval embeddings (sentence-transformers) | Improves novel spec recall | 50 model calls |
-| 5 | Failure-specific retrieval | Targets specific failure modes | 20 model calls |
-| 6 | Timing monitor (G6) | Catches setup/hold violations | N/A (tooling) |
-| 7 | NACK handling in testbench | Completes protocol coverage | 20 model calls |
-| 8 | Clock stretching in testbench | Tests robustness | 20 model calls |
+| 3 | Multi-byte prompt/data-literal scaffolding | Target the 0/8 multi-byte failures | 8 model calls |
+| 4 | Best-of-N=4 on all cases | Quantify sampling benefit (needs 1 and 3 first) | 48 model calls |
+| 5 | Retrieval embeddings (sentence-transformers) | Improves novel spec recall | 50 model calls |
+| 6 | Failure-specific retrieval | Targets specific failure modes | 20 model calls |
+| 7 | Timing monitor (G6) | Catches setup/hold violations | N/A (tooling) |
+| 8 | NACK handling in testbench | Completes protocol coverage | 20 model calls |
+| 9 | Clock stretching in testbench | Tests robustness | 20 model calls |
 
 ---
 

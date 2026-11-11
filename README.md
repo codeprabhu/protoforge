@@ -12,8 +12,8 @@ protocol judge → up to two bounded repairs.
 
 | Check | Command | Result |
 | --- | --- | --- |
-| GitHub Actions | [run 43026139295](https://github.com/codeprabhu/protoforge/actions/runs/43026139295) | both jobs success |
-| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **235 passed** |
+| GitHub Actions | [run 43066682878](https://github.com/codeprabhu/protoforge/actions/runs/43066682878) | both jobs success |
+| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **236 passed** |
 | Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
 | Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all 10 mutants killed |
 | Template upper bound | `results/bench_template_20x/` | 240/240 pass |
@@ -23,6 +23,7 @@ protocol judge → up to two bounded repairs.
 | Patcher ablation | `results/bench/` | 0/24 pass@1 (19 runner_error) |
 | IR benchmark | `results/bench_ir/` | **0/24** pass@1 (does not beat RTL baseline) |
 | Best-of-N | `tests/test_bench_bon_mock.py` | orchestration verified; real run **unmeasured** |
+| Multi-byte validation | `results/bench_multibyte_v4/` | 8 runs, 0 passes, **no harness-owned failures** |
 | Replay of a run | `.venv/bin/python tools/replay.py <run_dir>` | verdicts match |
 
 See `docs/research/VALID_BASELINE_REPORT.md` for the provenance-complete
@@ -172,7 +173,7 @@ Tools:
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**235 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
+**236 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
 are all installed). Four suites carry `skipif` guards and skip only where a
 tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 `test_logging_replay`, `test_template_master`.

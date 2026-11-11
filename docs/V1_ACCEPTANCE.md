@@ -14,19 +14,19 @@ All criteria are verifiable by running the commands listed.
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**Expected:** `235 passed`, pyflakes clean (0 errors).
+**Expected:** `236 passed`, pyflakes clean (0 errors).
 
 **Status:** ✅ **MET** — GitHub Actions run
-[`43026139295`](https://github.com/codeprabhu/protoforge/actions/runs/43026139295)
-on commit `1d56c44f252d2f690d2c37018ccb286c19a26065` completed with
+[`43066682878`](https://github.com/codeprabhu/protoforge/actions/runs/43066682878)
+on commit `39549665a04a84f971e189b427a8d8f75623cbe7` completed with
 **success** for both jobs:
 
 - Unit + Integration Tests — success (full suite, pyflakes clean);
 - 3-Case Template Benchmark Smoke Test — success (3/3 template cases).
 
-Each pushed commit is verified again; the URLs recorded here name the exact
-commit SHA each run was produced from, so a later documentation-only commit
-cannot be mistaken for a tested code commit.
+Earlier verified runs on this branch: `43026139295` (commit `1d56c44`) and
+`43026523052` (commit `48b00c9`). Any commit that changes code or artifacts is
+re-verified by a new run; a documentation-only commit is named as such.
 
 ## 2. Every Oracle Mutant Caught
 

@@ -1,0 +1,72 @@
+{
+  "base_seed": 42,
+  "cases": [
+    "c06-two-byte",
+    "c07-two-byte-alt",
+    "c08-three-byte",
+    "c11-three-devices-two-byte"
+  ],
+  "configs": {
+    "on-on": {
+      "batch_invalid_reason": "Batch valid",
+      "batch_valid": true,
+      "candidate_runs": 8,
+      "candidate_verification_failures": 8,
+      "cases": 4,
+      "distinct_first_designs": 8,
+      "explicit_outcomes": {
+        "compile_failure": 3,
+        "generation_error": 0,
+        "lint_failure": 0,
+        "oracle_failure": 0,
+        "pass": 0,
+        "runner_error": 0,
+        "simulation_failure": 5,
+        "structural_failure": 0
+      },
+      "first_attempts_recorded": 8,
+      "infrastructure_failures": 0,
+      "median_latency_sec": 749.601,
+      "median_tokens_per_run": 14911.0,
+      "model_invoked": true,
+      "outcomes": {
+        "compile_failure": 3,
+        "generation_error": 0,
+        "lint_failure": 0,
+        "oracle_failure": 0,
+        "pass": 0,
+        "runner_error": 0,
+        "simulation_failure": 5,
+        "structural_failure": 0
+      },
+      "pass_after_repair": 0,
+      "pass_after_repair_ci95": [
+        0.0,
+        0.3244
+      ],
+      "pass_after_repair_rate": 0.0,
+      "pass_at_1": 0,
+      "pass_at_1_ci95": [
+        0.0,
+        0.3244
+      ],
+      "pass_at_1_rate": 0.0,
+      "recovered_by_repair": 0,
+      "runs": 8,
+      "runs_without_candidate": 0,
+      "samples": 2,
+      "successful_candidates": 0,
+      "total_tokens": 120438
+    }
+  },
+  "git_commit": "39549665a04a84f971e189b427a8d8f75623cbe7",
+  "ir": false,
+  "max_repairs": 2,
+  "model": "qwen2.5-coder:7b",
+  "model_digest": "dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364",
+  "retrieval_corpus_hash": "ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22",
+  "retrieval_memory_frozen": true,
+  "rows": 8,
+  "samples_per_case": 2,
+  "temperature": 0.25
+}

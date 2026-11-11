@@ -106,7 +106,25 @@ Read an invalid batch's rate as "not measured", never as a capability result.
 
 ---
 
-## 5. Preflight gate
+## 5. Harness-owned defects are never candidate failures
+
+A deterministic scaffold defect that drops or duplicates harness-owned code
+produces a gate failure for which the candidate is not responsible. Two
+occurred while establishing the baseline, and both were suppressed before the
+defect was charged to the model:
+
+| Defect | Effect | Fix |
+|--------|--------|-----|
+| `HALF` treated as declared when only referenced in a `wire` statement | 24/24 first attempts failed to compile (`Unable to bind wire/reg/memory HALF`) | Require a real `localparam|parameter NAME =` |
+| Model-supplied device instances and `assign sda/scl` drivers left in the fragment | 2 multi-byte runs failed the structural gate on duplicate drivers/instances | Strip harness-owned code before wrapping |
+
+Rule: **any deterministic defect must be removed before a run is counted, not
+explained afterwards.** A pre-fix artifact may be retained as evidence of the
+defect, but it must never be reported as a capability result, and the fix must
+come with a test that replays the failing input. See
+`docs/research/VALID_BASELINE_REPORT.md` §4.
+
+## 6. Preflight gate
 
 Before a model configuration starts, `preflight_check()` verifies:
 
@@ -133,7 +151,7 @@ now covered by the working baseline run and should be treated as a
 
 ---
 
-## 6. Artifact and metadata contract
+## 7. Artifact and metadata contract
 
 For every run, the tracked summary must make the following auditable:
 
@@ -154,7 +172,7 @@ set of runs.
 
 ---
 
-## 7. Best-of-N classification
+## 8. Best-of-N classification
 
 `bench.bon.run_one_bon()` applies the same `classify_final_result()` mapping to
 each candidate:
@@ -174,7 +192,7 @@ mock runner before any real Best-of-N compute is spent. Best-of-N results remain
 
 ---
 
-## 8. Reporting rules
+## 9. Reporting rules
 
 - Report infrastructure failures and candidate verification failures separately.
 - Never quote a pass rate from a batch with `batch_valid = false`.

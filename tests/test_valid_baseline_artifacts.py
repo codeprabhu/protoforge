@@ -185,3 +185,32 @@ def test_report_renders_the_same_summary() -> None:
     assert f"{stats['pass_at_1']}/{stats['runs']}" in report
     assert f"{stats['pass_after_repair']}/{stats['runs']}" in report
     assert "✅" in report
+
+
+MULTI_VALIDATION = ROOT / "results" / "bench_multibyte_v4"
+
+
+def test_multibyte_validation_has_no_harness_owned_failures() -> None:
+    """After the scaffold fix, multi-byte failures must be candidate failures.
+
+    The pre-fix baseline charged two multi-byte structural failures to the
+    model although the harness's own instance/driver code had been duplicated.
+    The validation run (same corpus, commit 3954966) shows that class of
+    failure is gone: every multi-byte failure is a compile/simulation failure.
+    """
+    rows = list(csv.DictReader((MULTI_VALIDATION / "runs.csv").open(encoding="utf-8")))
+    summary = json.loads((MULTI_VALIDATION / "summary.json").read_text(encoding="utf-8"))
+    stats = summary["configs"]["on-on"]
+
+    assert len(rows) == 8
+    assert {row["case_id"] for row in rows} == MULTI_BYTE
+    assert stats["batch_valid"] is True
+    assert stats["infrastructure_failures"] == 0
+    assert stats["model_invoked"] is True
+    assert summary["retrieval_corpus_hash"] == _summary()["retrieval_corpus_hash"]
+    outcomes = Counter(classify_final_result(row["final"], row["error"]) for row in rows)
+    assert outcomes.get("structural_failure", 0) == 0, outcomes
+    assert outcomes.get("simulation_failure", 0) == 5, outcomes
+    assert outcomes.get("compile_failure", 0) == 3, outcomes
+    # Multi-byte is still unsolved; the point is that it fails honestly now.
+    assert sum(row["final"] == "pass" for row in rows) == 0

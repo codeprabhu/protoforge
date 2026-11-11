@@ -145,6 +145,14 @@ and
 `::test_real_failing_repair_artifact_normalizes_cleanly`, which replays the two
 recorded failing artifacts and asserts the gate now passes.
 
+**Measured effect** (`results/bench_multibyte_v4/`, same corpus hash, commit
+`3954966`, 4 multi-byte cases × 2 samples = 8 runs, batch valid, 0
+infrastructure failures): the two `structural_failure` outcomes are gone and
+all 8 multi-byte failures are genuine candidate failures — 5
+`simulation_failure` and 3 `compile_failure`. Multi-byte is still 0/8, which
+means the model does not solve these cases; it no longer fails for reasons the
+harness owns.
+
 ---
 
 ## 5. Reproducibility check
