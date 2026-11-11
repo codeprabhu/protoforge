@@ -226,6 +226,33 @@ def test_missing_candidate_artifacts_never_pass(tmp_path: Path) -> None:
     assert row["bon_total_candidates"] == 1
 
 
+def test_bon_candidate_metadata_survives_csv_and_jsonl(tmp_path: Path) -> None:
+    """The winning candidate index and attempt count must be auditable."""
+    import csv
+
+    from bench.run import CSV_FIELDS, _write_csv, _write_index
+
+    runner = DeterministicCandidateRunner(tmp_path, ["sim_checks_failed", "pass"])
+    row = _run(runner, tmp_path=tmp_path, n=4)
+    assert row["bon_candidate_index"] == 1
+    assert row["bon_total_candidates"] == 2
+
+    csv_path = tmp_path / "runs.csv"
+    _write_csv(csv_path, [row])
+    written = list(csv.DictReader(csv_path.open(encoding="utf-8")))
+    assert set(CSV_FIELDS) <= set(written[0])
+    assert written[0]["bon_candidate_index"] == "1"
+    assert written[0]["bon_total_candidates"] == "2"
+    assert written[0]["explicit_classification"] == "pass"
+
+    index_path = tmp_path / "runs.jsonl"
+    _write_index(index_path, [row])
+    entry = json.loads(index_path.read_text(encoding="utf-8").strip())
+    assert entry["explicit_classification"] == "pass"
+    assert entry["bon_candidate_index"] == 1
+    assert entry["bon_total_candidates"] == 2
+
+
 def test_best_of_n_requires_positive_n(tmp_path: Path) -> None:
     runner = DeterministicCandidateRunner(tmp_path, [])
     with pytest.raises(ValueError, match="n >= 1"):

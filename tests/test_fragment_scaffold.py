@@ -90,6 +90,31 @@ def test_repair_response_uses_same_deterministic_multi_device_wrapper(tmp_path):
     assert repaired.count("assign sda = sda_drive_low ? 1'b0 : 1'bz;") == 1
 
 
+def test_half_referenced_inside_wire_declaration_is_not_treated_as_declared():
+    """Regression: `wire half_done = (half_cnt == HALF - 1);` is not a HALF declaration.
+
+    The enricher used to see the token HALF anywhere in a wire statement and
+    skip `localparam HALF = 4;`, so the first candidate failed compilation with
+    "Unable to bind wire/reg/memory HALF". Every single-byte baseline run hit
+    this and only passed after repair.
+    """
+    fragment = """
+reg [3:0] state;
+reg [7:0] half_cnt;
+wire half_done = (half_cnt == HALF - 1);
+always @(posedge clk or negedge rst_n) begin
+  if (!rst_n) state <= IDLE;
+  else if (half_done) state <= START;
+end
+"""
+    rtl = generator.normalize_model_rtl(
+        fragment, ["devices/device_sensor.v", "devices/device_controller.v"]
+    )
+    assert rtl.count("localparam HALF = 4;") == 1
+    assert rtl.count("wire half_done;") == 0
+    assert "wire half_done = (half_cnt == HALF - 1);" in rtl
+
+
 def test_fragment_missing_protocol_constants_gets_scaffolded():
     fragment = """
 reg [3:0] state;

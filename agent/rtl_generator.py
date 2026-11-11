@@ -329,11 +329,19 @@ def _normalize_fragment_scaffold(fragment: str, address_hex: str = "a0", data_he
     declarations = []
     for name, declaration in known.items():
         needed_by_half_done = name == "HALF" and re.search(r"\bhalf_done\b", fragment)
-        if (re.search(rf"\b{name}\b", fragment) or needed_by_half_done) and not re.search(
-                rf"\b(?:localparam|parameter|reg|wire|integer)\b[^;]*\b{name}\b", fragment):
+        # Only a constant declaration counts as "already declared". Searching
+        # any wire/reg statement for the token is wrong: the model's
+        # `wire half_done = (half_cnt == HALF - 1);` mentions HALF but does not
+        # declare it, and the missing localparam then breaks compilation.
+        already_declared = re.search(
+            rf"\b(?:localparam|parameter)\b[^;]*\b{name}\b\s*=", fragment
+        )
+        if (re.search(rf"\b{name}\b", fragment) or needed_by_half_done) and not already_declared:
             declarations.append(declaration)
+    # Match only a declaration of half_done itself, not an assignment that
+    # happens to reference it (`wire x = half_done;`).
     if re.search(r"\bhalf_done\b", fragment) and not re.search(
-            r"\b(?:reg|wire|logic)\b[^;]*\bhalf_done\b", fragment):
+            r"\b(?:reg|wire|logic)\b[^;=]*\bhalf_done\b", fragment):
         declarations.append("wire half_done;\nassign half_done = (half_cnt == HALF - 1);")
     return ("\n".join(declarations) + "\n" if declarations else "") + fragment
 

@@ -27,6 +27,7 @@ from bench.run import (  # noqa: E402
     _first_run_field,
     _token_counts,
     _write_csv,
+    _write_index,
     case_device_paths,
     load_cases,
     resolve_configs,
@@ -59,37 +60,8 @@ def _write_summary(out_dir: Path, rows: list[dict[str, Any]], args: argparse.Nam
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     (out_dir / "report.md").write_text(_markdown_table(summary), encoding="utf-8")
-    (out_dir / "runs.jsonl").write_text(
-        "".join(json.dumps(e, sort_keys=True) + "\n" for e in _entries_from_rows(rows)),
-        encoding="utf-8",
-    )
+    _write_index(out_dir / "runs.jsonl", rows)
     return summary
-
-
-def _entries_from_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Convert rows to JSONL index entries."""
-    from bench.run import _run_started_at
-    return [
-        {
-            "run_id": row["run_id"],
-            "timestamp": _run_started_at(row["run_dir"]),
-            "task_id": f"i2c-{row['run_id']}",
-            "domain": "i2c",
-            "model": row["model"],
-            "seed": row["seed"],
-            "temperature": row["temperature"],
-            "retrieval_enabled": row["retrieval"],
-            "final": row["final"],
-            "error": row["error"] or None,
-            "first_attempt_pass": row["first_attempt_pass"],
-            "recovered_after_repair": row["recovered_after_repair"],
-            "attempts": row["attempts"],
-            "first_attempt_hash": (row["first_sha256"] or "")[:16] or None,
-            "elapsed_sec": row["elapsed_sec"],
-            "run_dir": row["run_dir"],
-        }
-        for row in rows
-    ]
 
 
 def _markdown_table(summary: dict[str, Any]) -> str:

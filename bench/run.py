@@ -141,6 +141,9 @@ CSV_FIELDS = [
     # Batch validity fields
     "batch_valid",
     "batch_invalid_reason",
+    # Best-of-N candidate metadata (empty for N=1 runs)
+    "bon_candidate_index",
+    "bon_total_candidates",
 ]
 
 
@@ -248,17 +251,14 @@ def assess_batch_validity(rows: list[dict[str, Any]], infra_threshold: float = 0
     
     total = len(rows)
     infra_count = 0
-    candidate_count = 0
     model_invoked = False
-    
+
     for row in rows:
         classification = classify_final_result(row.get("final", ""), row.get("error", ""))
         if classification in INFRASTRUCTURE_CLASSIFICATIONS:
             infra_count += 1
-        else:
-            candidate_count += 1
-            if row.get("attempts", 0) > 0:
-                model_invoked = True
+        elif int(row.get("attempts") or 0) > 0:
+            model_invoked = True
     
     # Check if intended model was actually invoked
     if not model_invoked:
@@ -482,7 +482,7 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
                 # summary.json report 24 failures for 24 runs including 16 passes.
                 candidate_failures += 1
             if classification not in INFRASTRUCTURE_CLASSIFICATIONS:
-                if row.get("attempts", 0) > 0:
+                if int(row.get("attempts") or 0) > 0:
                     model_invoked = True
                     candidate_runs += 1
         
@@ -565,7 +565,10 @@ def _markdown_table(summary: dict[str, Any]) -> str:
 def _coerce_row(row: dict[str, str]) -> dict[str, Any]:
     """Turn a CSV row back into the typed dict ``summarize`` expects."""
     typed: dict[str, Any] = {key: row.get(key, "") for key in CSV_FIELDS}
-    for key in ("sample", "seed", "max_repairs", "attempts"):
+    for key in (
+        "sample", "seed", "max_repairs", "attempts",
+        "bon_candidate_index", "bon_total_candidates",
+    ):
         typed[key] = int(float(typed[key] or 0))
     for key in (
         "temperature",
@@ -640,6 +643,9 @@ def _write_index(path: Path, rows: list[dict[str, Any]]) -> None:
             "temperature": row["temperature"],
             "retrieval_enabled": row["retrieval"],
             "final": row["final"],
+            "explicit_classification": classify_final_result(
+                row.get("final", ""), row.get("error", "")
+            ),
             "error": row["error"] or None,
             "first_attempt_pass": row["first_attempt_pass"],
             "recovered_after_repair": row["recovered_after_repair"],
@@ -647,6 +653,8 @@ def _write_index(path: Path, rows: list[dict[str, Any]]) -> None:
             "first_attempt_hash": (row["first_sha256"] or "")[:16] or None,
             "elapsed_sec": row["elapsed_sec"],
             "run_dir": row["run_dir"],
+            "bon_candidate_index": row.get("bon_candidate_index") or None,
+            "bon_total_candidates": row.get("bon_total_candidates") or None,
         }
         for row in rows
     ]
