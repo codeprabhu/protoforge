@@ -16,7 +16,16 @@ All criteria are verifiable by running the commands listed.
 
 **Expected:** `230 passed`, pyflakes clean (0 errors).
 
-**Status:** ❌ **UNMET** — Local tests pass (230 passed, pyflakes clean), but this criterion **requires a GitHub Actions run URL for the final commit**. A local test result must never be presented as GitHub CI evidence. The CI run URL will be recorded here once the final commit is pushed and GitHub Actions completes.
+**Status:** ✅ **MET** — GitHub Actions run
+[`43026139295`](https://github.com/codeprabhu/protoforge/actions/runs/43026139295)
+on commit `1d56c44f252d2f690d2c37018ccb286c19a26065` completed with
+**success** for both jobs:
+
+- Unit + Integration Tests — success (`230 passed`, pyflakes clean);
+- 3-Case Template Benchmark Smoke Test — success (3/3 template cases).
+
+The only commit after the verified SHA records this URL and does not change
+code, tests, or benchmark artifacts.
 
 ## 2. Every Oracle Mutant Caught
 
@@ -167,7 +176,7 @@ The earlier 48-run Best-of-4 batch is archived as invalid
 
 | # | Criterion | Status |
 |---|-----------|--------|
-| 1 | Test suite green in CI | ❌ UNMET (requires GitHub Actions run URL) |
+| 1 | Test suite green in CI | ✅ MET (run 43026139295, both jobs success) |
 | 2 | Every oracle mutant caught | ✅ MET (14/14) |
 | 3 | Benchmark artifacts consistent | ✅ MET (historical 4/4; valid baseline 7/7) |
 | 4 | Pass rate floor ≥ 45% | ❌ UNMET (valid baseline pass@1 0/24) |
@@ -175,16 +184,15 @@ The earlier 48-run Best-of-4 batch is archived as invalid
 | 6 | Oracle forgery resistance | ✅ MET (1/1 test) |
 | 7 | Valid baseline provenance | ✅ MET (batch valid, corpus hash recorded) |
 
-**Overall:** 5 of 7 acceptance criteria are **MET**. Criteria 1 and 4 are
-**UNMET**: CI evidence is still required, and the valid baseline's first-try
-pass rate is below the 45% floor.
+**Overall:** 6 of 7 acceptance criteria are **MET**. Criterion 4 is **UNMET**:
+the valid baseline's first-try pass rate is below the 45% floor.
 
 ## Tagging Decision
 
-**Not ready for `v1.0` tagging.** Criterion 1 (CI green) is UNMET pending
-GitHub Actions on the final commit, and criterion 4 (pass@1 floor) is UNMET by
-the valid baseline. Do not tag until both are resolved with real evidence.
+**Not ready for `v1.0` tagging.** Criterion 4 (pass@1 floor) is UNMET by the
+valid baseline. Do not tag until first-try capability improves or a documented
+post-repair acceptance criterion is explicitly adopted.
 
-**Next step:** Push the final commit, wait for GitHub Actions, record the run
-URL, and either raise first-try capability or explicitly adopt a documented
-post-repair acceptance criterion. Do not reinterpret the existing floor.
+**Next step:** Raise first-try capability, or make a documented decision to
+replace the pass@1 floor with a post-repair criterion. Do not reinterpret the
+existing floor.

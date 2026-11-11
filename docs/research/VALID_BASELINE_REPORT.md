@@ -195,3 +195,24 @@ Expected: 24 runs, 0 infrastructure failures, batch valid, 16/24 pass after
 repair, 0/24 pass@1 on the recorded corpus. Sampling variation may change which
 candidates pass, so compare the corpus hash and classification breakdown before
 comparing rates.
+
+---
+
+## 9. Validation
+
+| Check | Command | Result |
+|-------|---------|--------|
+| Full suite | `.venv/bin/python -q -m pytest tests -q` | **230 passed** |
+| Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
+| Baseline artifacts | `pytest tests/test_valid_baseline_artifacts.py` | 7 passed |
+| Best-of-N mocks | `pytest tests/test_bench_bon_mock.py` | 7 passed |
+| Template smoke | `bench.run --configs template --samples 1 --case-limit 3` | 3/3 passed |
+| RTL verification | `test_oracle_mutation`, `test_e2e_real_sim`, `test_logging_replay`, `test_template_master`, `test_structural_gate`, `test_unit_checks` | 44 passed |
+
+**GitHub Actions:** run
+[`43026139295`](https://github.com/codeprabhu/protoforge/actions/runs/43026139295)
+on commit `1d56c44f252d2f690d2c37018ccb286c19a26065` — both the test job and
+the template smoke job succeeded.
+
+The committed baseline is `results/bench_baseline_v2/`; the archived invalid
+Best-of-4 data remains at `results/archive/invalid_bon_runs/bon/`.

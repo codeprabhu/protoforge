@@ -12,6 +12,7 @@ protocol judge → up to two bounded repairs.
 
 | Check | Command | Result |
 | --- | --- | --- |
+| GitHub Actions | [run 43026139295](https://github.com/codeprabhu/protoforge/actions/runs/43026139295) | both jobs success |
 | Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **230 passed** |
 | Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
 | Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all 10 mutants killed |
