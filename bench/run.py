@@ -25,9 +25,10 @@ examples learned from earlier benchmark cases. Pass ``--learn`` to opt out.
 
 Run Classifications (explicit, not collapsed):
     generation_error   Model failed to produce a candidate (Ollama missing, timeout, etc.)
-    runner_error       Infrastructure failure (server down, import error, etc.)
-    compile_failure    Candidate produced but iverilog/verilator/yosys failed
-    lint_failure       Candidate failed Verilator/Yosys lint
+    runner_error       Infrastructure failure (server down, missing tool, import error, etc.)
+    structural_failure Candidate produced but the structural gate rejected it
+    compile_failure    Candidate produced but iverilog compilation failed
+    lint_failure       Candidate compiled but Verilator lint / Yosys synthesis failed
     simulation_failure Candidate compiled but vvp simulation failed
     oracle_failure     Simulation passed but protocol judge rejected
     pass               All gates passed (first attempt or after repair)
@@ -68,6 +69,7 @@ from tools.make_spec import (  # noqa: E402
     load_cases,
     write_case_spec,
 )
+from tools.rtl_memory import retrieval_corpus_hash  # noqa: E402
 
 CONFIGS: dict[str, dict[str, Any]] = {
     "template": {
@@ -92,17 +94,24 @@ ALIASES = {
 
 # Explicit run classifications (never collapse these into a single failure category)
 RUN_CLASSIFICATIONS = [
-    "generation_error",   # Model failed to produce a candidate
-    "runner_error",       # Infrastructure failure (server down, import error, etc.)
-    "compile_failure",    # Candidate produced but iverilog/verilator/yosys failed
-    "lint_failure",       # Candidate failed Verilator/Yosys lint
-    "simulation_failure", # Candidate compiled but vvp simulation failed
-    "oracle_failure",     # Simulation passed but protocol judge rejected
-    "pass",               # All gates passed (first attempt or after repair)
+    "generation_error",    # Model failed to produce a candidate
+    "runner_error",        # Infrastructure failure (server down, missing tool, etc.)
+    "structural_failure",  # Candidate produced but failed the structural gate
+    "compile_failure",     # Candidate produced but iverilog compilation failed
+    "lint_failure",        # Candidate compiled but Verilator/Yosys checks failed
+    "simulation_failure",  # Candidate compiled but vvp simulation failed
+    "oracle_failure",      # Simulation passed but protocol judge rejected
+    "pass",                # All gates passed (first attempt or after repair)
 ]
 
 INFRASTRUCTURE_CLASSIFICATIONS = {"generation_error", "runner_error"}
-CANDIDATE_FAILURE_CLASSIFICATIONS = {"compile_failure", "lint_failure", "simulation_failure", "oracle_failure"}
+CANDIDATE_FAILURE_CLASSIFICATIONS = {
+    "structural_failure",
+    "compile_failure",
+    "lint_failure",
+    "simulation_failure",
+    "oracle_failure",
+}
 
 CSV_FIELDS = [
     "config",
@@ -162,7 +171,7 @@ def preflight_check(model: str, required_tools: list[str] | None = None) -> tupl
     try:
         client = ollama.Client()
         models = client.list()
-        model_names = [m.get("name", "") for m in models.get("models", [])]
+        model_names = [m.get("model", "") for m in models.get("models", [])]
         if model not in model_names:
             return False, f"Model '{model}' not found in Ollama (available: {model_names})"
     except Exception as e:
@@ -192,21 +201,28 @@ def classify_final_result(final: str, error: str = "") -> str:
     # Infrastructure failures
     if final in ("generation_error", "runner_error"):
         return final
-    
+    # A missing external tool says nothing about the candidate; it is an
+    # infrastructure failure, not an RTL failure.
+    if final == "tool_missing":
+        return "runner_error"
+
     # Candidate verification failures
-    if final == "compile_error":
+    if final == "structural_failed":
+        return "structural_failure"
+    if final in ("compile_failed", "compile_error"):
         return "compile_failure"
-    if final == "lint_error":
+    # The hardware stage is Verilator lint + Yosys synthesis.
+    if final in ("hardware_failed", "lint_error"):
         return "lint_failure"
     if final == "sim_checks_failed":
         return "simulation_failure"
     if final in ("judge_error", "protocol_error"):
         return "oracle_failure"
-    
+
     # Success
     if final == "pass":
         return "pass"
-    
+
     # Unknown - default to oracle_failure for safety
     return "oracle_failure"
 
@@ -460,8 +476,12 @@ def summarize(rows: list[dict[str, Any]]) -> dict[str, Any]:
             
             if classification in INFRASTRUCTURE_CLASSIFICATIONS:
                 infra_failures += 1
-            else:
+            elif classification in CANDIDATE_FAILURE_CLASSIFICATIONS:
+                # A pass is a candidate run too, but it is not a verification
+                # failure. Previously this counter included passes, which made
+                # summary.json report 24 failures for 24 runs including 16 passes.
                 candidate_failures += 1
+            if classification not in INFRASTRUCTURE_CLASSIFICATIONS:
                 if row.get("attempts", 0) > 0:
                     model_invoked = True
                     candidate_runs += 1
@@ -570,6 +590,26 @@ def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
         writer = csv.DictWriter(handle, fieldnames=CSV_FIELDS, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(rows)
+
+
+def _first_run_field(rows: list[dict[str, Any]], field: str) -> str:
+    """Read a provenance field from the first run.json that records it.
+
+    Raw run directories are gitignored, so the tracked summary must carry the
+    model digest and experiment commit itself.
+    """
+    for row in rows:
+        run_dir = row.get("run_dir")
+        if not run_dir:
+            continue
+        try:
+            header = json.loads((Path(run_dir) / "run.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        value = header.get(field)
+        if value:
+            return str(value)
+    return ""
 
 
 def _run_started_at(run_dir: str) -> float:
@@ -708,12 +748,15 @@ def main(argv: list[str] | None = None) -> int:
         summary = summarize(rows)
         summary.update({
             "model": args.model,
+            "model_digest": _first_run_field(rows, "model_digest"),
+            "git_commit": _first_run_field(rows, "git_commit"),
             "temperature": args.temperature,
             "max_repairs": args.max_repairs,
             "base_seed": args.base_seed,
             "samples_per_case": args.samples,
             "cases": [case["id"] for case in cases],
             "retrieval_memory_frozen": not args.learn,
+            "retrieval_corpus_hash": retrieval_corpus_hash(),
             "ir": args.ir,
         })
         (out_dir / "summary.json").write_text(

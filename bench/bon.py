@@ -14,7 +14,7 @@ import csv
 import json
 import sys
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, Callable, List, Optional
 
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -24,6 +24,7 @@ from agent_core.agent import run_once  # noqa: E402
 from agent_core.config import Config  # noqa: E402
 from bench.run import (  # noqa: E402
     CSV_FIELDS,
+    _first_run_field,
     _token_counts,
     _write_csv,
     case_device_paths,
@@ -35,6 +36,7 @@ from bench.run import (  # noqa: E402
     classify_final_result,
 )
 from tools.make_spec import DEFAULT_CASES  # noqa: E402
+from tools.rtl_memory import retrieval_corpus_hash  # noqa: E402
 
 
 def _write_summary(out_dir: Path, rows: list[dict[str, Any]], args: argparse.Namespace) -> dict[str, Any]:
@@ -42,12 +44,15 @@ def _write_summary(out_dir: Path, rows: list[dict[str, Any]], args: argparse.Nam
     summary = summarize(rows)
     summary.update({
         "model": args.model,
+        "model_digest": _first_run_field(rows, "model_digest"),
+        "git_commit": _first_run_field(rows, "git_commit"),
         "temperature": args.temperature,
         "max_repairs": args.max_repairs,
         "base_seed": args.base_seed,
         "samples_per_case": args.samples,
         "cases": [case["id"] for case in args.cases],
         "retrieval_memory_frozen": not args.learn,
+        "retrieval_corpus_hash": retrieval_corpus_hash(),
         "bon": args.n,
     })
     (out_dir / "summary.json").write_text(
@@ -107,13 +112,21 @@ def run_one_bon(
     out_dir: Path,
     learn: bool,
     n: int,
+    runner: Callable[..., dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Run Best-of-N for a single (config, case, sample).
 
     Generates up to N independent candidates, runs gates on each until one passes
     or all are exhausted. Returns the first passing candidate's result, or the
     last candidate's failure if all fail.
+
+    ``runner`` is injectable so deterministic tests can exercise candidate
+    scheduling, seed independence and verification ordering without a model or
+    external tools. Production callers leave it unset and get ``run_once``.
     """
+    if n < 1:
+        raise ValueError(f"Best-of-N requires n >= 1, got {n}")
+    run_candidate = runner or run_once
     device_paths = case_device_paths(case)
     run_config = Config(
         device_paths=tuple(device_paths),
@@ -144,6 +157,7 @@ def run_one_bon(
         hooks["on_failure"] = lambda *args, **kwargs: None
 
     first_pass_row: Optional[dict[str, Any]] = None
+    first_pass_index: Optional[int] = None
     all_rows: List[dict[str, Any]] = []
 
     for candidate_idx in range(n):
@@ -165,7 +179,7 @@ def run_one_bon(
 
         # Run the candidate
         try:
-            log = run_once(
+            log = run_candidate(
                 model=candidate_config.model,
                 config=candidate_config,
                 **hooks,
@@ -198,8 +212,6 @@ def run_one_bon(
                 "explicit_classification": "runner_error",
             }
             all_rows.append(row)
-            if first_pass_row is None and candidate_idx == n - 1:
-                first_pass_row = row
             continue
 
         prompt_tokens, completion_tokens = _token_counts(log.get("run_dir"))
@@ -239,17 +251,18 @@ def run_one_bon(
 
         # Check if this candidate passed
         if log.get("final") == "pass":
-            if first_pass_row is None:
-                first_pass_row = row
+            first_pass_row = row
+            first_pass_index = candidate_idx
             # First pass wins - stop generating more candidates
             break
 
     # If no candidate passed, return the last candidate's result
     if first_pass_row is None:
         first_pass_row = all_rows[-1]
+        first_pass_index = len(all_rows) - 1
 
-    # Mark which candidate was the winner
-    first_pass_row["bon_candidate_index"] = all_rows.index(first_pass_row)
+    # Mark which candidate was the winner without relying on dict equality.
+    first_pass_row["bon_candidate_index"] = first_pass_index
     first_pass_row["bon_total_candidates"] = len(all_rows)
 
     return first_pass_row

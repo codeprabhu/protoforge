@@ -23,6 +23,7 @@ class TestRunClassifications:
         expected = [
             "generation_error",
             "runner_error",
+            "structural_failure",
             "compile_failure",
             "lint_failure",
             "simulation_failure",
@@ -37,7 +38,10 @@ class TestRunClassifications:
 
     def test_candidate_failure_classifications(self):
         """Candidate verification failure classifications are correctly identified."""
-        expected = {"compile_failure", "lint_failure", "simulation_failure", "oracle_failure"}
+        expected = {
+            "structural_failure", "compile_failure", "lint_failure",
+            "simulation_failure", "oracle_failure",
+        }
         assert CANDIDATE_FAILURE_CLASSIFICATIONS == expected
 
 
@@ -51,11 +55,19 @@ class TestClassifyFinalResult:
 
     def test_candidate_verification_failures(self):
         """Internal statuses map to explicit candidate failure classifications."""
+        assert classify_final_result("structural_failed", "") == "structural_failure"
+        assert classify_final_result("compile_failed", "") == "compile_failure"
         assert classify_final_result("compile_error", "") == "compile_failure"
+        assert classify_final_result("hardware_failed", "") == "lint_failure"
         assert classify_final_result("lint_error", "") == "lint_failure"
         assert classify_final_result("sim_checks_failed", "") == "simulation_failure"
         assert classify_final_result("judge_error", "") == "oracle_failure"
         assert classify_final_result("protocol_error", "") == "oracle_failure"
+
+    def test_missing_tool_is_infrastructure_not_oracle(self):
+        """tool_missing is an infrastructure failure, never a protocol failure."""
+        assert classify_final_result("tool_missing", "") == "runner_error"
+        assert classify_final_result("tool_missing", "") in INFRASTRUCTURE_CLASSIFICATIONS
 
     def test_success(self):
         """pass maps to pass."""
@@ -174,6 +186,31 @@ class TestSummarizeExplicitOutcomes:
         assert stats["candidate_verification_failures"] == 1
         assert stats["successful_candidates"] == 0
 
+    def test_passes_are_not_counted_as_verification_failures(self):
+        """Regression: candidate_verification_failures must exclude passes.
+
+        The 24-run baseline has 16 passes and 8 candidate failures. Counting
+        every non-infrastructure row made summary.json claim 24 failures out of
+        24 runs, which contradicts both the report and the raw outcomes.
+        """
+        rows = []
+        for index, final in enumerate(
+            ["pass", "pass", "compile_error", "sim_checks_failed", "judge_error"]
+        ):
+            rows.append(
+                {"config": "on-on", "case_id": "c1", "sample": index, "final": final,
+                 "first_attempt_pass": final == "pass",
+                 "recovered_after_repair": final == "pass",
+                 "elapsed_sec": 10.0, "total_tokens": 100,
+                 "first_sha256": f"sha{index}", "attempts": 1}
+            )
+        stats = summarize(rows)["configs"]["on-on"]
+
+        assert stats["successful_candidates"] == 2
+        assert stats["candidate_verification_failures"] == 3
+        assert stats["infrastructure_failures"] == 0
+        assert stats["candidate_runs"] == 5
+
     def test_batch_validity_in_summary(self):
         """Summary includes batch validity assessment."""
         rows = [
@@ -238,35 +275,24 @@ class TestBonRunnerClassification:
     """Test that Best-of-N runner uses explicit classifications."""
 
     def test_bon_uses_classification_through_summarize(self):
-        """Verify bon.py produces rows with explicit_classification that summarize() can process."""
-        from bench.bon import run_one_bon
-        from bench.run import summarize, classify_final_result
-        from pathlib import Path
-        import tempfile
-        
-        # Create a simple test case
-        case = {"id": "c01-test", "address": "0x10", "data": ["0x01"], "devices": ["device_sensor"]}
-        
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tmpdir = Path(tmpdir)
-            spec_path = tmpdir / "spec.md"
-            spec_path.write_text("test spec", encoding="utf-8")
-            
-            # This would require mocking run_once, so instead verify the
-            # classification function is the same as run.py's
-            assert classify_final_result("pass", "") == "pass"
-            assert classify_final_result("generation_error", "") == "generation_error"
-            assert classify_final_result("compile_error", "") == "compile_failure"
-            
-            # Verify summarize produces explicit_outcomes with all classifications
-            rows = [
-                {"config": "on-on", "case_id": "c1", "sample": 0, "final": "pass",
-                 "first_attempt_pass": True, "recovered_after_repair": False,
-                 "elapsed_sec": 10.0, "total_tokens": 100, "first_sha256": "aaa", "attempts": 1},
-            ]
-            stats = summarize(rows)["configs"]["on-on"]
-            assert "explicit_outcomes" in stats
-            assert "batch_valid" in stats
+        """Best-of-N rows use the same vocabulary as summarize().
+
+        Candidate scheduling is covered end-to-end by
+        ``tests/test_bench_bon_mock.py``; this test only pins the shared
+        classification contract.
+        """
+        assert classify_final_result("pass", "") == "pass"
+        assert classify_final_result("generation_error", "") == "generation_error"
+        assert classify_final_result("compile_error", "") == "compile_failure"
+
+        rows = [
+            {"config": "on-on", "case_id": "c1", "sample": 0, "final": "pass",
+             "first_attempt_pass": True, "recovered_after_repair": False,
+             "elapsed_sec": 10.0, "total_tokens": 100, "first_sha256": "aaa", "attempts": 1},
+        ]
+        stats = summarize(rows)["configs"]["on-on"]
+        assert "explicit_outcomes" in stats
+        assert "batch_valid" in stats
 
 
 if __name__ == "__main__":

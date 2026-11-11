@@ -112,6 +112,26 @@ def _load_successful_examples(memory_dir: Path) -> list[tuple[str, str, str]]:
     return examples
 
 
+def retrieval_corpus_hash(memory_dir: str | Path | None = None) -> str:
+    """Return a stable SHA-256 over every example retrieval can actually use.
+
+    The hash covers labels, origins and contents in a deterministic order, so
+    two benchmark runs can be proven to have seen the same retrieval corpus
+    (seed references plus verified learned examples) without committing the
+    corpus itself.
+    """
+    root = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
+    digest = hashlib.sha256()
+    for label, code, origin in sorted(_load_successful_examples(root), key=lambda item: (item[2], item[0])):
+        digest.update(label.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(origin.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(code.encode("utf-8"))
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
 def retrieve_rtl_examples(
     query: str,
     max_examples: int = 1,
@@ -217,10 +237,12 @@ def retrieve_rtl_context(
 def memory_summary(memory_dir: str | Path | None = None) -> dict:
     """Return a simple count useful for logs and CLI diagnostics."""
     root = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
-    root / "passing"
-    learned = len(_load_successful_examples(root)) - int(DEFAULT_REFERENCE.is_file())
+    seed_examples = sum(
+        path.is_file() for path in (DEFAULT_REFERENCE, DEFAULT_REFERENCE_2BYTE)
+    )
+    learned = len(_load_successful_examples(root)) - seed_examples
     learned = max(learned, 0)
-    return {"seed_examples": int(DEFAULT_REFERENCE.is_file()), "learned_passing_examples": learned}
+    return {"seed_examples": seed_examples, "learned_passing_examples": learned}
 
 
 def record_failed_example(
