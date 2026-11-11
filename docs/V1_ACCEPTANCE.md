@@ -18,13 +18,15 @@ All criteria are verifiable by running the commands listed.
 
 **Status:** ✅ **MET** — GitHub Actions run
 [`43066682878`](https://github.com/codeprabhu/protoforge/actions/runs/43066682878)
-on commit `39549665a04a84f971e189b427a8d8f75623cbe7` completed with
-**success** for both jobs:
+on commit `39549665a04a84f971e189b427a8d8f75623cbe7` (the code commit carrying
+the baseline fixes and artifacts) completed with **success** for both jobs:
 
 - Unit + Integration Tests — success (full suite, pyflakes clean);
 - 3-Case Template Benchmark Smoke Test — success (3/3 template cases).
 
-Earlier verified runs on this branch: `43026139295` (commit `1d56c44`) and
+Latest verified run: [`43083630056`](https://github.com/codeprabhu/protoforge/actions/runs/43083630056)
+on commit `4b42415` (both jobs success). Earlier verified runs on this branch:
+`43066682878` (commit `3954966`), `43026139295` (commit `1d56c44`) and
 `43026523052` (commit `48b00c9`). Any commit that changes code or artifacts is
 re-verified by a new run; a documentation-only commit is named as such.
 
