@@ -1,4 +1,0 @@
-config,case_id,sample,seed,model,temperature,max_repairs,retrieval,patcher,generator,final,first_attempt_pass,recovered_after_repair,attempts,elapsed_sec,prompt_tokens,completion_tokens,total_tokens,first_sha256,run_id,run_dir,error
-on-on,c01-default-1byte,0,42,qwen2.5-coder:7b,0.25,2,True,True,rtl,pass,True,False,1,106.592,1950,949,2899,65e56aa2f803eac0068f0f14feeff0698ce00ca5e5f05ac69b090552c127b0c6,20261110T200339-7cd92a55,results/bon_on-on/runs/20261110T200339-7cd92a55,
-on-on,c02-alt-address-1byte,0,42,qwen2.5-coder:7b,0.25,2,True,True,rtl,pass,True,False,1,138.65,1943,949,2892,6adc759a47cb845bb9a4d5f4215be272aeee72898898ebbab2d1916c22a3f105,20261110T200525-09ffb331,results/bon_on-on/runs/20261110T200525-09ffb331,
-on-on,c03-zero-payload,0,42,qwen2.5-coder:7b,0.25,2,True,True,rtl,pass,True,False,1,136.495,1950,949,2899,49d78f7d274f809fc663df93b226634fbb4e7e0b5bf20e7ad49da358232d6608,20261110T200744-483158d1,results/bon_on-on/runs/20261110T200744-483158d1,

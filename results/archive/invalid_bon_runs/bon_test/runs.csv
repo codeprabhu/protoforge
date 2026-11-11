@@ -1,3 +1,0 @@
-config,case_id,sample,seed,model,temperature,max_repairs,retrieval,patcher,generator,final,first_attempt_pass,recovered_after_repair,attempts,elapsed_sec,prompt_tokens,completion_tokens,total_tokens,first_sha256,run_id,run_dir,error
-template,c01-default-1byte,0,42,template,0.25,2,False,True,template,pass,True,False,1,0.08,0,0,0,97dd581c141891eaf66626aa5ebdbb83e8643c8b3ba8df16025fe2a8d82ba3f7,20261110T200328-f375b058,results/bon_test/runs/20261110T200328-f375b058,
-template,c02-alt-address-1byte,0,42,template,0.25,2,False,True,template,pass,True,False,1,0.08,0,0,0,d6f8a8e9351b5bfd174d397aa9345a2f7fbae21f5fd73788d92fb2dd73300728,20261110T200328-0c508795,results/bon_test/runs/20261110T200328-0c508795,

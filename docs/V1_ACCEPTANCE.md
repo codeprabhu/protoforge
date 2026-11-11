@@ -14,9 +14,9 @@ All criteria are verifiable by running the commands listed.
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**Expected:** `189 passed`, pyflakes clean (0 errors).
+**Expected:** `230 passed`, pyflakes clean (0 errors).
 
-**Status:** ❌ **UNMET** — Local tests pass (189 passed, pyflakes clean), but this criterion **requires a GitHub Actions run URL for the final commit**. A local test result must never be presented as GitHub CI evidence. The CI run URL will be recorded here once the final commit is pushed and GitHub Actions completes.
+**Status:** ❌ **UNMET** — Local tests pass (230 passed, pyflakes clean), but this criterion **requires a GitHub Actions run URL for the final commit**. A local test result must never be presented as GitHub CI evidence. The CI run URL will be recorded here once the final commit is pushed and GitHub Actions completes.
 
 ## 2. Every Oracle Mutant Caught
 
@@ -59,7 +59,14 @@ agree with each other.
 **Expected:** 4 tests pass (no merge markers, identical run IDs, per-config
 outcomes match CSV, report.md is rendered summary).
 
-**Status:** ✅ **MET** — 4 tests pass.
+**Status:** ✅ **MET** — 4 tests pass for the historical `results/bench/`
+artifacts.
+
+The provenance-complete baseline in `results/bench_baseline_v2/` has its own
+consistency suite (`tests/test_valid_baseline_artifacts.py`, 7 tests): 24 CSV
+rows, 24 JSONL entries, explicit outcomes derived from the same
+classification function, corpus hash, model digest, commit, batch validity,
+and the single-byte/multi-byte split.
 
 **Baseline Table (from `docs/BASELINE.md`):**
 
@@ -79,21 +86,30 @@ meets or exceeds the acceptance floor.
 
 **Floor:** **45%** (lower bound of Wilson 95% CI for 16/24 = 66.7%).
 
-**Rationale:** With 24 trials, the Wilson 95% CI for 16/24 is [46.7%, 82.0%].
-The floor is set at 45% to allow for sampling variance while ensuring the
-baseline is meaningfully above zero.
+**Rationale:** The floor was originally set from the historical `results/bench/`
+batch, which recorded 16/24 first-try passes. The provenance-complete baseline
+must be judged on its own artifacts, not on the historical batch.
 
 **Verification:**
 ```bash
-python3 -c "
-from statsmodels.stats.proportion import proportion_confint
-ci = proportion_confint(16, 24, alpha=0.05, method='wilson')
-print(f'Wilson 95% CI for 16/24: [{ci[0]:.1%}, {ci[1]:.1%}]')
+.venv/bin/python -c "
+from bench.run import wilson_interval
+ci = wilson_interval(0, 24)
+print(f'Wilson 95% CI for 0/24: [{ci[0]:.1%}, {ci[1]:.1%}]')
 assert ci[0] >= 0.45, f'Lower bound {ci[0]:.1%} below floor 45%'
 "
 ```
 
-**Status:** ✅ **MET** — lower bound is 46.7% ≥ 45%.
+**Status:** ❌ **UNMET** — The valid baseline (`results/bench_baseline_v2/`)
+records **0/24 pass@1**, Wilson 95% CI [0.0%, 13.8%]. The lower bound is 0.0%,
+below the 45% floor. The historical 16/24 first-try rate does not satisfy this
+criterion because its provenance is incomplete and its corpus hash was not
+recorded.
+
+**Post-repair context (not a substitute for this criterion):** the valid
+baseline reaches 16/24 (66.7%) after repair, Wilson 95% CI [46.7%, 82.0%]. A
+future acceptance criterion may explicitly target post-repair capability, but
+that would be a new, documented decision — not a reinterpretation of this one.
 
 ## 5. Replay Verification
 
@@ -126,21 +142,49 @@ RUN_ID=$(ls /tmp/verify/runs/ | head -1)
 
 **Status:** ✅ **MET** — test passes.
 
+## 7. Valid Baseline Provenance and Batch Validity
+
+**Criterion:** A baseline exists in which the intended model was actually
+invoked, the batch is valid, infrastructure and candidate failures are
+separated, and the retrieval corpus hash is recorded.
+
+**Verification:**
+```bash
+.venv/bin/python -q -m pytest tests/test_valid_baseline_artifacts.py -v
+.venv/bin/python -q -m pytest tests/test_bench_classifications.py tests/test_bench_bon_mock.py -v
+```
+
+**Expected:** 7 baseline-artifact tests, 30 classification/Best-of-N tests pass.
+
+**Status:** ✅ **MET** — `results/bench_baseline_v2/summary.json` records
+`batch_valid: true`, `model_invoked: true`, `infrastructure_failures: 0`,
+`model_digest`, `git_commit`, and `retrieval_corpus_hash`
+`ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22`.
+The earlier 48-run Best-of-4 batch is archived as invalid
+(`results/archive/invalid_bon_runs/`).
+
 ## Summary
 
 | # | Criterion | Status |
 |---|-----------|--------|
 | 1 | Test suite green in CI | ❌ UNMET (requires GitHub Actions run URL) |
 | 2 | Every oracle mutant caught | ✅ MET (14/14) |
-| 3 | Benchmark artifacts consistent | ✅ MET (4/4 tests) |
-| 4 | Pass rate floor ≥ 45% | ✅ MET (lower bound 46.7%) |
+| 3 | Benchmark artifacts consistent | ✅ MET (historical 4/4; valid baseline 7/7) |
+| 4 | Pass rate floor ≥ 45% | ❌ UNMET (valid baseline pass@1 0/24) |
 | 5 | Replay verification | ✅ MET (3/3 tests) |
 | 6 | Oracle forgery resistance | ✅ MET (1/1 test) |
+| 7 | Valid baseline provenance | ✅ MET (batch valid, corpus hash recorded) |
 
-**Overall:** 5 of 6 acceptance criteria are **MET**. Criterion 1 requires GitHub Actions verification.
+**Overall:** 5 of 7 acceptance criteria are **MET**. Criteria 1 and 4 are
+**UNMET**: CI evidence is still required, and the valid baseline's first-try
+pass rate is below the 45% floor.
 
 ## Tagging Decision
 
-**Not ready for `v1.0` tagging.** Criterion 1 (CI green) is UNMET pending GitHub Actions run on the final commit. Do not tag until all criteria are verified with CI evidence.
+**Not ready for `v1.0` tagging.** Criterion 1 (CI green) is UNMET pending
+GitHub Actions on the final commit, and criterion 4 (pass@1 floor) is UNMET by
+the valid baseline. Do not tag until both are resolved with real evidence.
 
-**Next step:** Push final commit, wait for GitHub Actions to complete, record run URL, then re-evaluate.
+**Next step:** Push the final commit, wait for GitHub Actions, record the run
+URL, and either raise first-try capability or explicitly adopt a documented
+post-repair acceptance criterion. Do not reinterpret the existing floor.

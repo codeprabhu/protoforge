@@ -8,8 +8,9 @@ commit `086bf99`.
 
 ## Status board
 
-Last verified: 2026-11-10, `189 passed` from
-`.venv/bin/python -m pytest -q tests` (v1 Phase 7 complete; v2 Phase 0 **complete**).
+Last verified: 2026-11-11, `230 passed` from
+`.venv/bin/python -m pytest -q tests` (v1 Phase 7 complete; v2 Phase 0
+**complete**; valid baseline recorded in `results/bench_baseline_v2/`).
 
 | Phase | Steps | State | Evidence |
 | --- | --- | --- | --- |
@@ -21,7 +22,7 @@ Last verified: 2026-11-10, `189 passed` from
 | 5 Template baseline + 2-byte task | 61–70 | **done** | tag `template-v1` (`a0c783d`), `tests/test_template_master.py` |
 | 6 Benchmark runner | 71–80 | **done** | `5fb83dd` + harness fixes in `ccca20e`, `tests/test_bench.py`, `docs/BASELINE.md` |
 | 7 FSM JSON intermediate representation | 81–92 | **done** | `ir/`, `agent/ir_generator.py` (`4d06b5b`, `0b86710`, `6e4f074`), `tests/test_fsm_ir.py`, `tests/test_ir_generator.py`, `bench.run --ir`, `results/bench_ir/`, `docs/BASELINE.md` (IR comparison table) |
-| 8 Best-of-N | 93–95 | not started | — |
+| 8 Best-of-N | 93–95 | **orchestration verified, experiment not run** | `bench/bon.py`, `tests/test_bench_bon_mock.py` (7 tests); real Best-of-4 is unmeasured and blocked on multi-byte capability |
 | 9 Traces and v1 packaging | 96–100 | partially unblocked | `ui/dashboard.py` now renders real `stage_finished` events (`086bf99`) |
 
 ## Definition of done for a phase

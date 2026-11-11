@@ -5,6 +5,13 @@ Nothing here is a mocked or substituted result: every row comes from the real
 pipeline (Ollama + Icarus Verilog + Verilator + Yosys) or from the deterministic
 template.
 
+> **Historical artifact.** These results were recorded before the runner
+> recorded a retrieval corpus hash or an explicit failure classification.
+> The provenance-complete baseline is in
+> `docs/research/VALID_BASELINE_REPORT.md` and `results/bench_baseline_v2/`:
+> 0/24 pass@1 and 16/24 (66.7%) after repair, 0 infrastructure failures. Do not
+> pool the two batches.
+
 ## Environment
 
 | Component | Value |

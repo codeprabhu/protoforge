@@ -1,7 +1,8 @@
 # Research Status Report
 
 **Date:** 2026-11-11  
-**Commit:** dca7c78 (main)  
+**Branch:** `research/valid-baseline`  
+**Valid baseline commit:** `580323b` (recorded in `results/bench_baseline_v2/summary.json`)  
 **Author:** Autonomous Engineering Agent
 
 ---
@@ -17,7 +18,9 @@ Build a local LLM-based RTL generation platform that can reliably produce synthe
 **Core Challenge:** Small local models (7B parameters) cannot reliably generate correct multi-byte I²C master RTL from scratch.
 
 **Evidence:**
-- Baseline (on-on): 16/24 pass@1 (66.7%) — all 8 failures are multi-byte cases
+- Valid baseline (`results/bench_baseline_v2/`, model invoked in all 24 runs):
+  0/24 pass@1, 16/24 (66.7%) after repair — all 8 failures are multi-byte cases
+- Historical baseline (`results/bench/`, incomplete provenance): 16/24 pass@1
 - Retrieval-off: 0/24 pass — model cannot generate from scratch
 - Patcher-off: 0/24 pass (19 infrastructure failures)
 - IR path: 0/24 pass — missing `drive sda="bit"` in JSON
@@ -51,12 +54,20 @@ generate → structural → compile → hardware → simulate → judge → repa
 
 ### 4.1 Benchmark Design
 
+Historical batch (`results/bench/`, incomplete provenance):
+
 | Config | Retrieval | Patcher | Runs | Pass@1 |
 |--------|-----------|---------|------|--------|
 | template | n/a | on | 24 | 100% |
 | on-on | on | on | 24 | 66.7% |
 | retrieval-off | off | on | 24 | 0% |
 | patcher-off | on | off | 24 | 0% (19 runner_error) |
+
+Valid baseline (`results/bench_baseline_v2/`, corpus hash recorded):
+
+| Config | Retrieval | Patcher | Runs | Pass@1 | After repair |
+|--------|-----------|---------|------|--------|--------------|
+| on-on | on | on | 24 | 0/24 (0%) | 16/24 (66.7%) |
 
 ### 4.2 Case Coverage
 
@@ -81,7 +92,7 @@ generate → structural → compile → hardware → simulate → judge → repa
 
 ## 5. Experimental Results
 
-### 5.1 Baseline (on-on, 2 samples × 12 cases)
+### 5.1 Historical baseline (on-on, 2 samples × 12 cases, `results/bench/`)
 
 | Metric | Value | 95% CI |
 |--------|-------|--------|
@@ -92,7 +103,27 @@ generate → structural → compile → hardware → simulate → judge → repa
 | Median latency | 187.2s | - |
 | Median tokens | 2899 | - |
 
-### 5.2 Ablations
+### 5.2 Valid baseline (on-on, 2 samples × 12 cases, `results/bench_baseline_v2/`)
+
+| Metric | Value | 95% CI |
+|--------|-------|--------|
+| pass@1 | 0/24 (0.0%) | [0.0%, 13.8%] |
+| pass after repair | 16/24 (66.7%) | [46.7%, 82.0%] |
+| Recovered by repair | 16 | - |
+| Distinct first designs | 23/24 | - |
+| Median latency | 427.7s | - |
+| Median tokens | 9942.5 | - |
+| Infrastructure failures | 0 | - |
+| Batch valid / model invoked | yes / yes | - |
+| Retrieval corpus hash | `ee388ce1…eeb22` | - |
+
+Failure breakdown: 6 `simulation_failure`, 2 `structural_failure`, 0 other.
+Single-byte cases: 16/16 after repair. Multi-byte cases: 0/8 after repair.
+
+The historical and valid batches must not be pooled: the historical batch has
+no recorded corpus hash and a different first-attempt profile.
+
+### 5.3 Ablations (historical batch)
 
 | Ablation | pass@1 | Pass after repair | Distinct designs |
 |----------|--------|-------------------|------------------|
@@ -108,22 +139,41 @@ generate → structural → compile → hardware → simulate → judge → repa
 
 ### 6.1 Implementation Status
 
-| Experiment | Status | Runs | Pass@1 |
-|------------|--------|------|--------|
-| Baseline (N=1) | ✅ Complete | 24 | 66.7% |
-| Best-of-2 (1-byte) | ✅ Complete | 10 | 100% (5/5 cases) |
-| Best-of-2 (multi-byte) | ⚠️ Partial | 4/28 | 0% |
-| Best-of-4 | ❌ **Not run** | 0 | N/A |
+| Experiment | Status | Evidence |
+|------------|--------|----------|
+| Baseline (N=1) | ✅ Valid baseline complete | `results/bench_baseline_v2/` (24 runs, batch valid) |
+| Best-of-N orchestration | ✅ Verified with deterministic mocks | `tests/test_bench_bon_mock.py` (7 tests) |
+| Best-of-2 (1-byte only) | ⚠️ Incomplete, not a valid Best-of-2 | `results/archive/incomplete_bon_runs/bon_n4/` (10 single-sample rows, 5 cases) |
+| Best-of-2 (multi-byte) | ❌ No archived evidence | No run artifacts support the old 4/28 claim |
+| Best-of-4 (all cases) | ❌ **Not run** | 0 valid runs |
 
 ### 6.2 Invalid Historical Data
 
-**Important:** The `results/bon/bon_results.json` file contains 48 recorded runs (12 cases × 4 samples) from an earlier claimed Best-of-4 experiment. **All 48 runs failed with `generation_error: "The Ollama Python package is missing"`** — these are infrastructure failures (missing Ollama Python package), not model failures. This data is archived in `results/archive/invalid_bon_runs/bon/bon_results.json` and must not be used for performance comparisons.
+`results/archive/invalid_bon_runs/bon/bon_results.json` contains 48 recorded
+runs (12 cases × 4 samples) from an earlier claimed Best-of-4 experiment.
+**All 48 failed with `generation_error: "The Ollama Python package is
+missing"`** — infrastructure failures in which the model was never invoked.
+They must not be used for performance comparisons.
 
-### 6.3 Key Finding
+### 6.3 Incomplete Historical Data
 
-**Best-of-N does not improve multi-byte pass rate.** At N=2 on c06 (2-byte), all 4 candidates failed. The bottleneck is fundamental — the model cannot generate correct multi-byte FSM logic, not variance.
+`results/archive/incomplete_bon_runs/` contains partial runs where the model was
+invoked but the batch did not cover all cases: `bon_n4` (10 rows, c01–c05 only),
+`bon_on-on` (3 rows), `bon_baseline` (7 rows), and a template-only `bon_test`.
+None is a complete Best-of-2 or Best-of-4 experiment, and none supports a
+Best-of-N pass-rate claim.
 
-**Important:** Previous versions of this document claimed "A Best-of-4 trial was run... 5/12 cases pass at 41.7%". This claim was **incorrect** — no N=4 experiment was ever executed. The claim has been retracted. A proper Best-of-4 experiment (12 cases × 4 samples = 48 runs) is planned but has not been executed due to the multi-byte generation bottleneck.
+### 6.4 Key Finding
+
+There is currently **no valid Best-of-N measurement**. The archived 1-byte
+partial runs all passed, and the multi-byte cases fail at N=1 after repair, so
+the open question is whether independent sampling can rescue multi-byte cases.
+That question requires a real experiment after the baseline and mock
+orchestration are accepted.
+
+**Retracted claims:** "A Best-of-4 trial was run … 5/12 cases pass at 41.7%"
+and the later "Best-of-2 100% on 1-byte / 0% on multi-byte" table. Neither is
+supported by complete, provenance-complete artifacts.
 
 ---
 
@@ -191,24 +241,31 @@ generate → structural → compile → hardware → simulate → judge → repa
 
 | Artifact | Status |
 |----------|--------|
-| Benchmark artifacts (CSV/JSONL/MD) | ✅ Consistent (96 runs) |
-| Test suite | 189 passed, pyflakes clean |
-| CI pipeline | Green (Unit + Bench smoke) |
+| Historical benchmark artifacts | ✅ Consistent (96 runs, `results/bench/`) |
+| Valid baseline artifacts | ✅ Consistent (24 runs, batch valid, `results/bench_baseline_v2/`) |
+| Failure classification | ✅ Explicit vocabulary + batch validity tests |
+| Test suite | 230 passed, pyflakes clean |
+| CI pipeline | ⏳ Pending GitHub Actions run URL for the final commit |
 | Replay tool | Verified (3/3 tests pass) |
 | Oracle mutants | 10/10 caught |
 | Model digest recorded | `dae161e27b0e...` |
+| Retrieval corpus hash recorded | ✅ `ee388ce1…eeb22` |
+
+The failure vocabulary and batch-validity rules are documented in
+`docs/research/BENCHMARK_FAILURE_CLASSIFICATION.md`.
 
 ---
 
 ## 11. Valid Conclusions (Supported by Evidence)
 
 1. ✅ **Template upper bound works** — 240/240 pass proves oracle accepts correct designs
-2. ✅ **Retrieval is necessary** — 66.7% → 0% when disabled
+2. ✅ **Retrieval is necessary** — historical retrieval-off is 0/24
 3. ✅ **Patcher is essential** — 19/24 infrastructure failures without it
-4. ✅ **Multi-byte is the blocker** — 100% of failures are multi-byte
-5. ✅ **IR path not competitive** — 0/24 vs 16/24 (66.7%)
+4. ✅ **Multi-byte is the blocker** — all 8 valid-baseline failures are multi-byte
+5. ✅ **IR path not competitive** — 0/24 vs the historical RTL 16/24
 6. ✅ **Oracle is robust** — 10/10 mutants caught
-7. ✅ **Repair doesn't recover** — 0 recovered in baseline
+7. ✅ **Repair recovers single-byte cases** — 16/24 recovered in the valid baseline
+8. ✅ **The valid baseline is infrastructure-clean** — 0 infrastructure failures, batch valid
 
 ---
 
@@ -216,7 +273,9 @@ generate → structural → compile → hardware → simulate → judge → repa
 
 | Claim | Status | Required Evidence |
 |-------|--------|-------------------|
-| "Best-of-4 achieves 41.7%" | ❌ Unverified | N=4 experiment on all 12 cases |
+| "Best-of-4 achieves 41.7%" | ❌ Retracted | N=4 experiment on all 12 cases |
+| "Best-of-2 is 100% on 1-byte" | ❌ Unsupported | Complete Best-of-2 on all cases |
+| "on-on pass@1 is 66.7%" | ⚠️ Historical only | Valid baseline records 0/24 pass@1 |
 | "Multi-agent will solve multi-byte" | ❌ Speculative | Phase 1 implementation + benchmark |
 | "Retrieval embeddings will help" | ❌ Speculative | Controlled ablation |
 | "Phase 1 ready to implement" | ⚠️ Partial | Gap analysis done, spec done |
@@ -253,7 +312,9 @@ generate → structural → compile → hardware → simulate → judge → repa
 
 ## 14. Conclusion
 
-**ProtoForge v1 is a working, reproducible measurement harness** with a verified oracle and reproducible baseline (66.7% pass@1 on I²C).
+**ProtoForge v1 is a working measurement harness** with a verified oracle and a
+provenance-complete baseline: 0/24 pass@1 and 16/24 (66.7%) after repair on
+I²C, with 0 infrastructure failures.
 
 **The primary research finding:** Small models (7B) can adapt a known I²C reference but **cannot synthesize multi-byte FSM logic from scratch**. The bottleneck is prompt scaffolding, not model capacity.
 

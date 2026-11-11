@@ -12,18 +12,22 @@ protocol judge → up to two bounded repairs.
 
 | Check | Command | Result |
 | --- | --- | --- |
-| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **189 passed** |
+| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **230 passed** |
 | Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
 | Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all 10 mutants killed |
 | Template upper bound | `results/bench_template_20x/` | 240/240 pass |
-| Real-model baseline (on-on) | `results/bench/` | 16/24 (66.7%) pass@1 |
+| Valid baseline (on-on, 24 runs) | `results/bench_baseline_v2/` | **0/24 pass@1; 16/24 (66.7%) after repair** |
+| Historical baseline (on-on) | `results/bench/` | 16/24 (66.7%) pass@1 (incomplete provenance) |
 | Retrieval ablation | `results/bench/` | 0/24 pass@1 |
 | Patcher ablation | `results/bench/` | 0/24 pass@1 (19 runner_error) |
 | IR benchmark | `results/bench_ir/` | **0/24** pass@1 (does not beat RTL baseline) |
+| Best-of-N | `tests/test_bench_bon_mock.py` | orchestration verified; real run **unmeasured** |
 | Replay of a run | `.venv/bin/python tools/replay.py <run_dir>` | verdicts match |
 
-See `docs/WORKFLOW.md` for the phase-by-phase status board and
-`docs/BASELINE.md` for the measured benchmark table with Wilson 95% CIs.
+See `docs/research/VALID_BASELINE_REPORT.md` for the provenance-complete
+baseline, `docs/research/BENCHMARK_FAILURE_CLASSIFICATION.md` for the failure
+vocabulary, `docs/WORKFLOW.md` for the phase status board, and
+`docs/BASELINE.md` for the historical benchmark table with Wilson 95% CIs.
 
 ## Quick Start
 
@@ -87,14 +91,23 @@ from-scratch RTL competence. Keep that distinction explicit in reports.
 
 An earlier version claimed a Best-of-4 trial was run (5/12 cases at 41.7%). **This claim was incorrect.** The file `results/bon/bon_results.json` (archived at `results/archive/invalid_bon_runs/bon/bon_results.json`) contains 48 recorded runs (12 cases × 4 samples), but **all 48 failed with `generation_error: "The Ollama Python package is missing"`** — these are infrastructure failures, not model failures. No model was actually invoked.
 
-| Config | Cases | Samples | First-pass cases | Pass rate |
+| Config | Cases | Samples | pass@1 | Pass after repair |
 | --- | --- | --- | --- | --- |
 | on-on (Best-of-4) | 12 | 4 | **Not measured** | **Not measured** |
-| on-on (baseline, N=1) | 12 | 2 | 8/12 | **66.7%** |
+| on-on (valid baseline, N=1) | 12 | 2 | 0/24 (0.0%) | 16/24 (66.7%) |
 
-**Result:** Best-of-4 has **not been validly measured**. The 48 runs in `bon_results.json` are infrastructure failures (Ollama Python missing). The baseline remains the on-on single-sample path at 66.7%.
+**Result:** Best-of-4 has **not been validly measured**. The 48 runs in
+`results/archive/invalid_bon_runs/bon/bon_results.json` are infrastructure
+failures (Ollama Python missing), not model failures. The provenance-complete
+single-agent baseline is `results/bench_baseline_v2/`; see
+`docs/research/VALID_BASELINE_REPORT.md`.
 
-A proper Best-of-4 experiment (12 cases × 4 samples = 48 runs) is planned but has not yet been executed due to the multi-byte generation bottleneck (see Known Limitations).
+Best-of-N orchestration is now covered by deterministic mock-generator tests
+(`tests/test_bench_bon_mock.py`): candidates use independent seeds, every
+candidate receives identical verification settings, the first pass wins, and
+all-failure batches retain every attempt. A real Best-of-4 run remains blocked
+on the multi-byte generation bottleneck (0/8 after repair) and is not started
+until a valid baseline is accepted.
 
 ## IR Benchmark (Phase 7, Steps 91-92)
 
@@ -158,16 +171,17 @@ Tools:
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**189 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
+**230 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
 are all installed). Four suites carry `skipif` guards and skip only where a
 tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 `test_logging_replay`, `test_template_master`.
 
 ## Known Limitations
 
-- **Retrieval dependence:** Retrieval-on is 66.7% pass@1; retrieval-off is
-  0/24. The model is not generating I²C masters from scratch; it is adapting
-  a known-good reference.
+- **Retrieval dependence:** In the valid baseline, retrieval-on reaches 16/24
+  (66.7%) after repair but 0/24 pass@1; retrieval-off was 0/24 in the
+  historical batch. The model is not generating I²C masters from scratch; it
+  is adapting a known-good reference and needs repair.
 - **Multi-byte weakness:** The prompt scaffold is one-byte-oriented; the
   generator does not yet specialize all data literals for 2/3-byte payloads.
 - **IR path does not beat RTL:** The JSON IR path (0/24) fails on the one
@@ -181,8 +195,11 @@ tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 
 ## Reproducibility
 
-Every number in `docs/BASELINE.md` comes from a run recorded in this repo,
-with its command, commit, and model digest (`qwen2.5-coder:7b` digest
-`dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364`).
+Every number in `docs/BASELINE.md` and
+`docs/research/VALID_BASELINE_REPORT.md` comes from a run recorded in this
+repo, with its command, commit, model digest (`qwen2.5-coder:7b` digest
+`dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364`), and —
+for the new baseline — retrieval corpus hash
+`ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22`.
 
 The test suite is the gate: if it is not green, the change is not ready.
