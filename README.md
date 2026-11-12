@@ -13,17 +13,19 @@ protocol judge → up to two bounded repairs.
 | Check | Command | Result |
 | --- | --- | --- |
 | GitHub Actions | [run 43066682878](https://github.com/codeprabhu/protoforge/actions/runs/43066682878) | both jobs success |
-| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **236 passed** |
+| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **258 passed** |
 | Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
 | Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all 10 mutants killed |
 | Template upper bound | `results/bench_template_20x/` | 240/240 pass |
-| Corrected baseline (on-on, 24 runs) | `results/bench_baseline_v3/` | **16/24 (66.7%) pass@1; 16/24 after repair** |
+| Current baseline (on-on, 24 runs) | `results/bench_baseline_v4/` | **21/24 (87.5%) pass@1; 23/24 after repair; 2 recovered** |
+| Previous corrected baseline | `results/bench_baseline_v3/` | 16/24 (66.7%) pass@1; 16/24 after repair |
+| Multi-byte validation (superseded evidence) | `results/bench_multibyte_v6/` | 3/8 before the naming-scheme fix; v4 baseline records 7/8 after repair |
 | Historical baseline (on-on) | `results/bench/` | 16/24 (66.7%) pass@1 (incomplete provenance) |
 | Retrieval ablation | `results/bench/` | 0/24 pass@1 |
 | Patcher ablation | `results/bench/` | 0/24 pass@1 (19 runner_error) |
 | IR benchmark | `results/bench_ir/` | **0/24** pass@1 (does not beat RTL baseline) |
 | Best-of-N | `tests/test_bench_bon_mock.py` | orchestration verified; real run **unmeasured** |
-| Multi-byte validation | `results/bench_multibyte_v4/` | 8 runs, 0 passes, **no harness-owned failures** |
+| Multi-byte validation (superseded evidence) | `results/bench_multibyte_v4/` | 8 runs, 0 passes; pre-payload-constant fix |
 | Replay of a run | `.venv/bin/python tools/replay.py <run_dir>` | verdicts match |
 
 See `docs/research/VALID_BASELINE_REPORT.md` for the provenance-complete
@@ -173,24 +175,23 @@ Tools:
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**236 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
+**258 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
 are all installed). Four suites carry `skipif` guards and skip only where a
 tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 `test_logging_replay`, `test_template_master`.
 
 ## Known Limitations
 
-- **Retrieval dependence:** In the corrected baseline, retrieval-on reaches
-  16/24 (66.7%) pass@1 and retrieval-off was 0/24 in the historical batch. The
+- **Retrieval dependence:** In the current baseline, retrieval-on reaches
+  21/24 (87.5%) pass@1 and retrieval-off was 0/24 in the historical batch. The
   model adapts a known-good reference rather than synthesising from scratch.
-- **Multi-byte weakness:** 0/8 multi-byte runs pass, on the first attempt or
-  after repair (2 `compile_failure`, 4 `simulation_failure`,
-  2 `structural_failure`). Two deterministic scaffold defects were found and
-  fixed while establishing the baseline (see
-  `docs/research/VALID_BASELINE_REPORT.md`).
-- **Multi-byte prompt gap:** the prompt scaffold specializes only the first data
-  byte, so multi-byte payloads reach the model without the extra `DATA_BYTE1` /
-  `DATA_BYTE2` literals it needs (`c06` compiles with `DATA_BYTE1` undefined).
+- **Multi-byte weakness:** substantially improved but not solved. The current
+  baseline records multi-byte **5/8 pass@1 and 7/8 after repair**; the only
+  remaining failure is the 3-byte case (sample 0), where the model sends two of
+  three bytes. There is no 3-byte seed reference, so retrieval falls back to the
+  2-byte design. The earlier 0/8 and 3/8 results were harness-owned and are
+  retained only as evidence. See `docs/research/VALID_BASELINE_REPORT.md`
+  §4.3–§4.5.
 - **IR path does not beat RTL:** The JSON IR path (0/24) fails on the one
   thing the compiler cannot invent: `drive sda="bit"`.
 - **Hardware validation is simulation-only:** A physical board driver or FPGA

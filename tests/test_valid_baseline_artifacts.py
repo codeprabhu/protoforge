@@ -11,6 +11,15 @@ Two baselines are tracked:
   after repair. It is kept as evidence for the scaffold bug, not as a
   capability measurement.
 * ``results/bench_baseline_v3/`` — the corrected baseline (commit 6f3fc15).
+* ``results/bench_baseline_v4/`` — the current baseline (commit f8d204f),
+  after the multi-byte scaffold fixes.
+
+Targeted multi-byte validations are also tracked:
+
+* ``results/bench_multibyte_v4/`` — after the structural fix, 0/8.
+* ``results/bench_multibyte_v6/`` — after the payload-constant and retrieval
+  fixes, 3/8. Retained as evidence that the dual payload-naming scheme was
+  harness-owned; see ``docs/research/VALID_BASELINE_REPORT.md`` §4.5.
 """
 
 from __future__ import annotations
@@ -214,3 +223,176 @@ def test_multibyte_validation_has_no_harness_owned_failures() -> None:
     assert outcomes.get("compile_failure", 0) == 3, outcomes
     # Multi-byte is still unsolved; the point is that it fails honestly now.
     assert sum(row["final"] == "pass" for row in rows) == 0
+
+
+MULTI_V4 = ROOT / "results" / "bench_multibyte_v4"
+MULTI_V6 = ROOT / "results" / "bench_multibyte_v6"
+
+
+def _multi(directory: Path) -> tuple[list[dict[str, str]], dict]:
+    rows = list(csv.DictReader((directory / "runs.csv").open(encoding="utf-8")))
+    summary = json.loads((directory / "summary.json").read_text(encoding="utf-8"))
+    return rows, summary["configs"]["on-on"]
+
+
+def test_multi_byte_v6_records_the_pre_scheme_fix_outcome() -> None:
+    """v6 is retained evidence: 3/8, later traced to the dual naming scheme.
+
+    These counts must not be quoted as model capability. The replay in
+    ``docs/research/VALID_BASELINE_REPORT.md`` §4.5 shows 4 of the 8 runs were
+    corrupted by the scaffold; the v4 baseline records the corrected outcome.
+    """
+    rows, stats = _multi(MULTI_V6)
+    summary = json.loads((MULTI_V6 / "summary.json").read_text(encoding="utf-8"))
+
+    assert len(rows) == 8
+    assert {row["case_id"] for row in rows} == MULTI_BYTE
+    assert summary["git_commit"] == "be4517f8a6ac44d369db7c456e9435c9d1f1ac33"
+    assert summary["retrieval_corpus_hash"] == _summary()["retrieval_corpus_hash"]
+    assert stats["batch_valid"] is True
+    assert stats["infrastructure_failures"] == 0
+    assert stats["model_invoked"] is True
+    # Every remaining failure is a protocol/simulation failure.
+    assert stats["explicit_outcomes"]["compile_failure"] == 0
+    assert stats["explicit_outcomes"]["structural_failure"] == 0
+    assert stats["explicit_outcomes"]["simulation_failure"] == 5
+    assert stats["explicit_outcomes"]["pass"] == 3
+
+
+def test_multi_byte_v6_improves_on_v4() -> None:
+    """The fixes are measured, not asserted: 0/8 -> 3/8 after repair."""
+    v4_rows, v4 = _multi(MULTI_V4)
+    v6_rows, v6 = _multi(MULTI_V6)
+
+    assert len(v4_rows) == len(v6_rows) == 8
+    assert v4["pass_after_repair"] == 0
+    assert v6["pass_after_repair"] == 3
+    assert v6["pass_at_1"] == 2
+    assert v6["recovered_by_repair"] == 1
+    # v4 (after the structural fix) still charged three compile failures to
+    # the model; v6 has none.
+    assert v4["explicit_outcomes"]["compile_failure"] == 3
+    assert v4["explicit_outcomes"]["structural_failure"] == 0
+    assert v6["explicit_outcomes"]["compile_failure"] == 0
+    assert v6["explicit_outcomes"]["structural_failure"] == 0
+
+
+def test_multi_byte_v3_recorded_the_harness_owned_structural_failures() -> None:
+    """The original baseline charged two structural failures to the model."""
+    multi = [row for row in _rows(BASELINE) if row["case_id"] in MULTI_BYTE]
+    outcomes = Counter(
+        classify_final_result(row["final"], row["error"]) for row in multi
+    )
+    assert outcomes["structural_failure"] == 2
+    assert outcomes["compile_failure"] == 2
+    assert outcomes["simulation_failure"] == 4
+
+
+CURRENT = ROOT / "results" / "bench_baseline_v4"
+
+
+def _current() -> tuple[list[dict[str, str]], dict, dict]:
+    rows = list(csv.DictReader((CURRENT / "runs.csv").open(encoding="utf-8")))
+    summary = json.loads((CURRENT / "summary.json").read_text(encoding="utf-8"))
+    return rows, summary, summary["configs"]["on-on"]
+
+
+def test_current_baseline_describes_the_same_24_runs() -> None:
+    rows, summary, stats = _current()
+
+    assert len(rows) == 24
+    assert summary["rows"] == 24
+    assert len(summary["cases"]) == 12
+    assert len({row["run_id"] for row in rows}) == 24
+    per_case = Counter(row["case_id"] for row in rows)
+    assert len(per_case) == 12
+    assert set(per_case.values()) == {2}
+    assert {row["case_id"] for row in rows} == SINGLE_BYTE | MULTI_BYTE
+
+
+def test_current_baseline_provenance_matches_the_recorded_corpus() -> None:
+    _, summary, stats = _current()
+
+    assert summary["git_commit"] == "f8d204f11e552408c70c6b5998d0ffaeebc5d5ff"
+    assert summary["model"] == MODEL
+    assert summary["model_digest"] == MODEL_DIGEST
+    assert summary["retrieval_corpus_hash"] == _summary()["retrieval_corpus_hash"]
+    assert summary["retrieval_memory_frozen"] is True
+    assert summary["temperature"] == 0.25
+    assert summary["max_repairs"] == 2
+    assert summary["samples_per_case"] == 2
+    assert summary["base_seed"] == 42
+    assert stats["batch_valid"] is True
+    assert stats["batch_invalid_reason"] == "Batch valid"
+    assert stats["model_invoked"] is True
+    assert stats["infrastructure_failures"] == 0
+    assert stats["runs_without_candidate"] == 0
+
+
+def test_current_baseline_outcomes_are_derived_from_the_rows() -> None:
+    rows, _, stats = _current()
+
+    observed = Counter(
+        classify_final_result(row["final"], row["error"]) for row in rows
+    )
+    assert stats["explicit_outcomes"] == {
+        name: observed.get(name, 0) for name in stats["explicit_outcomes"]
+    }
+    assert stats["explicit_outcomes"]["pass"] == 23
+    assert stats["explicit_outcomes"]["simulation_failure"] == 1
+    assert not any(
+        classify_final_result(row["final"], row["error"])
+        in INFRASTRUCTURE_CLASSIFICATIONS
+        for row in rows
+    )
+
+
+def test_current_baseline_reports_first_attempt_and_repair_separately() -> None:
+    rows, _, stats = _current()
+
+    first = sum(row["first_attempt_pass"] == "True" for row in rows)
+    final = sum(row["final"] == "pass" for row in rows)
+    recovered = sum(row["recovered_after_repair"] == "True" for row in rows)
+
+    assert first == stats["pass_at_1"] == 21
+    assert final == stats["pass_after_repair"] == 23
+    assert recovered == stats["recovered_by_repair"] == 2
+    assert stats["candidate_verification_failures"] == 1
+    assert stats["successful_candidates"] == 23
+    assert stats["distinct_first_designs"] == 22
+
+
+def test_current_baseline_single_and_multi_byte_splits() -> None:
+    rows, _, stats = _current()
+    single = [row for row in rows if row["case_id"] in SINGLE_BYTE]
+    multi = [row for row in rows if row["case_id"] in MULTI_BYTE]
+
+    assert len(single) == 16 and len(multi) == 8
+    assert sum(row["first_attempt_pass"] == "True" for row in single) == 16
+    assert sum(row["final"] == "pass" for row in single) == 16
+    # Multi-byte is no longer 0/8 after the naming-scheme fix.
+    assert sum(row["first_attempt_pass"] == "True" for row in multi) == 5
+    assert sum(row["final"] == "pass" for row in multi) == 7
+    assert sum(row["recovered_after_repair"] == "True" for row in multi) == 2
+    # The only remaining failure is the three-byte case, sample 0.
+    failures = [row for row in rows if row["final"] != "pass"]
+    assert [(row["case_id"], row["sample"]) for row in failures] == [
+        ("c08-three-byte", "0")
+    ]
+    assert failures[0]["explicit_classification"] == "simulation_failure"
+
+
+def test_current_baseline_improves_on_the_previous_corrected_baseline() -> None:
+    """The improvement is measured, not asserted: 16/24 -> 21/24 pass@1."""
+    previous = _summary()["configs"]["on-on"]
+    _, _, current = _current()
+
+    assert previous["pass_at_1"] == 16
+    assert current["pass_at_1"] == 21
+    assert previous["pass_after_repair"] == 16
+    assert current["pass_after_repair"] == 23
+    # v3 charged 2 compile and 2 structural failures to the model; v4 has none.
+    assert previous["explicit_outcomes"]["compile_failure"] == 2
+    assert previous["explicit_outcomes"]["structural_failure"] == 2
+    assert current["explicit_outcomes"]["compile_failure"] == 0
+    assert current["explicit_outcomes"]["structural_failure"] == 0
