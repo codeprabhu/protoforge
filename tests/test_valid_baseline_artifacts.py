@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import csv
 import json
+import re
 from collections import Counter
 from pathlib import Path
 
@@ -396,3 +397,154 @@ def test_current_baseline_improves_on_the_previous_corrected_baseline() -> None:
     assert previous["explicit_outcomes"]["structural_failure"] == 2
     assert current["explicit_outcomes"]["compile_failure"] == 0
     assert current["explicit_outcomes"]["structural_failure"] == 0
+
+
+MULTI_V7 = ROOT / "results" / "bench_multibyte_v7"
+
+
+def test_three_byte_seed_did_not_change_the_multi_byte_rate() -> None:
+    """Adding the 3-byte seed was a measured neutral result, not a win.
+
+    Retrieval had no 3-byte seed, so a 3-byte spec fell back to the 2-byte
+    design. The seed is gate-verified and strictly more informative than the
+    fallback, but the aggregate multi-byte rate did not move; one case's
+    failure mode changed from simulation to a model-owned syntax error. These
+    artifacts are kept so the corpus change is auditable.
+    """
+    v6_rows, v6_stats = _multi(MULTI_V6)
+    v7_rows, v7_stats = _multi(MULTI_V7)
+    summary = json.loads((MULTI_V7 / "summary.json").read_text(encoding="utf-8"))
+
+    assert len(v7_rows) == 8
+    assert {row["case_id"] for row in v7_rows} == MULTI_BYTE
+    assert v7_stats["batch_valid"] is True
+    assert v7_stats["infrastructure_failures"] == 0
+    assert v7_stats["model_invoked"] is True
+    # The corpus changed, so this batch must not be pooled with v6.
+    assert summary["retrieval_corpus_hash"] != json.loads(
+        (MULTI_V6 / "summary.json").read_text(encoding="utf-8")
+    )["retrieval_corpus_hash"]
+    # Compare against the multi-byte subset of the v4 baseline, which has the
+    # same code but the corpus without the 3-byte seed.
+    v4_rows = list(csv.DictReader((CURRENT / "runs.csv").open(encoding="utf-8")))
+    v4_multi = [row for row in v4_rows if row["case_id"] in MULTI_BYTE]
+    v4_pass1 = sum(row["first_attempt_pass"] == "True" for row in v4_multi)
+    v4_after = sum(row["final"] == "pass" for row in v4_multi)
+    assert (v7_stats["pass_at_1"], v7_stats["pass_after_repair"]) == (v4_pass1, v4_after)
+    # No harness-owned failure classes appear.
+    assert v7_stats["explicit_outcomes"]["structural_failure"] == 0
+    assert v7_stats["explicit_outcomes"]["generation_error"] == 0
+    assert v7_stats["explicit_outcomes"]["runner_error"] == 0
+
+
+def test_three_byte_seed_failure_is_model_owned() -> None:
+    """The c08 failure must be the model's illegal Verilog, not the scaffold."""
+    from tools.rtl_memory import retrieve_rtl_examples
+
+    three_byte = retrieve_rtl_examples(
+        "I2C open-drain master FSM START address ACK 3 data bytes STOP Verilog-2001",
+        max_examples=1,
+        enabled=True,
+        prefer_byte_count=3,
+    )
+    assert three_byte["examples"][0]["label"] == "validated I2C reference (3-byte)"
+
+    rows, stats = _multi(MULTI_V7)
+    failures = [row for row in rows if row["final"] != "pass"]
+    assert len(failures) == 1
+    assert failures[0]["case_id"] == "c08-three-byte"
+    assert failures[0]["explicit_classification"] == "compile_failure"
+
+
+BASELINE_V5 = ROOT / "results" / "bench_baseline_v5"
+
+
+def _v5() -> tuple[list[dict[str, str]], dict, dict]:
+    rows = list(csv.DictReader((BASELINE_V5 / "runs.csv").open(encoding="utf-8")))
+    summary = json.loads((BASELINE_V5 / "summary.json").read_text(encoding="utf-8"))
+    return rows, summary, summary["configs"]["on-on"]
+
+
+def test_v5_baseline_is_valid_on_the_current_corpus() -> None:
+    rows, summary, stats = _v5()
+
+    assert len(rows) == 24
+    assert summary["rows"] == 24
+    assert len(summary["cases"]) == 12
+    assert len({row["run_id"] for row in rows}) == 24
+    assert {row["case_id"] for row in rows} == SINGLE_BYTE | MULTI_BYTE
+    assert summary["git_commit"] == "31c8ab6a639eff89b242af2d44aa326eda62b459"
+    assert summary["model"] == MODEL
+    assert summary["model_digest"] == MODEL_DIGEST
+    assert summary["temperature"] == 0.25
+    assert summary["max_repairs"] == 2
+    assert summary["base_seed"] == 42
+    assert summary["samples_per_case"] == 2
+    assert summary["retrieval_memory_frozen"] is True
+    assert stats["batch_valid"] is True
+    assert stats["infrastructure_failures"] == 0
+    assert stats["model_invoked"] is True
+    assert stats["runs_without_candidate"] == 0
+
+
+def test_v5_corpus_is_not_the_v4_corpus() -> None:
+    """The 3-byte seed changed the corpus, so the batches must not be pooled."""
+    _, v5_summary, _ = _v5()
+    _, current_summary, _ = _current()
+    v6_summary = json.loads((MULTI_V6 / "summary.json").read_text(encoding="utf-8"))
+
+    assert v5_summary["retrieval_corpus_hash"] != current_summary["retrieval_corpus_hash"]
+    assert v5_summary["retrieval_corpus_hash"] != v6_summary["retrieval_corpus_hash"]
+    assert len(v5_summary["retrieval_corpus_hash"]) == 64
+    int(v5_summary["retrieval_corpus_hash"], 16)
+
+
+def test_v5_outcomes_and_splits() -> None:
+    rows, _, stats = _v5()
+
+    observed = Counter(
+        classify_final_result(row["final"], row["error"]) for row in rows
+    )
+    assert stats["explicit_outcomes"] == {
+        name: observed.get(name, 0) for name in stats["explicit_outcomes"]
+    }
+    assert stats["explicit_outcomes"] == {
+        "pass": 23,
+        "simulation_failure": 0,
+        "compile_failure": 1,
+        "structural_failure": 0,
+        "generation_error": 0,
+        "runner_error": 0,
+        "lint_failure": 0,
+        "oracle_failure": 0,
+    }
+    assert stats["pass_at_1"] == 22
+    assert stats["pass_after_repair"] == 23
+    assert stats["recovered_by_repair"] == 1
+    assert stats["candidate_verification_failures"] == 1
+
+    single = [row for row in rows if row["case_id"] in SINGLE_BYTE]
+    multi = [row for row in rows if row["case_id"] in MULTI_BYTE]
+    assert sum(row["first_attempt_pass"] == "True" for row in single) == 16
+    assert sum(row["final"] == "pass" for row in single) == 16
+    assert sum(row["first_attempt_pass"] == "True" for row in multi) == 6
+    assert sum(row["final"] == "pass" for row in multi) == 7
+    failures = [row for row in rows if row["final"] != "pass"]
+    assert [(row["case_id"], row["sample"]) for row in failures] == [("c08-three-byte", "0")]
+    assert failures[0]["explicit_classification"] == "compile_failure"
+
+
+def test_v5_only_failure_is_model_owned() -> None:
+    """c08 sample 0 fails on the model's own illegal Verilog, not the scaffold."""
+    rows, _, _ = _v5()
+    failure = next(row for row in rows if row["final"] != "pass")
+    run_dir = Path(failure["run_dir"])
+    if not run_dir.is_dir():
+        return  # raw run directories are gitignored; skipped in CI
+
+    saw_illegal = False
+    for attempt in sorted(run_dir.glob("attempt_*.json")):
+        raw = json.loads(attempt.read_text()).get("raw_output", "")
+        if re.search(r"\}\[\s*\w+\s*\]", raw) or "}[byte_idx]" in raw:
+            saw_illegal = True
+    assert saw_illegal, "the model's indexed part-select should be reproducible"

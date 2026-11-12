@@ -8,12 +8,13 @@ template.
 > **Historical artifact.** These results were recorded before the runner
 > recorded a retrieval corpus hash or an explicit failure classification.
 > The provenance-complete baseline is in
-> `docs/research/VALID_BASELINE_REPORT.md` and `results/bench_baseline_v4/`:
-> 21/24 (87.5%) pass@1 and 23/24 after repair, 0 infrastructure failures and
-> 2 repair recoveries, at commit `f8d204f` on the same corpus hash. The
-> previous corrected baseline (`results/bench_baseline_v3/`) recorded 16/24;
-> its multi-byte failures were harness-owned and are retained only as defect
-> evidence. Do not pool these batches.
+> `docs/research/VALID_BASELINE_REPORT.md` and `results/bench_baseline_v5/`:
+> 22/24 (91.7%) pass@1 and 23/24 after repair, 0 infrastructure failures and
+> 1 repair recovery, at commit `31c8ab6` on corpus `b643f5d6…`. Earlier
+> baselines recorded 21/24 (`results/bench_baseline_v4/`, corpus without the
+> 3-byte seed) and 16/24 (`results/bench_baseline_v3/`, multi-byte failures
+> harness-owned and retained only as defect evidence). Do not pool these
+> batches.
 
 ## Environment
 

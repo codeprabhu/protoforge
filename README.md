@@ -13,13 +13,13 @@ protocol judge → up to two bounded repairs.
 | Check | Command | Result |
 | --- | --- | --- |
 | GitHub Actions | [run 43066682878](https://github.com/codeprabhu/protoforge/actions/runs/43066682878) | both jobs success |
-| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **258 passed** |
+| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **268 passed** |
 | Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
 | Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all 10 mutants killed |
 | Template upper bound | `results/bench_template_20x/` | 240/240 pass |
-| Current baseline (on-on, 24 runs) | `results/bench_baseline_v4/` | **21/24 (87.5%) pass@1; 23/24 after repair; 2 recovered** |
-| Previous corrected baseline | `results/bench_baseline_v3/` | 16/24 (66.7%) pass@1; 16/24 after repair |
-| Multi-byte validation (superseded evidence) | `results/bench_multibyte_v6/` | 3/8 before the naming-scheme fix; v4 baseline records 7/8 after repair |
+| Current baseline (on-on, 24 runs) | `results/bench_baseline_v5/` | **22/24 (91.7%) pass@1; 23/24 after repair; 1 recovered** |
+| Previous baselines (not pooled) | `results/bench_baseline_v4/`, `bench_baseline_v3/` | 21/24 and 16/24 pass@1 |
+| Multi-byte validation (superseded evidence) | `results/bench_multibyte_v6/`, `bench_multibyte_v7/` | 3/8 before the naming-scheme fix; 3-byte seed measured neutral |
 | Historical baseline (on-on) | `results/bench/` | 16/24 (66.7%) pass@1 (incomplete provenance) |
 | Retrieval ablation | `results/bench/` | 0/24 pass@1 |
 | Patcher ablation | `results/bench/` | 0/24 pass@1 (19 runner_error) |
@@ -175,7 +175,7 @@ Tools:
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**258 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
+**268 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
 are all installed). Four suites carry `skipif` guards and skip only where a
 tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 `test_logging_replay`, `test_template_master`.
@@ -183,15 +183,16 @@ tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 ## Known Limitations
 
 - **Retrieval dependence:** In the current baseline, retrieval-on reaches
-  21/24 (87.5%) pass@1 and retrieval-off was 0/24 in the historical batch. The
+  22/24 (91.7%) pass@1 and retrieval-off was 0/24 in the historical batch. The
   model adapts a known-good reference rather than synthesising from scratch.
 - **Multi-byte weakness:** substantially improved but not solved. The current
-  baseline records multi-byte **5/8 pass@1 and 7/8 after repair**; the only
-  remaining failure is the 3-byte case (sample 0), where the model sends two of
-  three bytes. There is no 3-byte seed reference, so retrieval falls back to the
-  2-byte design. The earlier 0/8 and 3/8 results were harness-owned and are
-  retained only as evidence. See `docs/research/VALID_BASELINE_REPORT.md`
-  §4.3–§4.5.
+  baseline records multi-byte **6/8 pass@1 and 7/8 after repair**; the only
+  remaining failure is the 3-byte case (sample 0), where the model writes an
+  illegal indexed part-select. Adding a gate-verified 3-byte retrieval seed
+  (§4.6) was measured neutral: the same 5/8 and 7/8 multi-byte rates in the
+  targeted validation, with the corpus changed so the batches are not pooled.
+  The earlier 0/8 and 3/8 results were harness-owned and are retained only as
+  evidence. See `docs/research/VALID_BASELINE_REPORT.md` §4.3–§4.6.
 - **IR path does not beat RTL:** The JSON IR path (0/24) fails on the one
   thing the compiler cannot invent: `drive sda="bit"`.
 - **Hardware validation is simulation-only:** A physical board driver or FPGA
@@ -208,6 +209,6 @@ Every number in `docs/BASELINE.md` and
 repo, with its command, commit, model digest (`qwen2.5-coder:7b` digest
 `dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364`), and —
 for the new baseline — retrieval corpus hash
-`ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22`.
+`b643f5d6139b657eef4ecfb0d296b296f415bf82ff762f513084eb7ca2471162`.
 
 The test suite is the gate: if it is not green, the change is not ready.

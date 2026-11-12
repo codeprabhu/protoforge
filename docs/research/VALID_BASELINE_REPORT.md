@@ -2,10 +2,10 @@
 
 **Experiment date:** 2026-11-12
 **Branch:** `research/valid-baseline`
-**Current baseline:** `results/bench_baseline_v4/` (commit `f8d204f`)
-**Previous corrected baseline:** `results/bench_baseline_v3/` (commit `6f3fc15`)
+**Current baseline:** `results/bench_baseline_v5/` (commit `31c8ab6`)
+**Previous baselines (different corpus, not pooled):** `results/bench_baseline_v4/` (commit `f8d204f`), `results/bench_baseline_v3/` (commit `6f3fc15`)
 **Pre-fix baseline (evidence only):** `results/bench_baseline_v2/`
-**Targeted multi-byte validations:** `results/bench_multibyte_v4/`, `results/bench_multibyte_v6/`
+**Targeted multi-byte validations:** `results/bench_multibyte_v4/`, `results/bench_multibyte_v6/`, `results/bench_multibyte_v7/`
 
 ---
 
@@ -13,7 +13,7 @@
 
 | Parameter | Value |
 |-----------|-------|
-| Git commit | `f8d204f11e552408c70c6b5998d0ffaeebc5d5ff` |
+| Git commit | `31c8ab6a639eff89b242af2d44aa326eda62b459` |
 | Model | `qwen2.5-coder:7b` |
 | Model digest | `dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364` |
 | Temperature | `0.25` |
@@ -24,7 +24,7 @@
 | Cases | 12 (`c01`–`c12`) |
 | Runs | 24 (12 cases × 2 samples) |
 | Retrieval memory | Frozen (no learning during the batch) |
-| Retrieval corpus hash | `ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22` |
+| Retrieval corpus hash | `b643f5d6139b657eef4ecfb0d296b296f415bf82ff762f513084eb7ca2471162` |
 | Preflight | ollama import, server, model, `iverilog`, `vvp`, `verilator`, `yosys` all passed |
 
 Command:
@@ -32,45 +32,50 @@ Command:
 ```bash
 .venv/bin/python -m bench.run \
   --configs on-on --samples 2 --case-limit 12 \
-  --out-dir results/bench_baseline_v4 --quiet
+  --out-dir results/bench_baseline_v5 --quiet
 ```
 
 Preflight passed, so the model was invoked on every run and the batch is valid:
 
 - runs: 24, `infrastructure_failures`: 0, `model_invoked`: true,
   `batch_valid`: true, `runs_without_candidate`: 0.
-- All 24 per-run headers record `git_commit` `f8d204f…`; no commit was made
+- All 24 per-run headers record `git_commit` `31c8ab6…`; no commit was made
   while the batch was running.
 
-The corpus, model, temperature, seeds, repair budget, and verification gates are
-identical to `results/bench_baseline_v3/`. The only difference is the harness
-fixes in §4.3–§4.5, so the two batches are directly comparable.
+The corpus differs from v4 because v5 adds the gate-verified 3-byte retrieval
+seed (§4.6). **Batches on different corpora are not pooled.** Compared with the
+same corpus, the model, temperature, seeds, repair budget, and verification
+gates are identical to v4, so v4 and v5 differ only by that seed.
 
 ---
 
 ## 2. Current baseline results
 
-| Metric | v4 (current) | v3 (previous) |
-|--------|-------------:|--------------:|
-| Runs | 24 | 24 |
-| Infrastructure failures | 0 | 0 |
-| Candidate verification failures | 1 | 8 |
-| **pass@1 (first attempt)** | **21/24 (87.5%)**, Wilson 95% CI [69.0%, 95.7%] | 16/24 (66.7%) [46.7%, 82.0%] |
-| **Pass after repair** | **23/24 (95.8%)**, Wilson 95% CI [79.8%, 99.3%] | 16/24 (66.7%) |
-| Recovered by repair | **2** | 0 |
-| Distinct first designs | 22/24 | 22/24 |
-| Median latency | 105.552 s | 170.461 s |
-| Median tokens per run | 3,484 | 3,487 |
-| Total tokens | 113,113 | 174,550 |
+| Metric | v5 (current) | v4 | v3 |
+|--------|-------------:|--:|---:|
+| Runs | 24 | 24 | 24 |
+| Infrastructure failures | 0 | 0 | 0 |
+| Candidate verification failures | 1 | 1 | 8 |
+| **pass@1** | **22/24 (91.7%)** [74.2%, 97.7%] | 21/24 (87.5%) | 16/24 (66.7%) |
+| **Pass after repair** | **23/24 (95.8%)** [79.8%, 99.3%] | 23/24 (95.8%) | 16/24 (66.7%) |
+| Recovered by repair | 1 | 2 | 0 |
+| Distinct first designs | 21/24 | 22/24 | 22/24 |
+| Median latency | 104.634 s | 105.552 s | 170.461 s |
+| Median tokens per run | 3,488 | 3,484 | 3,487 |
+| Total tokens | 104,490 | 113,113 | 174,550 |
+| Corpus | `b643f5d6…` | `ee388ce1…` | `ee388ce1…` |
+
+v4 and v5 are **not pooled**: v5 is the current corpus and includes the 3-byte
+seed. Both are listed only so the change is auditable.
 
 Explicit classifications: `pass` 23, `simulation_failure` 1;
 `generation_error`, `runner_error`, `lint_failure`, `oracle_failure`,
 `compile_failure` and `structural_failure` are all 0.
 
-Pass@1 and pass-after-repair are reported separately. Two runs (c06 sample 0,
-c08 sample 1) pass after one repair; the remaining failure (c08 sample 0) is a
-genuine model failure after three attempts. No run required more than three
-attempts (21 runs: 1 attempt, 2 runs: 2 attempts, 1 run: 3 attempts).
+Pass@1 and pass-after-repair are reported separately. One run (c06 sample 0)
+passes after one repair; the remaining failure (c08 sample 0) is a genuine model
+failure after three attempts. No run required more than three attempts
+(22 runs: 1 attempt, 1 run: 2 attempts, 1 run: 3 attempts).
 
 The v3 → v4 change is not a new capability claim: it is the measured effect of
 removing three harness defects that had corrupted or discarded correct model
@@ -101,18 +106,22 @@ Single-byte is unchanged from v3: **16/16 pass@1**.
 |------|------:|--------:|-----:|-------:|-------------:|----------------------|
 | c06 two-byte | 2 | 2 | 2 | 1/2 | 2/2 | one recovered after 1 repair |
 | c07 two-byte alt | 2 | 2 | 2 | 2/2 | 2/2 | pass |
-| c08 three-byte | 3 | 2 | 2 | 0/2 | 1/2 | `simulation_failure` (sample 0) |
+| c08 three-byte | 3 | 2 | 2 | 1/2 | 1/2 | `compile_failure` (sample 0) |
 | c11 three devices two-byte | 2 | 3 | 2 | 2/2 | 2/2 | pass |
 
-Multi-byte moves from **0/8 in v3 to 5/8 pass@1 and 7/8 after repair**.
+Multi-byte moves from **0/8 in v3 (different corpus) to 6/8 pass@1 and 7/8
+after repair**.
 
-The single remaining failure, c08 sample 0, is model-owned at every attempt:
+The single remaining failure, c08 sample 0, is model-owned at every attempt: the
+candidate writes an illegal indexed part-select on a concatenation,
 
-1. attempt 0: compiles fail because the candidate uses `half_cnt` without
-   declaring it (the harness does not own design-internal counters);
-2. attempt 1: sends two of three data bytes, changes SDA while SCL is high,
-   and reports the wrong byte count;
-3. attempt 2: never asserts `tb_done`, so no `RESULT:` line is produced.
+```verilog
+cur_byte <= {DATA_BYTE_0, DATA_BYTE_1, DATA_BYTE_2}[byte_idx];
+```
+
+which cannot be indexed in Verilog-2001, so all three attempts fail to compile.
+In v4 (corpus without the 3-byte seed) the same case failed differently and two
+runs depended on repair; v5 has one repair recovery instead of two.
 
 ### Historical v3 multi-byte table (before §4.3–§4.5)
 
@@ -257,8 +266,34 @@ Replay evidence (recorded v6 raw responses, real compile/simulate/judge):
 | c11 sample 1 | fail | **pass@1** |
 
 That is 5/8 pass@1 and 7/8 after repair on the same responses, versus the 3/8
-recorded under the corrupting scaffold. The v4 baseline reproduces exactly
-this outcome (c06: 1/2 pass@1, 2/2 after repair; c11: 2/2 pass@1).
+recorded under the corrupting scaffold. The v4 baseline (same code, corpus
+without the 3-byte seed) records 5/8 pass@1 and 7/8 after repair, so the replay
+prediction matches a real batch.
+
+---
+
+### 4.6 Three-byte payloads had no matching retrieval seed (added, measured neutral)
+
+Retrieval had 1-byte and 2-byte seeds only, so a 3-byte spec fell back to the
+2-byte design and the model had no example of a third data byte and its ACK.
+The gate-verified `protocols/i2c/reference/good_master_3byte_reset_safe.v` was
+added as the 3-byte seed, and retrieval selects the reference matching the
+payload length (a 4-byte-or-longer spec falls back to the 3-byte design).
+
+The seed is verified before use: it passes structural, compile, hardware,
+simulation and judge for a 3-byte spec, specializes to a new address/payload
+through the deterministic scaffold, and fails a 2-byte spec on `byte_count`.
+Tests: `tests/test_template_master.py::test_three_byte_reference_passes_every_gate`,
+`::test_three_byte_reference_specializes_to_another_payload`, and
+`::test_three_byte_design_fails_the_two_byte_spec`.
+
+**Measured effect is neutral, not claimed as an improvement**
+(`results/bench_multibyte_v7/`, 8 runs, batch valid, same code, corpus with the
+seed): 5/8 pass@1 and 7/8 after repair — the same aggregate as the v4
+multi-byte subset. One case (c08 sample 1) became a first-attempt pass, while
+the other c08 sample changed failure class from `simulation_failure` to a
+model-owned `compile_failure`. The corpus hash changes, so this batch is
+recorded on its own hash and is not pooled with v4 or v6.
 
 ---
 
@@ -268,7 +303,7 @@ this outcome (c06: 1/2 pass@1, 2/2 after repair; c11: 2/2 pass@1).
 cd /home/shrivathssp/Desktop/protoforge
 .venv/bin/python -m bench.run \
   --configs on-on --samples 2 --case-limit 12 \
-  --out-dir results/bench_baseline_v4 --quiet
+  --out-dir results/bench_baseline_v5 --quiet
 ```
 
 Recorded on the current corpus: 24 runs, 0 infrastructure failures, batch
@@ -282,15 +317,15 @@ before comparing rates.
 1. A **valid** baseline exists: model invoked in all 24 runs, no
    infrastructure failure, full provenance at one commit, corpus hash recorded.
 2. Single-byte I²C generation is **reliable on the first attempt** (16/16,
-   unchanged across v3 and v4).
+   unchanged across v3, v4 and v5).
 3. Multi-byte generation is **substantially improved but not solved**:
-   5/8 pass@1 and 7/8 after repair. The remaining c08 sample 0 failure is a
-   genuine model FSM/byte-count failure, not a harness defect.
+   6/8 pass@1 and 7/8 after repair. The remaining c08 sample 0 failure is a
+   genuine model failure (illegal indexed part-select), not a harness defect.
 4. The v3 multi-byte numbers (0/8) and the pre-fix 0/24 pass@1 were
    harness-owned. Do not quote them as capability results; they are retained as
    defect evidence only.
 5. Best-of-N is **still unmeasured**. The archived 48-run "Best-of-4" batch is
    invalid (the model was never invoked) and must not be used for comparisons.
-6. The 3-byte case is the weakest: 1/2 after repair, with no 3-byte seed
-   reference (retrieval falls back to the 2-byte design). Do not generalize the
-   2-byte result to arbitrary payload lengths.
+6. The 3-byte case is the weakest: 1/2 after repair. Adding a 3-byte seed
+   (§4.6) was measured neutral and changed the corpus, so do not generalize the
+   2-byte result to arbitrary payload lengths without a further measurement.

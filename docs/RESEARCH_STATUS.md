@@ -2,8 +2,8 @@
 
 **Date:** 2026-11-12  
 **Branch:** `research/valid-baseline`  
-**Current baseline commit:** `f8d204f` (recorded in `results/bench_baseline_v4/summary.json`)  
-**Previous corrected baseline:** `6f3fc15` (`results/bench_baseline_v3/`)  
+**Current baseline commit:** `31c8ab6` (recorded in `results/bench_baseline_v5/summary.json`)  
+**Previous baselines (different corpus, not pooled):** `f8d204f` (`results/bench_baseline_v4/`), `6f3fc15` (`results/bench_baseline_v3/`)  
 **Author:** Autonomous Engineering Agent
 
 ---
@@ -19,9 +19,13 @@ Build a local LLM-based RTL generation platform that can reliably produce synthe
 **Core Challenge:** Small local models (7B parameters) adapt a verified I²C reference reliably, but still fail the hardest multi-byte FSM case without it.
 
 **Evidence:**
-- Current baseline (`results/bench_baseline_v4/`, commit `f8d204f`, model
-  invoked in all 24 runs): **21/24 (87.5%) pass@1, 23/24 after repair, 2
-  recoveries** — single-byte 16/16, multi-byte 5/8 pass@1 and 7/8 after repair
+- Current baseline (`results/bench_baseline_v5/`, commit `31c8ab6`, corpus
+  `b643f5d6…`, model invoked in all 24 runs): **22/24 (91.7%) pass@1, 23/24
+  after repair, 1 recovery** — single-byte 16/16, multi-byte 6/8 pass@1 and
+  7/8 after repair
+- Previous baseline on the corpus without the 3-byte seed
+  (`results/bench_baseline_v4/`, commit `f8d204f`): 21/24 pass@1, 23/24 after
+  repair, 2 recoveries (not pooled with v5)
 - Previous corrected baseline (`results/bench_baseline_v3/`, commit `6f3fc15`):
   16/24 pass@1, 16/24 after repair; all 8 failures were multi-byte and were
   later traced to harness defects (see `docs/research/VALID_BASELINE_REPORT.md`
@@ -69,7 +73,13 @@ Historical batch (`results/bench/`, incomplete provenance):
 | retrieval-off | off | on | 24 | 0% |
 | patcher-off | on | off | 24 | 0% (19 runner_error) |
 
-Current baseline (`results/bench_baseline_v4/`, corpus hash recorded):
+Current baseline (`results/bench_baseline_v5/`, corpus hash recorded):
+
+| Config | Retrieval | Patcher | Runs | Pass@1 | After repair | Recovered |
+|--------|-----------|---------|------|--------|--------------|----------:|
+| on-on | on | on | 24 | 22/24 (91.7%) | 23/24 (95.8%) | 1 |
+
+Previous baseline, different corpus (`results/bench_baseline_v4/`):
 
 | Config | Retrieval | Patcher | Runs | Pass@1 | After repair | Recovered |
 |--------|-----------|---------|------|--------|--------------|----------:|
@@ -92,13 +102,13 @@ Previous corrected baseline (`results/bench_baseline_v3/`):
 | c05 | 1 | 2 | 0x03 | ✅ |
 | c06 | 2 | 2 | 0x50 | ✅ (1/2 pass@1, 2/2 after repair) |
 | c07 | 2 | 2 | 0x48 | ✅ |
-| c08 | 3 | 2 | 0x50 | ❌ (1/2 after repair) |
+| c08 | 3 | 2 | 0x50 | ❌ (1/2 after repair; the 3-byte seed was measured neutral) |
 | c09 | 1 | 1 | 0x50 | ✅ |
 | c10 | 1 | 3 | 0x50 | ✅ |
 | c11 | 2 | 3 | 0x21 | ✅ |
 | c12 | 1 | 2 | 0x7F | ✅ |
 
-**Pattern:** 100% pass on 1-byte, 5/8 pass@1 and 7/8 after repair on multi-byte; the only remaining failure is the 3-byte case.
+**Pattern:** 100% pass on 1-byte, 6/8 pass@1 and 7/8 after repair on multi-byte; the only remaining failure is the 3-byte case.
 
 ---
 
@@ -115,26 +125,36 @@ Previous corrected baseline (`results/bench_baseline_v3/`):
 | Median latency | 187.2s | - |
 | Median tokens | 2899 | - |
 
-### 5.2 Current baseline (on-on, 2 samples × 12 cases, `results/bench_baseline_v4/`)
+### 5.2 Current baseline (on-on, 2 samples × 12 cases, `results/bench_baseline_v5/`)
 
 | Metric | Value | 95% CI |
 |--------|-------|--------|
-| pass@1 | 21/24 (87.5%) | [69.0%, 95.7%] |
+| pass@1 | 22/24 (91.7%) | [74.2%, 97.7%] |
 | pass after repair | 23/24 (95.8%) | [79.8%, 99.3%] |
-| Recovered by repair | 2 | - |
-| Distinct first designs | 22/24 | - |
-| Median latency | 105.6s | - |
-| Median tokens | 3484 | - |
-| Total tokens | 113,113 | - |
+| Recovered by repair | 1 | - |
+| Distinct first designs | 21/24 | - |
+| Median latency | 104.6s | - |
+| Median tokens | 3488 | - |
+| Total tokens | 104,490 | - |
 | Infrastructure failures | 0 | - |
 | Batch valid / model invoked | yes / yes | - |
-| Retrieval corpus hash | `ee388ce1…eeb22` | - |
-| Git commit | `f8d204f…` | - |
+| Retrieval corpus hash | `b643f5d6…1162` | - |
+| Git commit | `31c8ab6…` | - |
 
-Failure breakdown: 1 `simulation_failure` (c08 sample 0, three-byte).
-`compile_failure`, `structural_failure`, `generation_error`, `runner_error`,
-`lint_failure` and `oracle_failure` are 0. Single-byte: 16/16 pass@1.
-Multi-byte: 5/8 pass@1, 7/8 after repair.
+Failure breakdown: 1 `compile_failure` (c08 sample 0, three-byte: illegal
+indexed part-select). `simulation_failure`, `structural_failure`,
+`generation_error`, `runner_error`, `lint_failure` and `oracle_failure` are 0.
+Single-byte: 16/16 pass@1. Multi-byte: 6/8 pass@1, 7/8 after repair.
+
+### 5.2b Previous baseline, different corpus (`results/bench_baseline_v4/`)
+
+| Metric | Value |
+|--------|-------|
+| pass@1 | 21/24 (87.5%) |
+| pass after repair | 23/24 (95.8%) |
+| Recovered by repair | 2 |
+| Corpus hash | `ee388ce1…eeb22` |
+| Git commit | `f8d204f…` |
 
 ### 5.2a Previous corrected baseline (`results/bench_baseline_v3/`, commit `6f3fc15`)
 
@@ -175,7 +195,7 @@ not a capability measurement.
 
 | Experiment | Status | Evidence |
 |------------|--------|----------|
-| Baseline (N=1) | ✅ Current baseline complete | `results/bench_baseline_v4/` (24 runs, batch valid, commit `f8d204f`) |
+| Baseline (N=1) | ✅ Current baseline complete | `results/bench_baseline_v5/` (24 runs, batch valid, commit `31c8ab6`) |
 | Best-of-N orchestration | ✅ Verified with deterministic mocks | `tests/test_bench_bon_mock.py` (7 tests) |
 | Best-of-2 (1-byte only) | ⚠️ Incomplete, not a valid Best-of-2 | `results/archive/incomplete_bon_runs/bon_n4/` (10 single-sample rows, 5 cases) |
 | Best-of-2 (multi-byte) | ❌ No archived evidence | No run artifacts support the old 4/28 claim |
@@ -261,7 +281,7 @@ supported by complete, provenance-complete artifacts.
 | Limitation | Evidence | Impact |
 |------------|----------|--------|
 | **Retrieval dependence** | on-on 66.7% → retrieval-off 0% | Model adapts reference, doesn't synthesize |
-| **Multi-byte weakness** | 1/8 multi-byte runs still fail (3-byte case) | Reduced blocker |
+| **Multi-byte weakness** | 1/8 multi-byte runs still fail (3-byte case); the added 3-byte seed was measured neutral | Reduced blocker |
 | **IR path non-competitive** | 0/24 vs 66.7% | Not viable |
 | **Retrieval is lexical** | No embeddings | Low recall for novel specs |
 | **Single-model GPU** | RTX 3050 4GB, CPU offload | ~90-200s/call |
@@ -276,11 +296,11 @@ supported by complete, provenance-complete artifacts.
 | Artifact | Status |
 |----------|--------|
 | Historical benchmark artifacts | ✅ Consistent (96 runs, `results/bench/`) |
-| Current baseline artifacts | ✅ Consistent (24 runs, batch valid, `results/bench_baseline_v4/`) |
+| Current baseline artifacts | ✅ Consistent (24 runs, batch valid, `results/bench_baseline_v5/`) |
 | Previous corrected baseline | ✅ Retained (`results/bench_baseline_v3/`) |
 | Pre-fix baseline artifacts | ✅ Retained as bug evidence (`results/bench_baseline_v2/`) |
 | Failure classification | ✅ Explicit vocabulary + batch validity tests |
-| Test suite | 258 passed, pyflakes clean |
+| Test suite | 268 passed, pyflakes clean |
 | CI pipeline | ✅ Run 43026139295 (commit `1d56c44`) — both jobs success; re-verified on push |
 | Replay tool | Verified (3/3 tests pass) |
 | Oracle mutants | 10/10 caught |
@@ -297,7 +317,7 @@ The failure vocabulary and batch-validity rules are documented in
 1. ✅ **Template upper bound works** — 240/240 pass proves oracle accepts correct designs
 2. ✅ **Retrieval is necessary** — historical retrieval-off is 0/24
 3. ✅ **Patcher is essential** — 19/24 infrastructure failures without it
-4. ✅ **Multi-byte is no longer the primary blocker** — 5/8 pass@1, 7/8 after repair; the only failure is the 3-byte case
+4. ✅ **Multi-byte is no longer the primary blocker** — 6/8 pass@1, 7/8 after repair; the only failure is the 3-byte case
 5. ✅ **IR path not competitive** — 0/24 vs the historical RTL 16/24
 6. ✅ **Oracle is robust** — 10/10 mutants caught
 7. ✅ **Single-byte passes on the first attempt** — 16/16 pass@1 in both v3 and v4
@@ -311,7 +331,8 @@ The failure vocabulary and batch-validity rules are documented in
 |-------|--------|-------------------|
 | "Best-of-4 achieves 41.7%" | ❌ Retracted | N=4 experiment on all 12 cases |
 | "Best-of-2 is 100% on 1-byte" | ❌ Unsupported | Complete Best-of-2 on all cases |
-| "on-on pass@1 is 87.5%" | ✅ Current baseline | `results/bench_baseline_v4/`: 21/24 pass@1, 23/24 after repair, provenance complete |
+| "on-on pass@1 is 91.7%" | ✅ Current baseline | `results/bench_baseline_v5/`: 22/24 pass@1, 23/24 after repair, provenance complete |
+| "on-on pass@1 is 87.5%" | ✅ Previous corpus | `results/bench_baseline_v4/`: 21/24, before the 3-byte seed |
 | "on-on pass@1 is 66.7%" | ✅ Historical | `results/bench_baseline_v3/`: 16/24, before the §4.3–§4.5 fixes |
 | "Multi-agent will solve multi-byte" | ❌ Speculative | Phase 1 implementation + benchmark |
 | "Retrieval embeddings will help" | ❌ Speculative | Controlled ablation |
@@ -351,10 +372,10 @@ The failure vocabulary and batch-validity rules are documented in
 ## 14. Conclusion
 
 **ProtoForge v1 is a working measurement harness** with a verified oracle and a
-provenance-complete baseline: **21/24 (87.5%) pass@1 and 23/24 after repair** on
-I²C, with 0 infrastructure failures and 2 repair recoveries.
+provenance-complete baseline: **22/24 (91.7%) pass@1 and 23/24 after repair** on
+I²C, with 0 infrastructure failures and 1 repair recovery.
 
-**The primary research finding:** Small models (7B) can adapt a known I²C reference reliably when the harness owns protocol constants and supplies a matching example. The remaining gap is the 3-byte payload, where no matching seed reference exists; retrieval falls back to the 2-byte design.
+**The primary research finding:** Small models (7B) can adapt a known I²C reference reliably when the harness owns protocol constants and supplies a matching example. The remaining gap is the 3-byte payload; adding a 3-byte retrieval seed was measured neutral, so the gap is not simply a missing example.
 
 **Phase 1 (multi-agent) is justified** only if it addresses the multi-byte generation gap. The architecture specification is complete; implementation should prioritize multi-byte prompt scaffolding and retrieval.
 

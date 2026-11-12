@@ -14,7 +14,7 @@ All criteria are verifiable by running the commands listed.
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**Expected:** `258 passed`, pyflakes clean (0 errors).
+**Expected:** `268 passed`, pyflakes clean (0 errors).
 
 **Status:** ✅ **MET** — GitHub Actions run
 [`43066682878`](https://github.com/codeprabhu/protoforge/actions/runs/43066682878)
@@ -27,7 +27,7 @@ the baseline fixes and artifacts) completed with **success** for both jobs:
 Latest verified run: [`43208098242`](https://github.com/codeprabhu/protoforge/actions/runs/43208098242)
 on commit `155317d0` (both jobs success):
 
-- Unit + Integration Tests — success (258 tests, pyflakes clean);
+- Unit + Integration Tests — success (268 tests, pyflakes clean);
 - 3-Case Template Benchmark Smoke Test — success (3/3 template cases).
 
 Earlier verified runs on this branch: `43083852033` (commit `1d7a9db`),
@@ -81,11 +81,11 @@ outcomes match CSV, report.md is rendered summary).
 artifacts.
 
 The provenance-complete baselines have their own consistency suite
-(`tests/test_valid_baseline_artifacts.py`, 18 tests): 24 CSV rows, 24 JSONL
+(`tests/test_valid_baseline_artifacts.py`, 24 tests): 24 CSV rows, 24 JSONL
 entries, explicit outcomes derived from the same classification function,
 corpus hash, model digest, commit, batch validity, and the
-single-byte/multi-byte split for `results/bench_baseline_v3/` and the current
-`results/bench_baseline_v4/`.
+single-byte/multi-byte split for `results/bench_baseline_v3/`,
+`results/bench_baseline_v4/` and the current `results/bench_baseline_v5/`.
 
 **Baseline Table (from `docs/BASELINE.md`):**
 
@@ -112,21 +112,21 @@ now evaluated on the corrected, provenance-complete baseline.
 ```bash
 .venv/bin/python -c "
 from bench.run import wilson_interval
-ci = wilson_interval(21, 24)
-print(f'Wilson 95% CI for 21/24: [{ci[0]:.1%}, {ci[1]:.1%}]')
+ci = wilson_interval(22, 24)
+print(f'Wilson 95% CI for 22/24: [{ci[0]:.1%}, {ci[1]:.1%}]')
 assert ci[0] >= 0.45, f'Lower bound {ci[0]:.1%} below floor 45%'
 "
 ```
 
 **Status:** ✅ **MET** — the current baseline
-(`results/bench_baseline_v4/`, commit `f8d204f`) records **21/24 pass@1**,
-Wilson 95% CI [69.0%, 95.7%]; the lower bound is 69.0% ≥ 45%.
+(`results/bench_baseline_v5/`, commit `31c8ab6`) records **22/24 pass@1**,
+Wilson 95% CI [74.2%, 97.7%]; the lower bound is 74.2% ≥ 45%.
 
 This criterion is judged on first-attempt results only. Pass-after-repair is
-23/24 in the same batch with 2 recoveries, so it neither inflates nor deflates
-the number. The previous corrected baseline recorded 16/24 pass@1; the pre-fix
-baseline (0/24) was a harness defect recorded in
-`docs/research/VALID_BASELINE_REPORT.md` §4.1 and is not used here.
+23/24 in the same batch with 1 recovery, so it neither inflates nor deflates
+the number. Previous baselines recorded 21/24 (v4, corpus without the 3-byte
+seed) and 16/24 (v3, harness defects); the pre-fix baseline (0/24) is recorded
+in `docs/research/VALID_BASELINE_REPORT.md` §4.1 and is not used here.
 
 ## 5. Replay Verification
 
@@ -171,9 +171,9 @@ separated, and the retrieval corpus hash is recorded.
 .venv/bin/python -q -m pytest tests/test_bench_classifications.py tests/test_bench_bon_mock.py -v
 ```
 
-**Expected:** 18 baseline-artifact tests, 30 classification/Best-of-N tests pass.
+**Expected:** 24 baseline-artifact tests, 30 classification/Best-of-N tests pass.
 
-**Status:** ✅ **MET** — `results/bench_baseline_v4/summary.json` records
+**Status:** ✅ **MET** — `results/bench_baseline_v5/summary.json` records
 `batch_valid: true`, `model_invoked: true`, `infrastructure_failures: 0`,
 `model_digest`, `git_commit` `f8d204f…`, and `retrieval_corpus_hash`
 `ee388ce1da2e30c28b229fdba561743a063147d961d3267a0384be310d6eeb22`.
@@ -186,8 +186,8 @@ The earlier 48-run Best-of-4 batch is archived as invalid
 |---|-----------|--------|
 | 1 | Test suite green in CI | ✅ MET (latest run recorded below) |
 | 2 | Every oracle mutant caught | ✅ MET (14/14) |
-| 3 | Benchmark artifacts consistent | ✅ MET (historical 4/4; baseline artifacts 18/18) |
-| 4 | Pass rate floor ≥ 45% | ✅ MET (current baseline 21/24, lower bound 69.0%) |
+| 3 | Benchmark artifacts consistent | ✅ MET (historical 4/4; baseline artifacts 24/24) |
+| 4 | Pass rate floor ≥ 45% | ✅ MET (current baseline 22/24, lower bound 74.2%) |
 | 5 | Replay verification | ✅ MET (3/3 tests) |
 | 6 | Oracle forgery resistance | ✅ MET (1/1 test) |
 | 7 | Valid baseline provenance | ✅ MET (batch valid, corpus hash recorded) |
@@ -198,7 +198,7 @@ baseline, with criterion 1 satisfied by the recorded GitHub Actions run.
 ## Tagging Decision
 
 **Not tagged.** Criteria are met for the current evidence. Multi-byte is no
-longer the primary blocker (5/8 pass@1, 7/8 after repair), but the 3-byte case
+longer the primary blocker (6/8 pass@1, 7/8 after repair), but the 3-byte case
 still fails and Best-of-N is still unmeasured. Tag `v1.0` only after the 3-byte
 gap is understood and a valid Best-of-N comparison exists, not merely because
 the floor is cleared.
