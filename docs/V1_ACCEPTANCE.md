@@ -24,7 +24,8 @@ the baseline fixes and artifacts) completed with **success** for both jobs:
 - Unit + Integration Tests — success (full suite, pyflakes clean);
 - 3-Case Template Benchmark Smoke Test — success (3/3 template cases).
 
-Latest verified run: [`43228393842`](https://github.com/codeprabhu/protoforge/actions/runs/43228393842)
+Latest verified run: [`43229102079`](https://github.com/codeprabhu/protoforge/actions/runs/43229102079)
+on commit `390c4b5` (both jobs success), and [`43228393842`](https://github.com/codeprabhu/protoforge/actions/runs/43228393842)
 on commit `a1b82b6` (both jobs success):
 
 - Unit + Integration Tests — success (268 tests, pyflakes clean);
