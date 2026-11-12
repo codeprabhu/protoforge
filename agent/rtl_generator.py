@@ -373,22 +373,33 @@ def _normalize_fragment_scaffold(
     copied from the retrieved example would silently write the wrong bytes.
     Both constants are therefore harness-owned: the scaffold supplies them
     from the spec and rewrites any model-supplied value to the spec value.
+
+    Two spellings occur in practice: the checked-in 2-byte reference uses
+    ``DATA_BYTE_0``/``DATA_BYTE_1`` (0-based) while the prompt contract uses
+    ``DATA_BYTE1``/``DATA_BYTE2`` (1-based). The same name means different
+    bytes under each scheme, so the scheme is chosen per fragment: a fragment
+    that references ``DATA_BYTE_0`` is 0-based; otherwise its
+    ``DATA_BYTE_<n>`` names are 1-based. Injecting both schemes at once
+    corrupted a correct 1-based declaration (``DATA_BYTE_1 = 8'h11`` became
+    the second payload byte).
     """
     payload = list(data_hexes) if data_hexes else [data_hex]
+    zero_based = re.search(r"\bDATA_BYTE_0\b", fragment) is not None
     known = {
         "ADDR_BYTE": f"localparam ADDR_BYTE = 8'h{address_hex.upper()};",
         "DATA_BYTE": f"localparam DATA_BYTE = 8'h{payload[0].upper()};",
     }
-    for index, byte_hex in enumerate(payload, start=1):
-        known[f"DATA_BYTE{index}"] = (
-            f"localparam DATA_BYTE{index} = 8'h{byte_hex.upper()};"
-        )
-    # The checked-in 2-byte reference uses 0-based names; accept that spelling
-    # too so a model that follows the retrieved example still gets spec values.
-    for index, byte_hex in enumerate(payload):
-        known[f"DATA_BYTE_{index}"] = (
-            f"localparam DATA_BYTE_{index} = 8'h{byte_hex.upper()};"
-        )
+    payload_constants = [("DATA_BYTE", payload[0])]
+    if zero_based:
+        for index, byte_hex in enumerate(payload):
+            name = f"DATA_BYTE_{index}"
+            known[name] = f"localparam {name} = 8'h{byte_hex.upper()};"
+            payload_constants.append((name, byte_hex))
+    else:
+        for index, byte_hex in enumerate(payload, start=1):
+            for name in (f"DATA_BYTE{index}", f"DATA_BYTE_{index}"):
+                known[name] = f"localparam {name} = 8'h{byte_hex.upper()};"
+                payload_constants.append((name, byte_hex))
     known.update({
         "HALF": "localparam HALF = 4;",
         "IDLE": "localparam IDLE = 0;", "START": "localparam START = 1;",
@@ -400,11 +411,6 @@ def _normalize_fragment_scaffold(
     })
     # The spec owns the payload literals. Rewrite a model-supplied value so a
     # stale constant copied from the retrieved example cannot change the write.
-    payload_constants = (
-        [("DATA_BYTE", payload[0])]
-        + [(f"DATA_BYTE{index}", byte_hex) for index, byte_hex in enumerate(payload, start=1)]
-        + [(f"DATA_BYTE_{index}", byte_hex) for index, byte_hex in enumerate(payload)]
-    )
     for name, byte_hex in payload_constants:
         fragment = re.sub(
             rf"(\b(?:localparam|parameter)\b[^;]*\b{name}\b\s*=\s*)8'h[0-9A-Fa-f]+",

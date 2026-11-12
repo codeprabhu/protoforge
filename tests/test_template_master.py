@@ -204,6 +204,44 @@ def test_two_byte_reference_specializes_to_a_new_payload(tmp_path):
     assert parsed["data_bytes"] == ["de", "ad"]
 
 
+def test_one_based_payload_reference_passes_every_gate(tmp_path):
+    """A model that uses 1-based DATA_BYTE_1/DATA_BYTE_2 must not be corrupted.
+
+    Recorded multi-byte candidates wrote correct 1-based declarations, but the
+    scaffold also injected 0-based aliases and rewrote DATA_BYTE_1 to the
+    second payload byte. This replays that naming scheme end to end.
+    """
+    import re
+
+    from agent.rtl_generator import normalize_model_rtl
+
+    spec_path = tmp_path / "spec_2byte_alt.md"
+    spec_path.write_text(
+        "Master writes TWO bytes, `0xDE`, `0xAD`, to slave address 0x48.\n",
+        encoding="utf-8",
+    )
+    spec = parse_i2c_spec(str(spec_path))
+    source = GOLD_2BYTE.read_text(encoding="utf-8")
+    one_based = re.sub(
+        r"\bDATA_BYTE_(\d+)\b",
+        lambda match: f"DATA_BYTE_{int(match.group(1)) + 1}",
+        source,
+    )
+    assert "DATA_BYTE_0" not in one_based
+    rtl = normalize_model_rtl(
+        one_based,
+        [str(path) for path in DEVICES],
+        spec.address_hex,
+        spec.data_hex,
+        spec.data_hexes,
+    )
+    assert "localparam DATA_BYTE_1 = 8'hDE;" in rtl
+    assert "localparam DATA_BYTE_2 = 8'hAD;" in rtl
+    verdict, parsed, _ = _run_gates(rtl, tmp_path, DEVICES, spec)
+    assert verdict["pass"], verdict
+    assert parsed["data_bytes"] == ["de", "ad"]
+
+
 def test_one_byte_design_fails_two_byte_spec(tmp_path):
     spec = parse_i2c_spec(str(SPEC_2BYTE))
     one_byte = GOLD_1BYTE.read_text(encoding="utf-8")

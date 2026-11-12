@@ -310,3 +310,87 @@ end
     )
     assert "localparam DATA_BYTE_0 = 8'hDE;" in rtl
     assert "localparam DATA_BYTE_1 = 8'hAD;" in rtl
+
+
+def test_one_based_payload_names_are_not_mapped_as_zero_based():
+    """Regression: a correct 1-based declaration must not be corrupted.
+
+    Recorded c06/c11 candidates declared ``DATA_BYTE_1 = 8'h11`` and
+    ``DATA_BYTE_2 = 8'h22`` (1-based) and used them as the first and second
+    data bytes. Injecting the 0-based alias as well rewrote ``DATA_BYTE_1`` to
+    the *second* payload byte, so the candidate transmitted 0x22 twice.
+    """
+    fragment = """
+reg [3:0] state;
+reg [7:0] cur_byte;
+always @(posedge clk or negedge rst_n) begin
+  if (!rst_n) begin state <= IDLE; tb_done <= 0; end
+  else if (byte_idx == 0) cur_byte <= DATA_BYTE_1;
+  else cur_byte <= DATA_BYTE_2;
+end
+"""
+    rtl = generator.normalize_model_rtl(
+        fragment,
+        ["devices/device_sensor.v", "devices/device_controller.v"],
+        "50", "11", ["11", "22"],
+    )
+    assert "localparam DATA_BYTE_1 = 8'h11;" in rtl
+    assert "localparam DATA_BYTE_2 = 8'h22;" in rtl
+    # No 0-based alias may appear for a 1-based fragment.
+    assert "localparam DATA_BYTE_0" not in rtl
+
+
+def test_zero_based_and_one_based_fragments_use_distinct_schemes():
+    """``DATA_BYTE_0`` selects 0-based names; its absence selects 1-based."""
+    zero = """
+localparam DATA_BYTE_0 = 8'h11;
+localparam DATA_BYTE_1 = 8'h22;
+reg [3:0] state;
+always @(posedge clk) cur_byte <= DATA_BYTE_1;
+"""
+    one = """
+reg [3:0] state;
+always @(posedge clk) cur_byte <= DATA_BYTE_1;
+"""
+    devices = ["devices/device_sensor.v"]
+    zero_rtl = generator.normalize_model_rtl(zero, devices, "50", "11", ["11", "22"])
+    one_rtl = generator.normalize_model_rtl(one, devices, "50", "11", ["11", "22"])
+    # Same name, opposite meaning: 0-based second byte vs 1-based first byte.
+    assert "localparam DATA_BYTE_1 = 8'h22;" in zero_rtl
+    assert "localparam DATA_BYTE_1 = 8'h11;" in one_rtl
+
+
+def test_recorded_one_based_candidates_keep_the_spec_payload():
+    """Replay the recorded v6 candidates whose 1-based constants were corrupted.
+
+    ``results/bench_multibyte_v6`` is a targeted validation artifact and its
+    per-run directories are gitignored, so this test is skipped in CI; the
+    unit tests above cover the same rule.
+    """
+    import json
+
+    root = Path(__file__).resolve().parents[1]
+    expected = {
+        ("20261112T112750-b2bb3b33", "attempt_1"): ("11", "22"),
+        ("20261112T114155-b5494b99", "attempt_0"): ("11", "22"),
+        ("20261112T122502-4d747fa6", "attempt_0"): ("a5", "5a"),
+        ("20261112T123304-830dbd5c", "attempt_0"): ("a5", "5a"),
+    }
+    devices = ["devices/device_sensor.v", "devices/device_controller.v"]
+    run_root = root / "results" / "bench_multibyte_v6" / "runs"
+    replayed = 0
+    for (run_id, attempt), (first, second) in expected.items():
+        path = run_root / run_id / f"{attempt}.json"
+        if not path.is_file():
+            continue
+        replayed += 1
+        raw = json.loads(path.read_text()).get("raw_output", "")
+        address = "50" if run_id.startswith(("20261112T1127", "20261112T1141")) else "21"
+        rtl = generator.normalize_model_rtl(
+            raw, devices, address, first, [first, second]
+        )
+        assert f"localparam DATA_BYTE_1 = 8'h{first.upper()};" in rtl, path
+        assert f"localparam DATA_BYTE_2 = 8'h{second.upper()};" in rtl, path
+        assert "localparam DATA_BYTE_0" not in rtl, path
+    if run_root.is_dir():
+        assert replayed == len(expected)

@@ -109,14 +109,17 @@ Read an invalid batch's rate as "not measured", never as a capability result.
 ## 5. Harness-owned defects are never candidate failures
 
 A deterministic scaffold defect that drops or duplicates harness-owned code
-produces a gate failure for which the candidate is not responsible. Two
-occurred while establishing the baseline, and both were suppressed before the
-defect was charged to the model:
+produces a gate failure for which the candidate is not responsible. Four
+occurred while establishing the baseline and the multi-byte validation; all
+were suppressed before the defect was charged to the model:
 
 | Defect | Effect | Fix |
 |--------|--------|-----|
 | `HALF` treated as declared when only referenced in a `wire` statement | 24/24 first attempts failed to compile (`Unable to bind wire/reg/memory HALF`) | Require a real `localparam|parameter NAME =` |
 | Model-supplied device instances and `assign sda/scl` drivers left in the fragment | 2 multi-byte runs failed the structural gate on duplicate drivers/instances | Strip harness-owned code before wrapping |
+| Payload constants sliced away with the discarded module prefix | 3 multi-byte attempts failed to compile (`Unable to bind wire/reg/memory DATA_BYTE1`) although the model had declared them | Scaffold supplies/specializes `DATA_BYTE1..N` and `DATA_BYTE_0..N-1` from the spec; preserve other referenced constants |
+| Retrieval tie always selected the 1-byte seed reference | Every multi-byte prompt was shown a single-byte design; candidates sent one data byte | Prefer the reference matching the payload length; state the byte/ACK sequence explicitly |
+| Both 0-based and 1-based payload names injected at once | A correct 1-based `DATA_BYTE_1 = 8'h11` was rewritten to the *second* payload byte; 5 of 8 multi-byte runs transmitted the wrong bytes or failed to compile (`DATA_BYTE_2` undefined) | Choose one scheme per fragment: `DATA_BYTE_0` present means 0-based, otherwise 1-based |
 
 Rule: **any deterministic defect must be removed before a run is counted, not
 explained afterwards.** A pre-fix artifact may be retained as evidence of the
