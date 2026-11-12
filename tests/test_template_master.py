@@ -34,6 +34,7 @@ SPEC = ROOT / "protocols/i2c/spec.md"
 SPEC_2BYTE = ROOT / "protocols/i2c/spec_2byte.md"
 GOLD_2BYTE = ROOT / "protocols/i2c/reference/good_master_2byte_reset_safe.v"
 GOLD_1BYTE = ROOT / "protocols/i2c/reference/good_master_reset_safe.v"
+GOLD_3BYTE = ROOT / "protocols/i2c/reference/good_master_3byte_reset_safe.v"
 
 pytestmark = pytest.mark.skipif(
     shutil.which("iverilog") is None
@@ -202,6 +203,61 @@ def test_two_byte_reference_specializes_to_a_new_payload(tmp_path):
     verdict, parsed, _ = _run_gates(rtl, tmp_path, DEVICES, spec)
     assert verdict["pass"], verdict
     assert parsed["data_bytes"] == ["de", "ad"]
+
+
+def test_three_byte_reference_passes_every_gate(tmp_path):
+    """The new 3-byte seed must itself pass every gate.
+
+    A retrieval seed that fails the oracle would teach the model a wrong
+    design, so this is the precondition for using it.
+    """
+    spec_path = tmp_path / "spec_3byte.md"
+    spec_path.write_text(
+        "Master writes THREE bytes, `0x01`, `0x02`, `0x03`, "
+        "to slave address 0x50.\n",
+        encoding="utf-8",
+    )
+    spec = parse_i2c_spec(str(spec_path))
+    assert spec.nbytes == 3
+
+    verdict, parsed, _ = _run_gates(GOLD_3BYTE.read_text(encoding="utf-8"), tmp_path, DEVICES, spec)
+    assert verdict["pass"], verdict
+    assert parsed["data_bytes"] == ["01", "02", "03"]
+
+
+def test_three_byte_reference_specializes_to_another_payload(tmp_path):
+    """The 0-based payload constants must be rewritten, not copied."""
+    from agent.rtl_generator import normalize_model_rtl
+
+    spec_path = tmp_path / "spec_3byte_alt.md"
+    spec_path.write_text(
+        "Master writes THREE bytes, `0xDE`, `0xAD`, `0xBE`, "
+        "to slave address 0x48.\n",
+        encoding="utf-8",
+    )
+    spec = parse_i2c_spec(str(spec_path))
+    rtl = normalize_model_rtl(
+        GOLD_3BYTE.read_text(encoding="utf-8"),
+        [str(path) for path in DEVICES],
+        spec.address_hex,
+        spec.data_hex,
+        spec.data_hexes,
+    )
+    assert "localparam DATA_BYTE_0 = 8'hDE;" in rtl
+    assert "localparam DATA_BYTE_1 = 8'hAD;" in rtl
+    assert "localparam DATA_BYTE_2 = 8'hBE;" in rtl
+
+    verdict, parsed, _ = _run_gates(rtl, tmp_path, DEVICES, spec)
+    assert verdict["pass"], verdict
+    assert parsed["data_bytes"] == ["de", "ad", "be"]
+
+
+def test_three_byte_design_fails_the_two_byte_spec(tmp_path):
+    """Byte count is checked: a 3-byte design must not pass a 2-byte spec."""
+    spec = parse_i2c_spec(str(SPEC_2BYTE))
+    verdict, parsed, _ = _run_gates(GOLD_3BYTE.read_text(encoding="utf-8"), tmp_path, DEVICES, spec)
+    assert not verdict["pass"]
+    assert "byte_count" in verdict["failed_checks"]
 
 
 def test_one_based_payload_reference_passes_every_gate(tmp_path):

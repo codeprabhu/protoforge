@@ -48,12 +48,12 @@ def test_empty_memory_has_stable_hash(tmp_path: Path) -> None:
     assert retrieval_corpus_hash(tmp_path) == retrieval_corpus_hash(tmp_path)
 
 
-def test_memory_summary_counts_both_seed_references(tmp_path: Path) -> None:
-    """Both checked-in references are seed examples, not just the 1-byte one."""
+def test_memory_summary_counts_all_three_seed_references(tmp_path: Path) -> None:
+    """The checked-in references are seeds; the learned example is not."""
     _seed_memory(tmp_path)
     summary = memory_summary(tmp_path)
 
-    assert summary["seed_examples"] == 2
+    assert summary["seed_examples"] == 3
     assert summary["learned_passing_examples"] == 1
 
 
@@ -84,7 +84,8 @@ def test_multi_byte_query_prefers_the_two_byte_reference(tmp_path: Path) -> None
     assert single["examples"][0]["label"] == "validated I2C reference (1-byte)"
 
 
-def test_three_byte_query_falls_back_to_the_two_byte_reference(tmp_path: Path) -> None:
+def test_three_byte_query_prefers_the_three_byte_reference(tmp_path: Path) -> None:
+    """The 3-byte seed must win for a 3-byte payload."""
     from tools.rtl_memory import retrieve_rtl_examples
 
     result = retrieve_rtl_examples(
@@ -94,4 +95,18 @@ def test_three_byte_query_falls_back_to_the_two_byte_reference(tmp_path: Path) -
         enabled=True,
         prefer_byte_count=3,
     )
-    assert result["examples"][0]["label"] == "validated I2C reference (2-byte)"
+    assert result["examples"][0]["label"] == "validated I2C reference (3-byte)"
+
+
+def test_longer_payload_falls_back_to_the_largest_reference(tmp_path: Path) -> None:
+    """No 4-byte seed exists, so the 3-byte design is the closest guide."""
+    from tools.rtl_memory import retrieve_rtl_examples
+
+    result = retrieve_rtl_examples(
+        "I2C open-drain master FSM START address ACK 4 data bytes STOP Verilog-2001",
+        max_examples=1,
+        memory_dir=tmp_path,
+        enabled=True,
+        prefer_byte_count=4,
+    )
+    assert result["examples"][0]["label"] == "validated I2C reference (3-byte)"

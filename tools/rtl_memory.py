@@ -19,6 +19,8 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_REFERENCE = PROJECT_ROOT / "protocols" / "i2c" / "reference" / "good_master_reset_safe.v"
 DEFAULT_REFERENCE_2BYTE = PROJECT_ROOT / "protocols" / "i2c" / "reference" / "good_master_2byte_reset_safe.v"
+DEFAULT_REFERENCE_3BYTE = PROJECT_ROOT / "protocols" / "i2c" / "reference" / "good_master_3byte_reset_safe.v"
+SEED_REFERENCES = (DEFAULT_REFERENCE, DEFAULT_REFERENCE_2BYTE, DEFAULT_REFERENCE_3BYTE)
 DEFAULT_MEMORY_DIR = PROJECT_ROOT / "results" / "rtl_memory"
 
 _TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z_0-9]*|0x[0-9a-fA-F]+")
@@ -91,6 +93,8 @@ def _load_successful_examples(memory_dir: Path) -> list[tuple[str, str, str]]:
         examples.append(("validated I2C reference (1-byte)", DEFAULT_REFERENCE.read_text(encoding="utf-8"), "seed"))
     if DEFAULT_REFERENCE_2BYTE.is_file():
         examples.append(("validated I2C reference (2-byte)", DEFAULT_REFERENCE_2BYTE.read_text(encoding="utf-8"), "seed"))
+    if DEFAULT_REFERENCE_3BYTE.is_file():
+        examples.append(("validated I2C reference (3-byte)", DEFAULT_REFERENCE_3BYTE.read_text(encoding="utf-8"), "seed"))
 
     passing_dir = memory_dir / "passing"
     if passing_dir.is_dir():
@@ -190,9 +194,11 @@ def retrieve_rtl_examples(
         if prefer_byte_count is not None:
             if f"({prefer_byte_count}-byte)" in label:
                 score += 0.50
-            elif prefer_byte_count > 2 and "(2-byte)" in label:
-                # No 3-byte seed exists; the 2-byte reference is still a much
-                # better structural guide than the 1-byte one.
+            elif prefer_byte_count > 3 and "(3-byte)" in label:
+                # No larger seed exists; the 3-byte reference is still the
+                # closest structural guide for a longer payload.
+                score += 0.40
+            elif prefer_byte_count == 3 and "(2-byte)" in label:
                 score += 0.40
         ranked.append((score, origin, label, code))
     ranked.sort(key=lambda item: (-item[0], item[1] != "learned", item[1] != "seed", item[2]))
@@ -252,9 +258,7 @@ def retrieve_rtl_context(
 def memory_summary(memory_dir: str | Path | None = None) -> dict:
     """Return a simple count useful for logs and CLI diagnostics."""
     root = Path(memory_dir) if memory_dir else DEFAULT_MEMORY_DIR
-    seed_examples = sum(
-        path.is_file() for path in (DEFAULT_REFERENCE, DEFAULT_REFERENCE_2BYTE)
-    )
+    seed_examples = sum(path.is_file() for path in SEED_REFERENCES)
     learned = len(_load_successful_examples(root)) - seed_examples
     learned = max(learned, 0)
     return {"seed_examples": seed_examples, "learned_passing_examples": learned}
