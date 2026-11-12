@@ -273,3 +273,40 @@ def test_real_multi_byte_artifact_keeps_its_payload_constants():
     # found and normalized with declarations.
     if artifacts_present:
         assert replayed == 3
+
+
+def test_retrieved_two_byte_reference_keeps_its_constant_declarations():
+    """`_behavior_context` must not leave DATA_BYTE_0/DATA_BYTE_1 undefined.
+
+    The 2-byte seed declares them above its device instances and HALF below,
+    so the old slice dropped the declarations while the always block kept
+    referencing them.
+    """
+    reference = (
+        Path(__file__).resolve().parents[1]
+        / "protocols" / "i2c" / "reference" / "good_master_2byte_reset_safe.v"
+    )
+    context = generator._behavior_context(reference.read_text())
+    assert "DATA_BYTE_0" in context and "DATA_BYTE_1" in context
+    assert "localparam DATA_BYTE_0" in context
+    assert "localparam DATA_BYTE_1" in context
+
+
+def test_zero_based_payload_constants_are_specialized_to_the_spec():
+    fragment = """
+localparam DATA_BYTE_0 = 8'h11;
+localparam DATA_BYTE_1 = 8'h22;
+reg [3:0] state;
+reg [7:0] cur_byte;
+always @(posedge clk or negedge rst_n) begin
+  if (!rst_n) begin state <= IDLE; tb_done <= 0; end
+  else cur_byte <= DATA_BYTE_0;
+end
+"""
+    rtl = generator.normalize_model_rtl(
+        fragment,
+        ["devices/device_sensor.v", "devices/device_controller.v"],
+        "48", "de", ["de", "ad"],
+    )
+    assert "localparam DATA_BYTE_0 = 8'hDE;" in rtl
+    assert "localparam DATA_BYTE_1 = 8'hAD;" in rtl

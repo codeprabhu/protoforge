@@ -138,6 +138,7 @@ def retrieve_rtl_examples(
     max_chars: int = 10000,
     memory_dir: str | Path | None = None,
     enabled: bool | None = None,
+    prefer_byte_count: int | None = None,
 ) -> dict:
     """Retrieve verified examples and report exactly what was chosen.
 
@@ -145,6 +146,11 @@ def retrieve_rtl_examples(
     carries its label, origin (``seed`` or ``learned``), retrieval score and
     size. The live pipeline stores this in the attempt record so a run can be
     audited for what the model was actually shown.
+
+    ``prefer_byte_count`` selects the seed reference that matches the requested
+    payload length. The 1-byte and 2-byte references tie on lexical overlap, so
+    without this hint the 1-byte example always wins and biases multi-byte
+    generation toward a single data byte.
     """
     if enabled is None:
         enabled = os.getenv("PROTOFORGE_NO_RETRIEVAL", "").strip().lower() not in {"1", "true", "yes", "on"}
@@ -179,6 +185,15 @@ def retrieve_rtl_examples(
         # overlap is low (common for high-level queries vs. low-level code).
         if origin == "seed":
             score += 0.10
+        # Match the reference to the payload length when the caller knows it.
+        # The seeds otherwise tie exactly and the lexical label order decides.
+        if prefer_byte_count is not None:
+            if f"({prefer_byte_count}-byte)" in label:
+                score += 0.50
+            elif prefer_byte_count > 2 and "(2-byte)" in label:
+                # No 3-byte seed exists; the 2-byte reference is still a much
+                # better structural guide than the 1-byte one.
+                score += 0.40
         ranked.append((score, origin, label, code))
     ranked.sort(key=lambda item: (-item[0], item[1] != "learned", item[1] != "seed", item[2]))
 

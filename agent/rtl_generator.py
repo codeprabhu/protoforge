@@ -383,6 +383,12 @@ def _normalize_fragment_scaffold(
         known[f"DATA_BYTE{index}"] = (
             f"localparam DATA_BYTE{index} = 8'h{byte_hex.upper()};"
         )
+    # The checked-in 2-byte reference uses 0-based names; accept that spelling
+    # too so a model that follows the retrieved example still gets spec values.
+    for index, byte_hex in enumerate(payload):
+        known[f"DATA_BYTE_{index}"] = (
+            f"localparam DATA_BYTE_{index} = 8'h{byte_hex.upper()};"
+        )
     known.update({
         "HALF": "localparam HALF = 4;",
         "IDLE": "localparam IDLE = 0;", "START": "localparam START = 1;",
@@ -394,10 +400,11 @@ def _normalize_fragment_scaffold(
     })
     # The spec owns the payload literals. Rewrite a model-supplied value so a
     # stale constant copied from the retrieved example cannot change the write.
-    payload_constants = [("DATA_BYTE", payload[0])] + [
-        (f"DATA_BYTE{index}", byte_hex)
-        for index, byte_hex in enumerate(payload, start=1)
-    ]
+    payload_constants = (
+        [("DATA_BYTE", payload[0])]
+        + [(f"DATA_BYTE{index}", byte_hex) for index, byte_hex in enumerate(payload, start=1)]
+        + [(f"DATA_BYTE_{index}", byte_hex) for index, byte_hex in enumerate(payload)]
+    )
     for name, byte_hex in payload_constants:
         fragment = re.sub(
             rf"(\b(?:localparam|parameter)\b[^;]*\b{name}\b\s*=\s*)8'h[0-9A-Fa-f]+",
@@ -425,6 +432,45 @@ def _normalize_fragment_scaffold(
     return ("\n".join(declarations) + "\n" if declarations else "") + fragment
 
 
+_HARNESS_CONSTANTS = {
+    "ADDR_BYTE", "HALF", "IDLE", "START", "START_HOLD", "BIT_LOW", "BIT_HIGH",
+    "ACK_LOW", "ACK_HIGH", "NEXT_BYTE", "STOP_LOW", "STOP_HIGH", "DONE",
+}
+
+
+def _is_harness_constant(name: str) -> bool:
+    return name in _HARNESS_CONSTANTS or re.fullmatch(r"DATA_BYTE\d*", name) is not None
+
+
+def _restore_referenced_constants(declarations: list[str], body: str) -> str:
+    """Re-add model constants that survive in the body but were sliced away.
+
+    Slicing a full module at the last localparam before the always block drops
+    earlier declarations. Harness-owned protocol constants are deliberately
+    excluded because the scaffold supplies them from the spec; everything else
+    (for example the 2-byte reference's ``DATA_BYTE_0``/``DATA_BYTE_1``) is
+    restored so the fragment never references an undeclared name.
+    """
+    kept = []
+    for declaration in declarations:
+        names = re.findall(r"\b([A-Za-z_]\w*)\s*=", declaration)
+        # Never restore a declaration that also defines a harness-owned
+        # constant: the scaffold would add its own copy and the duplicate
+        # localparam would not compile.
+        if any(_is_harness_constant(name) for name in names):
+            continue
+        for name in names:
+            if not re.search(rf"\b{re.escape(name)}\b", body):
+                continue
+            if re.search(
+                rf"\b(?:localparam|parameter)\b[^;]*\b{re.escape(name)}\b\s*=", body
+            ):
+                continue
+            kept.append(declaration.strip())
+            break
+    return ("\n".join(kept) + "\n" if kept else "") + body
+
+
 def _coerce_full_module_to_fragment(
     generated: str,
     address_hex: str = "a0",
@@ -445,6 +491,11 @@ def _coerce_full_module_to_fragment(
             _remove_fixed_bus_declarations(candidate), address_hex, data_hex, data_hexes
         )
     body = candidate[header.end():end]
+    # Capture constants before slicing: some are declared above the device
+    # section and are still referenced by the retained behaviour.
+    model_constants = re.findall(
+        r"(?im)^\s*(?:localparam|parameter)\b[^;]*;", body
+    )
     # Start after the model's wrapper/device section. The last instance close
     # before the sequential block is a stable boundary for ANSI Verilog;
     # otherwise fall back to the first declaration in a standalone response.
@@ -470,6 +521,7 @@ def _coerce_full_module_to_fragment(
         body = f"localparam DATA_BYTE = 8'h{data_hex.upper()};\n" + body
     if not re.search(r"\blocalparam\s+HALF\b", body):
         body = "localparam HALF = 4;\n" + body
+    body = _restore_referenced_constants(model_constants, body)
     body = re.sub(r"(?im)^\s*assign\s+(?:sda|scl)\s*=.*?;\s*$\n?", "", body)
     # The deterministic shell owns these bus-driver names and polarity.
     body = re.sub(r"\bsda_oe\b", "sda_drive_low", body)
@@ -508,11 +560,17 @@ def _specialize_protocol_prompt(
             f"    localparam DATA_BYTE{index} = 8'h{byte_hex.upper()};"
             for index, byte_hex in enumerate(data_hexes, start=1)
         )
+        sequence = " -> ".join(
+            f"DATA_BYTE{index} -> ACK" for index in range(1, len(data_hexes) + 1)
+        )
         specialized += (
             "\nMulti-byte payload contract:\n"
             "The harness already declares these constants; use them for the "
             "data bytes in order and do not redeclare them:\n"
             f"{declarations}\n"
+            "Required sequence: START -> 0xA0 -> ACK -> "
+            f"{sequence} -> STOP. Repeat the data-bit/ACK phase once per "
+            "payload byte; do not stop after the first byte.\n"
         )
     return specialized
 
@@ -655,9 +713,15 @@ def generate_multi_device_glue_rtl(
             f"instantiated as `{block['instance_name']}`:\n"
             + _signal_map_summary(block["label"], block["signals"])
         )
+    payload_hint = (
+        f"{parsed_spec.nbytes} data bytes"
+        if parsed_spec.nbytes > 1
+        else "data"
+    )
     retrieval_result = retrieve_rtl_examples(
-        "I2C open-drain master FSM START address ACK data STOP Verilog-2001",
+        f"I2C open-drain master FSM START address ACK {payload_hint} STOP Verilog-2001",
         max_examples=1, max_chars=10000, enabled=retrieval,
+        prefer_byte_count=parsed_spec.nbytes if parsed_spec.nbytes > 1 else None,
     )
     retrieved_context = _behavior_context(retrieval_result["text"])
     prompt = MULTI_SMALL_MODEL_PROMPT.format(
@@ -707,19 +771,23 @@ def repair_rtl(
     seed=None,
     expected_addr="a0",
     expected_data="3c",
-    expected_data_list=None,
     device_paths=None,
     retrieval: bool = True,
     patcher: bool = True,
     out_path: Optional[str] = None,
     trace: Optional[Dict[str, Any]] = None,
+    expected_data_list=None,
 ) -> str:
     """Return repaired ``top_glue`` source for the given failure diagnosis."""
+    payload_count = len(expected_data_list) if expected_data_list else 1
+    payload_hint = f"{payload_count} data bytes" if payload_count > 1 else "data byte"
     retrieval_result = retrieve_rtl_examples(
-        "I2C master repair open drain START STOP ACK address 0xA0 data byte clock phases Verilog-2001",
+        "I2C master repair open drain START STOP ACK address 0xA0 "
+        f"{payload_hint} clock phases Verilog-2001",
         max_examples=1,
         max_chars=8000,
         enabled=retrieval,
+        prefer_byte_count=payload_count if payload_count > 1 else None,
     )
     repair_context = _behavior_context(retrieval_result["text"])
     prompt = REPAIR_PROMPT.format(

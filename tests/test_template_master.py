@@ -177,6 +177,33 @@ def test_two_byte_template_and_reference_pass(tmp_path):
     assert ref_parsed["data_bytes"] == ["11", "22"]
 
 
+def test_two_byte_reference_specializes_to_a_new_payload(tmp_path):
+    """The deterministic scaffold must rewrite 0-based payload constants.
+
+    The checked-in 2-byte reference uses DATA_BYTE_0/DATA_BYTE_1. When it is
+    reused for a different spec, those values must be rewritten to the new
+    payload instead of silently writing 0x11/0x22.
+    """
+    from agent.rtl_generator import normalize_model_rtl
+
+    spec_path = tmp_path / "spec_2byte_alt.md"
+    spec_path.write_text(
+        "Master writes TWO bytes, `0xDE`, `0xAD`, to slave address 0x48.\n",
+        encoding="utf-8",
+    )
+    spec = parse_i2c_spec(str(spec_path))
+    rtl = normalize_model_rtl(
+        GOLD_2BYTE.read_text(encoding="utf-8"),
+        [str(path) for path in DEVICES],
+        spec.address_hex,
+        spec.data_hex,
+        spec.data_hexes,
+    )
+    verdict, parsed, _ = _run_gates(rtl, tmp_path, DEVICES, spec)
+    assert verdict["pass"], verdict
+    assert parsed["data_bytes"] == ["de", "ad"]
+
+
 def test_one_byte_design_fails_two_byte_spec(tmp_path):
     spec = parse_i2c_spec(str(SPEC_2BYTE))
     one_byte = GOLD_1BYTE.read_text(encoding="utf-8")

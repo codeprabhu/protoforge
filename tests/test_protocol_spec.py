@@ -45,6 +45,8 @@ def test_multi_byte_prompt_names_the_payload_constants():
     assert "Multi-byte payload contract:" in prompt
     assert "localparam DATA_BYTE1 = 8'h11;" in prompt
     assert "localparam DATA_BYTE2 = 8'h22;" in prompt
+    assert "DATA_BYTE1 -> ACK -> DATA_BYTE2 -> ACK" in prompt
+    assert "do not stop after the first byte" in prompt
     # Single-byte prompts must not gain the multi-byte block.
     single = _specialize_protocol_prompt("addr 8'hA0", "50", "11", ["11"])
     assert "Multi-byte payload contract:" not in single
