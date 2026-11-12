@@ -323,6 +323,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
             seed=seed,
             expected_addr=spec.address_hex,
             expected_data=spec.data_hex,
+            expected_data_list=spec.data_hexes,
             device_paths=self.device_paths,
             retrieval=retrieval,
             patcher=patcher,

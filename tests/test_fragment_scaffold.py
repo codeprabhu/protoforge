@@ -184,3 +184,92 @@ def test_real_failing_repair_artifact_normalizes_cleanly():
         devices = ["devices/device_sensor.v", "devices/device_controller.v"]
         rtl = generator.normalize_model_rtl(raw, devices)
         assert structural_checks(rtl, ["device_sensor", "device_controller"])["pass"], run_id
+
+
+def test_multi_byte_payload_constants_are_scaffolded_from_the_spec():
+    """Regression: DATA_BYTE1/DATA_BYTE2 must be supplied, not left undefined.
+
+    The model references the payload bytes by these names. A candidate that
+    omits the declarations used to fail with
+    "Unable to bind wire/reg/memory DATA_BYTE1" -- a harness-owned compile
+    failure, because the deterministic wrapper is responsible for the
+    protocol constants.
+    """
+    fragment = """
+reg [3:0] state;
+reg [7:0] cur_byte;
+always @(posedge clk or negedge rst_n) begin
+  if (!rst_n) begin state <= IDLE; tb_done <= 0; end
+  else begin
+    cur_byte <= DATA_BYTE1;
+    cur_byte <= DATA_BYTE2;
+    state <= STOP_LOW;
+  end
+end
+"""
+    rtl = generator.normalize_model_rtl(
+        fragment,
+        ["devices/device_sensor.v", "devices/device_controller.v"],
+        "50", "11", ["11", "22"],
+    )
+    assert "localparam DATA_BYTE1 = 8'h11;" in rtl
+    assert "localparam DATA_BYTE2 = 8'h22;" in rtl
+
+
+def test_stale_payload_literal_is_rewritten_to_the_spec_value():
+    """A payload constant copied from the retrieved example must not win."""
+    fragment = """
+localparam DATA_BYTE1 = 8'h11;
+localparam DATA_BYTE2 = 8'h22;
+reg [3:0] state;
+reg [7:0] cur_byte;
+always @(posedge clk or negedge rst_n) begin
+  if (!rst_n) begin state <= IDLE; tb_done <= 0; end
+  else cur_byte <= DATA_BYTE1;
+end
+"""
+    rtl = generator.normalize_model_rtl(
+        fragment,
+        ["devices/device_sensor.v", "devices/device_controller.v"],
+        "48", "de", ["de", "ad"],
+    )
+    assert "localparam DATA_BYTE1 = 8'hDE;" in rtl
+    assert "localparam DATA_BYTE2 = 8'hAD;" in rtl
+    assert "8'h11" not in rtl
+    assert "8'h22" not in rtl
+
+
+def test_real_multi_byte_artifact_keeps_its_payload_constants():
+    """The recorded multi-byte compile failures were harness-owned.
+
+    In two recorded c06 runs the model declared DATA_BYTE1/DATA_BYTE2 inside
+    its full module, but slicing at the last localparam dropped them before
+    compilation. Replaying those raw responses must now produce declarations.
+    """
+    import json
+
+    root = Path(__file__).resolve().parents[1]
+    run_ids = ["20261111T224705-39101990", "20261111T230216-0a2ec39c"]
+    devices = ["devices/device_sensor.v", "devices/device_controller.v"]
+    replayed = 0
+    artifacts_present = False
+    for run_id in run_ids:
+        run_dir = root / "results" / "bench_multibyte_v4" / "runs" / run_id
+        if not run_dir.is_dir():
+            continue
+        artifacts_present = True
+        for attempt in sorted(run_dir.glob("attempt_*.json")):
+            raw = json.loads(attempt.read_text()).get("raw_output", "")
+            if "DATA_BYTE1" not in raw and "DATA_BYTE2" not in raw:
+                continue
+            replayed += 1
+            rtl = generator.normalize_model_rtl(raw, devices, "50", "11", ["11", "22"])
+            if "DATA_BYTE1" in rtl:
+                assert "localparam DATA_BYTE1 = 8'h11;" in rtl, attempt
+            if "DATA_BYTE2" in rtl:
+                assert "localparam DATA_BYTE2 = 8'h22;" in rtl, attempt
+    # Run directories are gitignored, so CI skips the replay; the unit tests
+    # above still cover the fix. Locally the three affected attempts must be
+    # found and normalized with declarations.
+    if artifacts_present:
+        assert replayed == 3

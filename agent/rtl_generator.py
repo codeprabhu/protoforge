@@ -276,7 +276,8 @@ def wrap_raw_fragment(device_paths: list[str] | None, raw_output: str) -> str:
 
 
 def normalize_model_rtl(generated: str, device_paths: list[str] | None = None,
-                        address_hex: str = "a0", data_hex: str = "3c") -> str:
+                        address_hex: str = "a0", data_hex: str = "3c",
+                        data_hexes: Optional[list[str]] = None) -> str:
     """Put model behaviour behind the deterministic wrapper used by generation.
 
     Repair responses frequently ignore the request for a complete module or
@@ -289,7 +290,10 @@ def normalize_model_rtl(generated: str, device_paths: list[str] | None = None,
     blocks = build_device_instance_blocks(device_paths)
     instance_code = "\n\n".join(block["code"] for block in blocks)
     fragment = _remove_model_device_instances(
-        _coerce_full_module_to_fragment(generated, address_hex, data_hex), device_paths
+        _coerce_full_module_to_fragment(
+            generated, address_hex, data_hex, data_hexes
+        ),
+        device_paths,
     )
     return _assemble_multi_fragment(instance_code, fragment)
 
@@ -355,11 +359,31 @@ def _remove_model_device_instances(fragment: str, device_paths: list[str] | None
     return fragment
 
 
-def _normalize_fragment_scaffold(fragment: str, address_hex: str = "a0", data_hex: str = "3c") -> str:
-    """Supply protocol-scaffold symbols omitted by a small model."""
+def _normalize_fragment_scaffold(
+    fragment: str,
+    address_hex: str = "a0",
+    data_hex: str = "3c",
+    data_hexes: Optional[list[str]] = None,
+) -> str:
+    """Supply protocol-scaffold symbols omitted by a small model.
+
+    ``data_hexes`` carries the whole write payload. A model that references
+    ``DATA_BYTE1``/``DATA_BYTE2`` but omits the declarations used to fail
+    compilation with ``Unable to bind wire/reg/memory``, and a stale literal
+    copied from the retrieved example would silently write the wrong bytes.
+    Both constants are therefore harness-owned: the scaffold supplies them
+    from the spec and rewrites any model-supplied value to the spec value.
+    """
+    payload = list(data_hexes) if data_hexes else [data_hex]
     known = {
         "ADDR_BYTE": f"localparam ADDR_BYTE = 8'h{address_hex.upper()};",
-        "DATA_BYTE": f"localparam DATA_BYTE = 8'h{data_hex.upper()};",
+        "DATA_BYTE": f"localparam DATA_BYTE = 8'h{payload[0].upper()};",
+    }
+    for index, byte_hex in enumerate(payload, start=1):
+        known[f"DATA_BYTE{index}"] = (
+            f"localparam DATA_BYTE{index} = 8'h{byte_hex.upper()};"
+        )
+    known.update({
         "HALF": "localparam HALF = 4;",
         "IDLE": "localparam IDLE = 0;", "START": "localparam START = 1;",
         "START_HOLD": "localparam START_HOLD = 2;", "BIT_LOW": "localparam BIT_LOW = 3;",
@@ -367,7 +391,20 @@ def _normalize_fragment_scaffold(fragment: str, address_hex: str = "a0", data_he
         "ACK_HIGH": "localparam ACK_HIGH = 6;", "NEXT_BYTE": "localparam NEXT_BYTE = 7;",
         "STOP_LOW": "localparam STOP_LOW = 8;", "STOP_HIGH": "localparam STOP_HIGH = 9;",
         "DONE": "localparam DONE = 10;",
-    }
+    })
+    # The spec owns the payload literals. Rewrite a model-supplied value so a
+    # stale constant copied from the retrieved example cannot change the write.
+    payload_constants = [("DATA_BYTE", payload[0])] + [
+        (f"DATA_BYTE{index}", byte_hex)
+        for index, byte_hex in enumerate(payload, start=1)
+    ]
+    for name, byte_hex in payload_constants:
+        fragment = re.sub(
+            rf"(\b(?:localparam|parameter)\b[^;]*\b{name}\b\s*=\s*)8'h[0-9A-Fa-f]+",
+            lambda match, value=byte_hex: match.group(1) + f"8'h{value.upper()}",
+            fragment,
+            flags=re.I,
+        )
     declarations = []
     for name, declaration in known.items():
         needed_by_half_done = name == "HALF" and re.search(r"\bhalf_done\b", fragment)
@@ -388,11 +425,16 @@ def _normalize_fragment_scaffold(fragment: str, address_hex: str = "a0", data_he
     return ("\n".join(declarations) + "\n" if declarations else "") + fragment
 
 
-def _coerce_full_module_to_fragment(generated: str, address_hex: str = "a0", data_hex: str = "3c") -> str:
+def _coerce_full_module_to_fragment(
+    generated: str,
+    address_hex: str = "a0",
+    data_hex: str = "3c",
+    data_hexes: Optional[list[str]] = None,
+) -> str:
     """Extract behaviour from a model that ignored the fragment contract."""
     if not re.search(r"\bmodule\s+top_glue\b", generated, re.I):
         return _normalize_fragment_scaffold(
-            _remove_fixed_bus_declarations(generated), address_hex, data_hex
+            _remove_fixed_bus_declarations(generated), address_hex, data_hex, data_hexes
         )
     modules = list(re.finditer(r"(?im)\bmodule\s+top_glue\b", generated))
     candidate = generated[modules[-1].start():] if modules else generated
@@ -400,7 +442,7 @@ def _coerce_full_module_to_fragment(generated: str, address_hex: str = "a0", dat
     end = candidate.lower().rfind("endmodule")
     if not header or end <= header.end():
         return _normalize_fragment_scaffold(
-            _remove_fixed_bus_declarations(candidate), address_hex, data_hex
+            _remove_fixed_bus_declarations(candidate), address_hex, data_hex, data_hexes
         )
     body = candidate[header.end():end]
     # Start after the model's wrapper/device section. The last instance close
@@ -432,7 +474,9 @@ def _coerce_full_module_to_fragment(generated: str, address_hex: str = "a0", dat
     # The deterministic shell owns these bus-driver names and polarity.
     body = re.sub(r"\bsda_oe\b", "sda_drive_low", body)
     body = re.sub(r"\bscl_oe\b", "scl_drive_low", body)
-    return _normalize_fragment_scaffold(_remove_fixed_bus_declarations(body), address_hex, data_hex)
+    return _normalize_fragment_scaffold(
+        _remove_fixed_bus_declarations(body), address_hex, data_hex, data_hexes
+    )
 
 
 def _behavior_context(context: str) -> str:
@@ -444,12 +488,33 @@ def _behavior_context(context: str) -> str:
     return context
 
 
-def _specialize_protocol_prompt(prompt: str, address_hex: str = "a0", data_hex: str = "3c") -> str:
+def _specialize_protocol_prompt(
+    prompt: str,
+    address_hex: str = "a0",
+    data_hex: str = "3c",
+    data_hexes: Optional[list[str]] = None,
+) -> str:
     """Replace v1 literals in reusable instructions with spec values."""
-    return (prompt.replace("8'hA0", f"8'h{address_hex.upper()}")
-                  .replace("0xA0", f"0x{address_hex.upper()}")
-                  .replace("8'h3C", f"8'h{data_hex.upper()}")
-                  .replace("0x3C", f"0x{data_hex.upper()}"))
+    specialized = (prompt.replace("8'hA0", f"8'h{address_hex.upper()}")
+                         .replace("0xA0", f"0x{address_hex.upper()}")
+                         .replace("8'h3C", f"8'h{data_hex.upper()}")
+                         .replace("0x3C", f"0x{data_hex.upper()}"))
+    if data_hexes and len(data_hexes) > 1:
+        # Name the payload constants explicitly. The model used to invent
+        # DATA_BYTE1/DATA_BYTE2 on its own; the harness now declares them, so
+        # the prompt must use the same names or the fragment cannot reference
+        # the extra bytes.
+        declarations = "\n".join(
+            f"    localparam DATA_BYTE{index} = 8'h{byte_hex.upper()};"
+            for index, byte_hex in enumerate(data_hexes, start=1)
+        )
+        specialized += (
+            "\nMulti-byte payload contract:\n"
+            "The harness already declares these constants; use them for the "
+            "data bytes in order and do not redeclare them:\n"
+            f"{declarations}\n"
+        )
+    return specialized
 
 
 REPAIR_PROMPT = """The following top_glue module {failure_kind}.
@@ -600,14 +665,17 @@ def generate_multi_device_glue_rtl(
         implementation_rules=I2C_IMPLEMENTATION_RULES,
         retrieved_context=retrieved_context,
     )
-    prompt = _specialize_protocol_prompt(prompt, parsed_spec.address_hex, parsed_spec.data_hex)
+    prompt = _specialize_protocol_prompt(
+        prompt, parsed_spec.address_hex, parsed_spec.data_hex, parsed_spec.data_hexes
+    )
     raw_output, model_metadata = _invoke_model(
         prompt, model=model, temperature=temperature, seed=seed
     )
     if patcher:
         cleaned = clean_rtl(raw_output)
         rtl = normalize_model_rtl(
-            cleaned, device_paths, parsed_spec.address_hex, parsed_spec.data_hex
+            cleaned, device_paths, parsed_spec.address_hex, parsed_spec.data_hex,
+            parsed_spec.data_hexes,
         )
     else:
         # Ablation: keep the model response verbatim inside the fixed wrapper.
@@ -639,6 +707,7 @@ def repair_rtl(
     seed=None,
     expected_addr="a0",
     expected_data="3c",
+    expected_data_list=None,
     device_paths=None,
     retrieval: bool = True,
     patcher: bool = True,
@@ -659,14 +728,18 @@ def repair_rtl(
         failure_detail=failure_detail,
         verified_context=repair_context,
     )
-    prompt = _specialize_protocol_prompt(prompt, expected_addr, expected_data)
+    prompt = _specialize_protocol_prompt(
+        prompt, expected_addr, expected_data, expected_data_list
+    )
     prompt += "\nObserved-failure preservation contract:\n" + _repair_discipline(failure_detail) + "\n"
     raw_output, model_metadata = _invoke_model(
         prompt, model=model, temperature=temperature, seed=seed
     )
     if patcher:
         cleaned = clean_rtl(raw_output)
-        fixed = normalize_model_rtl(cleaned, device_paths, expected_addr, expected_data)
+        fixed = normalize_model_rtl(
+            cleaned, device_paths, expected_addr, expected_data, expected_data_list
+        )
     else:
         cleaned = raw_output
         fixed = wrap_raw_fragment(device_paths, raw_output)

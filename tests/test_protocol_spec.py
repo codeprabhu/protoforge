@@ -35,3 +35,16 @@ def test_spec_rejects_a_payload_count_mismatch(tmp_path):
         assert "2 data byte" in str(exc)
     else:  # pragma: no cover
         raise AssertionError("a mismatched payload count must be rejected")
+
+
+def test_multi_byte_prompt_names_the_payload_constants():
+    """The model must know which names the deterministic wrapper declares."""
+    prompt = _specialize_protocol_prompt(
+        "addr 8'hA0 data 8'h3C", "50", "11", ["11", "22"]
+    )
+    assert "Multi-byte payload contract:" in prompt
+    assert "localparam DATA_BYTE1 = 8'h11;" in prompt
+    assert "localparam DATA_BYTE2 = 8'h22;" in prompt
+    # Single-byte prompts must not gain the multi-byte block.
+    single = _specialize_protocol_prompt("addr 8'hA0", "50", "11", ["11"])
+    assert "Multi-byte payload contract:" not in single
