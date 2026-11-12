@@ -24,13 +24,14 @@ the baseline fixes and artifacts) completed with **success** for both jobs:
 - Unit + Integration Tests — success (full suite, pyflakes clean);
 - 3-Case Template Benchmark Smoke Test — success (3/3 template cases).
 
-Latest verified run: [`43208098242`](https://github.com/codeprabhu/protoforge/actions/runs/43208098242)
-on commit `155317d0` (both jobs success):
+Latest verified run: [`43228393842`](https://github.com/codeprabhu/protoforge/actions/runs/43228393842)
+on commit `a1b82b6` (both jobs success):
 
 - Unit + Integration Tests — success (268 tests, pyflakes clean);
 - 3-Case Template Benchmark Smoke Test — success (3/3 template cases).
 
-Earlier verified runs on this branch: `43083852033` (commit `1d7a9db`),
+Earlier verified runs on this branch: `43208098242` (commit `155317d`),
+`43083852033` (commit `1d7a9db`),
 `43083630056` (commit `4b42415`), `43066682878` (commit `3954966`),
 `43026139295` (commit `1d56c44`) and `43026523052` (commit `48b00c9`).
 Any commit that changes code or artifacts is re-verified by a new run; a
