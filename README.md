@@ -13,7 +13,7 @@ protocol judge → up to two bounded repairs.
 | Check | Command | Result |
 | --- | --- | --- |
 | GitHub Actions | [run 43066682878](https://github.com/codeprabhu/protoforge/actions/runs/43066682878) | both jobs success |
-| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **268 passed** |
+| Unit + integration tests | `.venv/bin/python -q -m pytest tests` | **302 passed** |
 | Static lint | `.venv/bin/python -m pyflakes $(git ls-files '*.py')` | clean |
 | Oracle mutants | `tests/test_oracle_mutation.py` (real Icarus) | all 10 mutants killed |
 | Template upper bound | `results/bench_template_20x/` | 240/240 pass |
@@ -175,7 +175,7 @@ Tools:
 .venv/bin/python -m pyflakes $(git ls-files '*.py')
 ```
 
-**268 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
+**302 tests**, no `xfail`, no `skip` (Icarus, Verilator, Yosys, and Ollama
 are all installed). Four suites carry `skipif` guards and skip only where a
 tool is genuinely absent: `test_oracle_mutation`, `test_e2e_real_sim`,
 `test_logging_replay`, `test_template_master`.
@@ -210,5 +210,86 @@ repo, with its command, commit, model digest (`qwen2.5-coder:7b` digest
 `dae161e27b0e90dd1856c8bb3209201fd6736d8eb66298e75ed87571486f4364`), and —
 for the new baseline — retrieval corpus hash
 `b643f5d6139b657eef4ecfb0d296b296f415bf82ff762f513084eb7ca2471162`.
+
+## Provider credentials
+
+ProtoForge stores provider secrets in the operating system credential manager
+through Python `keyring`. Credential profiles keep only non-secret metadata
+under the user's application configuration directory; API keys are never
+written to project configuration, experiment records, or logs. A profile is
+identified by provider and account name and can be managed with
+`CredentialManager.set_credential`, `get_credential`, `validate_credential`,
+`list_profiles`, and `delete_credential` from `agent.credentials`.
+
+For example, use a hidden terminal prompt to create a profile, then remove it
+when it is no longer needed:
+
+```python
+from getpass import getpass
+from agent.credentials import CredentialManager
+
+manager = CredentialManager()
+manager.set_credential("provider-id", "account-name", getpass("Credential: "))
+manager.delete_credential("provider-id", "account-name")
+```
+
+On Linux, install a Secret Service implementation such as GNOME Keyring or
+KWallet, ensure its Secret Service interface is enabled and unlocked, then
+install project dependencies with `python -m pip install -r requirements.txt`.
+Headless environments without an active Secret Service cannot store or validate
+remote credentials and receive an actionable error; there is no plaintext
+fallback. Local Ollama generation does not use credential storage and continues
+to work without a desktop keyring. Provider configuration may reference a
+credential profile by account name, but must never contain the secret itself.
+
+## Model Registry Dashboard
+
+Start the local dashboard with:
+
+```bash
+uvicorn ui.web:app --host 127.0.0.1 --port 8000
+```
+
+Open `http://127.0.0.1:8000`. Provider configurations have a unique local ID
+and a provider type, so you can register multiple account/endpoint profiles
+for the same provider type. The JSON registry under the user's config directory
+contains only endpoint, model, and profile-reference metadata. Ollama can list
+installed models and mark configured entries available; remote connectivity is
+reported as unsupported until a corresponding adapter is implemented. Existing
+run traces are read through the current `EventStore` and dashboard renderer.
+
+### Controlled multi-model experiments
+
+The **Experiments** page can create and run persisted I²C studies using the
+models in the registry. Select models, samples, temperature, seed, retrieval,
+repair count, timeout, and sequential or concurrent scheduling. Candidate RTL
+and each verification attempt are kept in independent directories under
+`results/experiments/<experiment-id>/`; progress is saved so the page can be
+refreshed and reconnected. Local-model concurrency defaults to one. Set
+provider/model limits in the form before enabling concurrency on a constrained
+machine.
+
+The current executable adapter is Ollama. Other provider configurations can
+be registered, but their candidate requests will report an isolated unsupported
+provider failure until a tested generation adapter is added. Remote provider
+authentication and generation are not implemented by this milestone. Every
+working candidate still runs through ProtoForge's existing structural,
+compile, hardware, simulation, and protocol-judge pipeline. Compilation or
+simulator execution alone is never counted as functional success.
+
+Use **Failure analyst** and **Repair model** to assign distinct models to the
+analyst and repair roles. A diagnosis is recorded as a model-generated
+hypothesis. Each repair is stored as a new revision and passes the full
+verification pipeline. Candidate comparisons show textual RTL diffs; they do
+not imply semantic equivalence. JSON and Markdown reports include configuration,
+hashes, prompts, retrieved context, revision RTL, decision explanations,
+diagnoses, and verification evidence. Token usage appears only when returned
+by Ollama; cost remains unavailable unless pricing support is configured.
+
+To use this workflow, start the dashboard as above, confirm Ollama is available
+and the selected models are pulled, register each model under an Ollama provider,
+then open **Experiments** and create the run. The dashboard binds to
+`127.0.0.1` by default. Cancelling an active candidate requests cancellation,
+which takes effect when its current synchronous provider request returns.
 
 The test suite is the gate: if it is not green, the change is not ready.
