@@ -12,12 +12,14 @@ from __future__ import annotations
 import json
 import subprocess
 import time
+from functools import partial
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Optional
 
 from agent.ollama_client import model_digest
-from agent.rtl_generator import generate_multi_device_glue_rtl, repair_rtl
+from agent.providers import ProviderConfig
+from agent.rtl_generator import analyze_rtl_failures, generate_multi_device_glue_rtl, repair_rtl
 from agent_core.config import Config, RunPaths
 from core import outcomes
 from core.event_store import EventStore
@@ -108,7 +110,7 @@ def run_once(
         "git_commit": _git_commit(),
         "git_describe": _git_describe(),
         "model": cfg.model,
-        "model_digest": model_digest(cfg.model),
+        "model_digest": model_digest(cfg.model) if cfg.provider == "ollama" else None,
         "seed": cfg.seed,
         "temperature": cfg.temperature,
         "config": cfg.as_dict(),
@@ -142,6 +144,12 @@ def run_once(
 
     def event_sink(event_type, data: dict) -> None:
         trace.add_event(event_type, model=cfg.model, data=data)
+        progress_fn = hooks.get("progress_fn")
+        if progress_fn:
+            try:
+                progress_fn(event_type.value if hasattr(event_type, "value") else str(event_type), data)
+            except Exception:
+                pass
 
     log = Orchestrator(adapter).execute_task(
         task,
@@ -154,6 +162,8 @@ def run_once(
         run_id=paths.run_id,
         retrieval=cfg.retrieval,
         patcher=cfg.patcher,
+        repair_model=cfg.repair_model,
+        analyst_model=cfg.analyst_model,
         event_sink=event_sink,
         trace=trace,
         compile_fn=hooks.get("compile_fn") or compile_verilog,
@@ -161,8 +171,35 @@ def run_once(
         sim_fn=hooks.get("sim_fn") or run_simulation,
         judge_fn=hooks.get("judge_fn") or judge,
         struct_check_fn=hooks.get("struct_check_fn") or structural_checks,
-        generate_fn=hooks.get("generate_fn") or generate_multi_device_glue_rtl,
-        repair_fn=hooks.get("repair_fn") or repair_rtl,
+        generate_fn=hooks.get("generate_fn") or partial(
+            generate_multi_device_glue_rtl,
+            provider_config=ProviderConfig(
+                provider=cfg.provider, model=cfg.model, account=cfg.provider_account,
+                endpoint=cfg.provider_endpoint,
+            ),
+            timeout=cfg.generation_timeout,
+        ),
+        repair_fn=hooks.get("repair_fn") or partial(
+            repair_rtl,
+            provider_config=ProviderConfig(
+                provider=cfg.repair_provider or cfg.provider,
+                model=cfg.repair_model or cfg.model,
+                account=cfg.repair_provider_account or cfg.provider_account,
+                endpoint=cfg.repair_provider_endpoint or cfg.provider_endpoint,
+            ),
+            timeout=cfg.generation_timeout,
+        ),
+        failure_analysis_fn=hooks.get("failure_analysis_fn") or partial(
+            analyze_rtl_failures,
+            provider_config=ProviderConfig(
+                provider=cfg.analyst_provider or cfg.provider,
+                model=cfg.analyst_model or cfg.model,
+                account=cfg.analyst_provider_account or cfg.provider_account,
+                endpoint=cfg.analyst_provider_endpoint or cfg.provider_endpoint,
+            ),
+            timeout=cfg.generation_timeout,
+            spec_path=cfg.spec_path,
+        ) if cfg.analyst_model else hooks.get("failure_analysis_fn"),
         on_success=hooks.get("on_success") or record_passing_example,
         on_failure=hooks.get("on_failure") or record_failed_example,
     )

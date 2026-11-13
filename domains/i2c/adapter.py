@@ -314,6 +314,10 @@ class I2CDomainAdapter(BaseDomainAdapter):
         detail = latest_failure.diagnostics or latest_failure.stderr
 
         trace: Dict[str, Any] = {}
+        failure_analysis = kwargs.get("failure_analysis")
+        if failure_analysis:
+            detail += "\n\nModel-generated diagnosis hypothesis (not independently verified):\n"
+            detail += str(failure_analysis)
         repaired = repair_fn(
             code,
             summary,
@@ -328,6 +332,7 @@ class I2CDomainAdapter(BaseDomainAdapter):
             retrieval=retrieval,
             patcher=patcher,
             trace=trace,
+            failure_analysis=failure_analysis,
         )
 
         return CandidatePatch(

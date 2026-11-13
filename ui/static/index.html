@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ProtoForge</title>
+  <link rel="stylesheet" href="/assets/dashboard.css">
+  <link rel="stylesheet" href="/assets/experiments.css">
+</head>
+<body>
+  <aside class="sidebar">
+    <div class="brand"><span class="brand-mark">P</span><span>ProtoForge<small>RTL WORKBENCH</small></span></div>
+    <nav id="navigation">
+      <button class="nav-item active" data-page="overview">Overview</button>
+      <button class="nav-item" data-page="models">Model Registry</button>
+      <button class="nav-item" data-page="providers">Providers</button>
+      <button class="nav-item" data-page="credentials">Credentials</button>
+      <button class="nav-item" data-page="experiments">Experiments</button>
+      <button class="nav-item" data-page="history">History</button>
+      <button class="nav-item" data-page="settings">Settings</button>
+    </nav>
+    <div class="sidebar-foot"><span class="health-dot"></span> Local workspace</div>
+  </aside>
+  <main class="main">
+    <header class="topbar"><div><div class="eyebrow">PROTOFORGE / <span id="crumb">OVERVIEW</span></div><h1 id="title">Overview</h1></div><button class="button primary" id="quick-add">+ Add model</button></header>
+    <div id="notice" role="status"></div>
+    <section id="content" aria-live="polite"></section>
+  </main>
+  <dialog id="modal"><form method="dialog" id="modal-form"><header><div><div class="eyebrow">CONFIGURATION</div><h2 id="modal-title"></h2></div><button class="icon-button" value="cancel" aria-label="Close">×</button></header><div id="modal-content"></div><footer><button class="button" value="cancel">Cancel</button><button class="button primary" id="modal-submit" value="default">Save</button></footer></form></dialog>
+  <script src="/assets/dashboard.js" defer></script>
+</body>
+</html>

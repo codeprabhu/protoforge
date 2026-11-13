@@ -77,12 +77,34 @@ class Orchestrator:
         seed: Optional[int],
         repair_fn: Optional[Callable],
         retrieval: bool,
+        failure_analysis_fn: Optional[Callable] = None,
+        analyst_model: Optional[str] = None,
         patcher: bool = True,
         event_sink: Optional[Callable] = None,
         trace: Optional[RunTrace] = None,
         run_id: str = "",
         attempt_idx: int = 0,
     ):
+        analysis = None
+        if failure_analysis_fn is not None:
+            analyst = analyst_model or model
+            try:
+                analysis = failure_analysis_fn(
+                    candidate.full_content or "", failed_results, model=analyst,
+                )
+            except Exception:
+                # A failed optional analyst must not prevent the configured
+                # repair model from receiving the original verification evidence.
+                analysis = {
+                    "status": "analysis_unavailable",
+                    "model": analyst,
+                    "failure_classification": "unavailable",
+                }
+            _emit(
+                event_sink, EventType.AGENT_STARTED,
+                agent_role="failure_analyst", model=analyst,
+                data={"diagnosis": analysis, "status": "model_hypothesis"},
+            )
         repaired = self.domain.repair_candidate(
             candidate,
             failed_results,
@@ -90,6 +112,7 @@ class Orchestrator:
             temperature=temperature,
             seed=seed,
             repair_fn=repair_fn,
+            failure_analysis=analysis,
             retrieval=retrieval,
             patcher=patcher,
         )
@@ -180,6 +203,8 @@ class Orchestrator:
         task: Task,
         max_repairs: int = 3,
         model: Optional[str] = None,
+        repair_model: Optional[str] = None,
+        analyst_model: Optional[str] = None,
         seed: Optional[int] = None,
         temperature: float = 0.0,
         results_log_path: Optional[str] = None,
@@ -197,6 +222,7 @@ class Orchestrator:
         struct_check_fn: Optional[Callable] = None,
         generate_fn: Optional[Callable] = None,
         repair_fn: Optional[Callable] = None,
+        failure_analysis_fn: Optional[Callable] = None,
         on_success: Optional[Callable] = None,
         on_failure: Optional[Callable] = None,
     ) -> Dict[str, Any]:
@@ -303,7 +329,10 @@ class Orchestrator:
                 candidate,
                 run_id=log["run_id"],
                 attempt=attempt,
-                model=selected_model,
+                model=(
+                    (getattr(candidate, "metadata", {}) or {}).get("model_metadata", {}).get("provider_model")
+                    or selected_model
+                ) if attempt > 0 else selected_model,
                 repair=attempt > 0,
             )
             record.started_at = attempt_started
@@ -341,7 +370,8 @@ class Orchestrator:
                     repaired = self._repair_or_fail(
                         log, candidate, [struct_val],
                         outcome=outcomes.STRUCTURAL_FAILED,
-                        model=selected_model, temperature=repair_temperature,
+                        model=repair_model or selected_model, temperature=repair_temperature,
+                        failure_analysis_fn=failure_analysis_fn, analyst_model=analyst_model,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
                         trace=trace, run_id=log["run_id"], attempt_idx=attempt,
@@ -393,7 +423,8 @@ class Orchestrator:
                     repaired = self._repair_or_fail(
                         log, candidate, [compile_val],
                         outcome=outcomes.COMPILE_FAILED,
-                        model=selected_model, temperature=repair_temperature,
+                        model=repair_model or selected_model, temperature=repair_temperature,
+                        failure_analysis_fn=failure_analysis_fn, analyst_model=analyst_model,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
                         trace=trace, run_id=log["run_id"], attempt_idx=attempt,
@@ -433,7 +464,8 @@ class Orchestrator:
                     repaired = self._repair_or_fail(
                         log, candidate, [hw_val],
                         outcome=outcomes.HARDWARE_FAILED,
-                        model=selected_model, temperature=repair_temperature,
+                        model=repair_model or selected_model, temperature=repair_temperature,
+                        failure_analysis_fn=failure_analysis_fn, analyst_model=analyst_model,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
                         trace=trace, run_id=log["run_id"], attempt_idx=attempt,
@@ -513,7 +545,8 @@ class Orchestrator:
                 repaired = self._repair_or_fail(
                     log, candidate, [*val_results, verdict],
                     outcome=outcomes.SIM_CHECKS_FAILED,
-                    model=selected_model, temperature=repair_temperature,
+                    model=repair_model or selected_model, temperature=repair_temperature,
+                    failure_analysis_fn=failure_analysis_fn, analyst_model=analyst_model,
                     seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                     patcher=patcher, event_sink=event_sink,
                     trace=trace, run_id=log["run_id"], attempt_idx=attempt,

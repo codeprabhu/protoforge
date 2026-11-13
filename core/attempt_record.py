@@ -60,12 +60,14 @@ class AttemptRecord(BaseModel):
     duration_sec: Optional[float] = None
 
     prompt: str = ""
+    prompt_sha256: str = ""
     raw_output: str = ""
     cleaned_code: str = ""
     final_code: str = ""
     code_sha256: str = ""
     model_metadata: Dict[str, Any] = Field(default_factory=dict)
     retrieval: Dict[str, Any] = Field(default_factory=dict)
+    retrieval_sha256: str = ""
     # IR path only: the table the model wrote and the protocol boilerplate the
     # generator filled before compiling. Empty on the free-form RTL path.
     fsm_json: str = ""
@@ -73,6 +75,8 @@ class AttemptRecord(BaseModel):
     stages: List[StageRecord] = Field(default_factory=list)
     # Structured explanation (generation or repair) — may be absent or unparseable.
     explanation: Optional[Dict[str, Any]] = None
+    # Separate model-generated hypothesis; never treated as verified evidence.
+    failure_analysis: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_candidate(
@@ -86,21 +90,28 @@ class AttemptRecord(BaseModel):
     ) -> "AttemptRecord":
         metadata = getattr(candidate, "metadata", {}) or {}
         code = getattr(candidate, "full_content", "") or ""
+        prompt = metadata.get("prompt", "")
+        retrieval = metadata.get("retrieval", {}) or {}
         return cls(
             run_id=run_id,
             attempt=attempt,
             repair=repair,
             model=model,
-            prompt=metadata.get("prompt", ""),
+            prompt=prompt,
+            prompt_sha256=hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
             raw_output=metadata.get("raw_output", ""),
             cleaned_code=metadata.get("cleaned_code", ""),
             final_code=code,
             code_sha256=hashlib.sha256(code.encode("utf-8")).hexdigest(),
             model_metadata=metadata.get("model_metadata", {}) or {},
-            retrieval=metadata.get("retrieval", {}) or {},
+            retrieval=retrieval,
+            retrieval_sha256=hashlib.sha256(
+                json.dumps(retrieval, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            ).hexdigest(),
             fsm_json=metadata.get("fsm_json", "") or "",
             enrichment=list(metadata.get("enrichment", []) or []),
             explanation=metadata.get("explanation"),
+            failure_analysis=metadata.get("failure_analysis"),
         )
 
     def add_stage(self, result: ValidationResult, duration_sec: float | None = None) -> None:

@@ -1,6 +1,8 @@
 """Tool-free integration test of the full generate/repair orchestration."""
 
 from pathlib import Path
+from types import SimpleNamespace
+import json
 
 import agent.rtl_generator as rtl_generator
 import agent_core.agent as pipeline
@@ -73,3 +75,25 @@ def test_repair_prompt_preserves_valid_phases():
     )
     assert "address ACK" in prompt and "data ACK" in prompt
     assert "Already-valid phases" in prompt
+
+
+def test_failure_analysis_parses_model_hypothesis_without_marking_it_verified(monkeypatch):
+    expected = {
+        "failure_classification": "missing_stop",
+        "root_cause_hypothesis": "The FSM may leave STOP before SDA is released.",
+        "supporting_evidence": ["judge did not observe STOP"],
+        "confidence": 0.7,
+    }
+    monkeypatch.setattr(rtl_generator, "generate_verilog", lambda *_args, **_kwargs: {
+        "content": json.dumps(expected), "provider_model": "analyst-model", "prompt_eval_count": 4,
+    })
+    result = rtl_generator.analyze_rtl_failures(
+        "module top_glue; endmodule", [SimpleNamespace(
+            stage="judge", failed_checks=["stop"], diagnostics="STOP not observed",
+            stderr="", stdout="protocol failure",
+        )], model="analyst-model",
+    )
+    assert result["status"] == "model_hypothesis"
+    assert result["model"] == "analyst-model"
+    assert result["root_cause_hypothesis"] == expected["root_cause_hypothesis"]
+    assert result["provider_metadata"]["prompt_eval_count"] == 4
