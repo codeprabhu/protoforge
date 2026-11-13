@@ -40,6 +40,18 @@ class Config:
     tb_path: str = DEFAULT_TB
     max_repairs: int = 2
     model: str = ollama_client.DEFAULT_MODEL
+    provider: str = "ollama"
+    provider_account: Optional[str] = None
+    provider_endpoint: Optional[str] = None
+    generation_timeout: float = 180.0
+    repair_model: Optional[str] = None
+    repair_provider: Optional[str] = None
+    repair_provider_account: Optional[str] = None
+    repair_provider_endpoint: Optional[str] = None
+    analyst_model: Optional[str] = None
+    analyst_provider: Optional[str] = None
+    analyst_provider_account: Optional[str] = None
+    analyst_provider_endpoint: Optional[str] = None
     seed: int = ollama_client.DEFAULT_SEED
     temperature: float = ollama_client.DEFAULT_TEMPERATURE
     retrieval: bool = True
@@ -68,6 +80,18 @@ class Config:
             "tb_path": os.getenv("PROTOFORGE_TB", DEFAULT_TB),
             "max_repairs": int(os.getenv("PROTOFORGE_MAX_REPAIRS", "2")),
             "model": os.getenv("PROTOFORGE_MODEL", ollama_client.DEFAULT_MODEL),
+            "provider": os.getenv("PROTOFORGE_PROVIDER", "ollama"),
+            "provider_account": os.getenv("PROTOFORGE_PROVIDER_ACCOUNT") or None,
+            "provider_endpoint": os.getenv("PROTOFORGE_PROVIDER_ENDPOINT") or None,
+            "generation_timeout": float(os.getenv("PROTOFORGE_GENERATION_TIMEOUT", "180")),
+            "repair_model": os.getenv("PROTOFORGE_REPAIR_MODEL") or None,
+            "repair_provider": os.getenv("PROTOFORGE_REPAIR_PROVIDER") or None,
+            "repair_provider_account": os.getenv("PROTOFORGE_REPAIR_PROVIDER_ACCOUNT") or None,
+            "repair_provider_endpoint": os.getenv("PROTOFORGE_REPAIR_PROVIDER_ENDPOINT") or None,
+            "analyst_model": os.getenv("PROTOFORGE_ANALYST_MODEL") or None,
+            "analyst_provider": os.getenv("PROTOFORGE_ANALYST_PROVIDER") or None,
+            "analyst_provider_account": os.getenv("PROTOFORGE_ANALYST_PROVIDER_ACCOUNT") or None,
+            "analyst_provider_endpoint": os.getenv("PROTOFORGE_ANALYST_PROVIDER_ENDPOINT") or None,
             "seed": int(os.getenv("PROTOFORGE_SEED", str(ollama_client.DEFAULT_SEED))),
             "temperature": float(
                 os.getenv("PROTOFORGE_TEMPERATURE", str(ollama_client.DEFAULT_TEMPERATURE))
@@ -98,6 +122,18 @@ class Config:
             "tb_path": self.tb_path,
             "max_repairs": self.max_repairs,
             "model": self.model,
+            "provider": self.provider,
+            "provider_account": self.provider_account,
+            "provider_endpoint": self.provider_endpoint,
+            "generation_timeout": self.generation_timeout,
+            "repair_model": self.repair_model,
+            "repair_provider": self.repair_provider,
+            "repair_provider_account": self.repair_provider_account,
+            "repair_provider_endpoint": self.repair_provider_endpoint,
+            "analyst_model": self.analyst_model,
+            "analyst_provider": self.analyst_provider,
+            "analyst_provider_account": self.analyst_provider_account,
+            "analyst_provider_endpoint": self.analyst_provider_endpoint,
             "seed": self.seed,
             "temperature": self.temperature,
             "retrieval": self.retrieval,

@@ -66,6 +66,8 @@ def generate_verilog_with_metadata(
     model: str = DEFAULT_MODEL,
     temperature: float | None = None,
     seed: int = DEFAULT_SEED,
+    timeout: float | None = None,
+    host: str | None = None,
 ) -> Dict[str, Any]:
     """Generate RTL and return ``{"content": str, ...Ollama metadata}``."""
     ollama = _require_ollama()
@@ -75,7 +77,11 @@ def generate_verilog_with_metadata(
         "num_ctx": DEFAULT_NUM_CTX,
         "num_predict": DEFAULT_NUM_PREDICT,
     }
-    response = ollama.chat(
+    client = ollama.Client(host=host, timeout=timeout) if host and timeout is not None else (
+        ollama.Client(host=host) if host else ollama.Client(timeout=timeout) if timeout is not None else ollama
+    )
+    chat = client.chat if host is not None or timeout is not None else ollama.chat
+    response = chat(
         model=model or DEFAULT_MODEL,
         messages=[
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -95,6 +101,8 @@ def generate_verilog(
     temperature: float | None = None,
     seed: int = DEFAULT_SEED,
     with_metadata: bool = False,
+    timeout: float | None = None,
+    host: str | None = None,
 ) -> Any:
     """Generate RTL text, or the full metadata dict when ``with_metadata``.
 
@@ -103,7 +111,7 @@ def generate_verilog(
     attempt record can carry token counts and timings.
     """
     result = generate_verilog_with_metadata(
-        prompt, model=model, temperature=temperature, seed=seed
+        prompt, model=model, temperature=temperature, seed=seed, timeout=timeout, host=host
     )
     return result if with_metadata else result["content"]
 

@@ -10,10 +10,11 @@ never required to pass the code to the next pipeline stage.
 
 from __future__ import annotations
 
+import json
 import re
 from typing import Any, Dict, List, Optional
 
-from agent import ollama_client
+from agent.providers import get_provider
 from agent.explanation import (
     EXPLANATION_INSTRUCTION,
     REPAIR_EXPLANATION_INSTRUCTION,
@@ -26,8 +27,12 @@ from tools.verilog_parser import ModuleInfo, parse_verilog_file
 
 
 def generate_verilog(*args, **kwargs):
-    """Indirection keeps model calls patchable in integration tests."""
-    return ollama_client.generate_verilog(*args, **kwargs)
+    """Provider indirection keeps model calls patchable in integration tests."""
+    provider_name = kwargs.pop("provider_name", None)
+    provider_config = kwargs.pop("provider_config", None)
+    with_metadata = kwargs.pop("with_metadata", False)
+    result = get_provider(provider_config or provider_name).generate(*args, **kwargs)
+    return result if with_metadata else result.get("content", "")
 
 
 def _invoke_model(
@@ -36,12 +41,13 @@ def _invoke_model(
     model: Optional[str] = None,
     temperature: Optional[float] = None,
     seed: Optional[int] = None,
+    provider_config=None,
+    timeout: Optional[float] = None,
 ) -> tuple[str, Dict[str, Any]]:
     """Call the model and return ``(text, response_metadata)``.
 
-    The call goes through the module-level ``generate_verilog`` wrapper so
-    existing tests can patch either this module or ``ollama_client``. A patched
-    function that returns a plain string is accepted and yields empty metadata.
+    The call goes through the module-level wrapper so existing tests and
+    integrations can replace generation. Plain-string responses remain valid.
     """
     kwargs: Dict[str, Any] = {"with_metadata": True}
     if model:
@@ -50,12 +56,64 @@ def _invoke_model(
         kwargs["temperature"] = temperature
     if seed is not None:
         kwargs["seed"] = seed
+    kwargs["provider_name"] = None
+    if provider_config is not None:
+        kwargs["provider_config"] = provider_config
+    if timeout is not None:
+        kwargs["timeout"] = timeout
     result = generate_verilog(prompt, **kwargs)
     if isinstance(result, dict):
         content = result.get("content", "")
         metadata = {key: value for key, value in result.items() if key != "content"}
         return content, metadata
     return result, {}
+
+
+def analyze_rtl_failures(
+    code: str,
+    failed_results,
+    *,
+    model: str | None = None,
+    provider_config=None,
+    timeout: float | None = None,
+    spec_path: str | None = None,
+) -> Dict[str, Any]:
+    """Ask a configured model for a compact, explicitly hypothetical diagnosis."""
+    specification = ""
+    if spec_path:
+        with open(spec_path, encoding="utf-8") as stream:
+            specification = stream.read()
+    evidence = [{
+        "stage": result.stage,
+        "failed_checks": result.failed_checks,
+        "diagnostics": result.diagnostics,
+        "stderr": result.stderr,
+        "stdout": result.stdout[-4000:],
+    } for result in failed_results]
+    prompt = (
+        "Analyze this RTL verification failure. Return one JSON object with keys: "
+        "failure_classification, root_cause_hypothesis, supporting_evidence, "
+        "suspected_rtl_location, proposed_minimal_change, must_not_change, "
+        "expected_verification_result, confidence. Treat the diagnosis as a "
+        "hypothesis, not a verified fact. Do not provide hidden reasoning.\n\n"
+        f"Specification:\n{specification}\n\nVerification evidence:\n"
+        f"{json.dumps(evidence, sort_keys=True)}\n\nCandidate RTL:\n{code}"
+    )
+    kwargs = {"model": model, "provider_config": provider_config}
+    if timeout is not None:
+        kwargs["timeout"] = timeout
+    raw, metadata = _invoke_model(prompt, **kwargs)
+    raw = raw.strip()
+    try:
+        parsed = json.loads(raw)
+        if not isinstance(parsed, dict):
+            raise ValueError
+    except (json.JSONDecodeError, ValueError):
+        parsed = {"failure_classification": "unparsed", "root_cause_hypothesis": raw[:2000]}
+    parsed["status"] = "model_hypothesis"
+    parsed["model"] = model
+    parsed["provider_metadata"] = metadata
+    return parsed
 
 
 
@@ -707,6 +765,8 @@ def generate_multi_device_glue_rtl(
     patcher: bool = True,
     out_path: Optional[str] = None,
     trace: Optional[Dict[str, Any]] = None,
+    provider_config=None,
+    timeout: Optional[float] = None,
 ) -> str:
     """Generate a deterministic wrapper around a model-written FSM fragment.
 
@@ -748,7 +808,9 @@ def generate_multi_device_glue_rtl(
     # Append the structured explanation contract.
     prompt = base_prompt + "\n\n" + EXPLANATION_INSTRUCTION
     raw_output, model_metadata = _invoke_model(
-        prompt, model=model, temperature=temperature, seed=seed
+        prompt, model=model, temperature=temperature, seed=seed,
+        provider_config=provider_config,
+        timeout=timeout,
     )
     # Parse the structured explanation from the response.
     explanation = parse_explanation(raw_output, repair=False)
@@ -798,6 +860,9 @@ def repair_rtl(
     out_path: Optional[str] = None,
     trace: Optional[Dict[str, Any]] = None,
     expected_data_list=None,
+    provider_config=None,
+    timeout=None,
+    failure_analysis=None,
 ) -> str:
     """Return repaired ``top_glue`` source for the given failure diagnosis."""
     payload_count = len(expected_data_list) if expected_data_list else 1
@@ -817,6 +882,9 @@ def repair_rtl(
         failure_detail=failure_detail,
         verified_context=repair_context,
     )
+    if failure_analysis:
+        prompt += "\n\nSeparate model-generated failure hypothesis (verify it; do not treat it as fact):\n"
+        prompt += json.dumps(failure_analysis, sort_keys=True, indent=2)
     prompt = _specialize_protocol_prompt(
         prompt, expected_addr, expected_data, expected_data_list
     )
@@ -824,7 +892,9 @@ def repair_rtl(
     # Append the structured explanation contract for repair.
     prompt += "\n\n" + REPAIR_EXPLANATION_INSTRUCTION
     raw_output, model_metadata = _invoke_model(
-        prompt, model=model, temperature=temperature, seed=seed
+        prompt, model=model, temperature=temperature, seed=seed,
+        provider_config=provider_config,
+        timeout=timeout,
     )
     # Parse the structured explanation from the repair response.
     explanation = parse_explanation(raw_output, repair=True)
@@ -845,4 +915,6 @@ def repair_rtl(
         device_paths=list(device_paths or []), model_metadata=model_metadata,
         explanation=explanation,
     )
+    if trace is not None and failure_analysis:
+        trace["failure_analysis"] = failure_analysis
     return fixed
