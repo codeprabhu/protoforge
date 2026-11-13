@@ -52,18 +52,65 @@ class ValidationResult(BaseModel):
     metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
+# A model is not required to invent alternatives or confidence scores, so every
+# optional field defaults to the NOT_REPORTED marker. ``not_reported`` is
+# deliberately distinct from an empty list (a genuine "I considered nothing")
+# and from a negative finding (a genuine "this alternative does not work").
+NOT_REPORTED = "not_reported"
+
+
+def _not_reported_str() -> str:
+    return NOT_REPORTED
+
+
+def _not_reported_list() -> List[str]:
+    return [NOT_REPORTED]
+
+
+class EvidenceItem(BaseModel):
+    """A pointer to a concrete artifact that supports a claim in a decision."""
+
+    kind: str  # "requirement" | "retrieval" | "previous_attempt" | "tool_result" | "protocol_constraint"
+    ref: str  # stable identifier: req_id, retrieval label, "attempt_<n>", "stage:<name>"
+    detail: str = ""
+    origin: str = ""  # "harness" | "model_reported"
+    sha256: str = ""
+
+
 class DecisionRecord(BaseModel):
-    """Structured record of an agent's reasoning and choices."""
-    agent_role: str
-    model: str
-    task_id: str
-    objective: str
-    evidence: List[Dict[str, Any]] = Field(default_factory=list)
+    """Structured, evidence-grounded record of an agent's reasoning and choices.
+
+    The record is *not* chain-of-thought. It captures the task interpretation,
+    the evidence the agent was actually shown, the approach it selected and what
+    it expected the effect to be. Every ``evidence`` entry points at a real
+    artifact, so a finding can be followed back to its source.
+    """
+
+    decision_id: str = Field(default_factory=lambda: f"D-{uuid.uuid4().hex[:12]}")
+    run_id: str = ""
+    attempt: int = 0
+    agent_role: str = "rtl_implementer"  # "rtl_implementer" | "failure_analyst"
+    model: str = ""
+    objective: str = ""
+    input_summary: str = ""
+    evidence: List[EvidenceItem] = Field(default_factory=list)
     assumptions: List[str] = Field(default_factory=list)
+    constraints: List[str] = Field(default_factory=list)
     findings: List[Dict[str, Any]] = Field(default_factory=list)
-    conclusion: str = ""
-    rejected_alternatives: List[str] = Field(default_factory=list)
+    alternatives_considered: List[str] = Field(default_factory=lambda: [NOT_REPORTED])
+    selected_approach: str = NOT_REPORTED
+    rejected_alternatives: List[str] = Field(default_factory=lambda: [NOT_REPORTED])
+    expected_effect: str = NOT_REPORTED
+    # Optional and explicitly model-reported. Not calibrated; never present this
+    # as an objective probability.
+    confidence: Optional[float] = None
+    confidence_basis: str = NOT_REPORTED
     next_action: str = ""
+    output_artifact_refs: List[Dict[str, Any]] = Field(default_factory=list)
+    created_at: float = Field(default_factory=time.time)
+    # Retained fields from the original record so older consumers still work.
+    task_id: str = ""
+    conclusion: str = ""
 
 
 class Task(BaseModel):

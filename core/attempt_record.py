@@ -71,6 +71,8 @@ class AttemptRecord(BaseModel):
     fsm_json: str = ""
     enrichment: List[str] = Field(default_factory=list)
     stages: List[StageRecord] = Field(default_factory=list)
+    # Structured explanation (generation or repair) — may be absent or unparseable.
+    explanation: Optional[Dict[str, Any]] = None
 
     @classmethod
     def from_candidate(
@@ -98,6 +100,7 @@ class AttemptRecord(BaseModel):
             retrieval=metadata.get("retrieval", {}) or {},
             fsm_json=metadata.get("fsm_json", "") or "",
             enrichment=list(metadata.get("enrichment", []) or []),
+            explanation=metadata.get("explanation"),
         )
 
     def add_stage(self, result: ValidationResult, duration_sec: float | None = None) -> None:

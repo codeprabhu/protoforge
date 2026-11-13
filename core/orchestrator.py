@@ -21,9 +21,10 @@ from typing import Any, Callable, Dict, List, Optional
 
 from core import outcomes
 from core.attempt_record import AttemptRecord, write_attempt_record
-from core.schemas import Task, ValidationResult
-from core.trace_schema import EventType
+from core.schemas import Task, ValidationResult, DecisionRecord
+from core.trace_schema import EventType, RunTrace
 from domains.base import BaseDomainAdapter
+from ui.dashboard import _decision_record_from_attempt
 
 
 def _emit(event_sink: Optional[Callable], event_type: EventType, **data: Any) -> None:
@@ -34,6 +35,19 @@ def _emit(event_sink: Optional[Callable], event_type: EventType, **data: Any) ->
         event_sink(event_type, data)
     except Exception:
         pass
+
+
+def _emit_decision_record(trace: Optional[RunTrace], event_type: EventType, data: Dict[str, Any]) -> None:
+    """If the event carries a decision record, append it to the trace's decision_records."""
+    if trace is None:
+        return
+    if event_type == EventType.AGENT_STARTED:
+        dr_data = data.get("decision_record")
+        if dr_data:
+            try:
+                trace.decision_records.append(DecisionRecord.model_validate(dr_data))
+            except Exception:
+                pass
 
 
 def _snapshot(code: str, stage: str, failed_checks: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -65,6 +79,9 @@ class Orchestrator:
         retrieval: bool,
         patcher: bool = True,
         event_sink: Optional[Callable] = None,
+        trace: Optional[RunTrace] = None,
+        run_id: str = "",
+        attempt_idx: int = 0,
     ):
         repaired = self.domain.repair_candidate(
             candidate,
@@ -77,6 +94,24 @@ class Orchestrator:
             patcher=patcher,
         )
         metadata = getattr(repaired, "metadata", {}) or {}
+        # Emit decision record for repair attempt
+        repair_record = _decision_record_from_attempt(
+            attempt_idx=attempt_idx,
+            run_id=run_id,
+            model=model,
+            stage="repair",
+            trace=metadata,
+            repair=True,
+        )
+        if repair_record:
+            _emit(
+                event_sink,
+                EventType.AGENT_STARTED,
+                agent_role="failure_analyst",
+                model=model,
+                data={"decision_record": repair_record.model_dump()},
+            )
+            _emit_decision_record(trace, EventType.AGENT_STARTED, {"decision_record": repair_record.model_dump()})
         _emit(
             event_sink,
             EventType.MODEL_INVOKED,
@@ -153,6 +188,7 @@ class Orchestrator:
         patcher: bool = True,
         run_id: Optional[str] = None,
         event_sink: Optional[Callable] = None,
+        trace: Optional["RunTrace"] = None,
         # Injection hooks for mocking / tests
         compile_fn: Optional[Callable] = None,
         hardware_check_fn: Optional[Callable] = None,
@@ -211,6 +247,24 @@ class Orchestrator:
             )
             task.candidate_patch = candidate
             metadata = getattr(candidate, "metadata", {}) or {}
+            # Emit decision record for generation attempt
+            gen_record = _decision_record_from_attempt(
+                attempt_idx=0,
+                run_id=log["run_id"],
+                model=selected_model,
+                stage="generation",
+                trace=metadata,
+                repair=False,
+            )
+            if gen_record:
+                _emit(
+                    event_sink,
+                    EventType.AGENT_STARTED,
+                    agent_role="rtl_implementer",
+                    model=selected_model,
+                    data={"decision_record": gen_record.model_dump()},
+                )
+                _emit_decision_record(trace, EventType.AGENT_STARTED, {"decision_record": gen_record.model_dump()})
             _emit(
                 event_sink,
                 EventType.MODEL_INVOKED,
@@ -290,6 +344,7 @@ class Orchestrator:
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
+                        trace=trace, run_id=log["run_id"], attempt_idx=attempt,
                     )
                     if repaired is None:
                         break
@@ -341,6 +396,7 @@ class Orchestrator:
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
+                        trace=trace, run_id=log["run_id"], attempt_idx=attempt,
                     )
                     if repaired is None:
                         break
@@ -380,6 +436,7 @@ class Orchestrator:
                         model=selected_model, temperature=repair_temperature,
                         seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                         patcher=patcher, event_sink=event_sink,
+                        trace=trace, run_id=log["run_id"], attempt_idx=attempt,
                     )
                     if repaired is None:
                         break
@@ -459,6 +516,7 @@ class Orchestrator:
                     model=selected_model, temperature=repair_temperature,
                     seed=seed, repair_fn=repair_fn, retrieval=retrieval,
                     patcher=patcher, event_sink=event_sink,
+                    trace=trace, run_id=log["run_id"], attempt_idx=attempt,
                 )
                 if repaired is None:
                     break

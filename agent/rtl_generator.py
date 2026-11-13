@@ -14,6 +14,11 @@ import re
 from typing import Any, Dict, List, Optional
 
 from agent import ollama_client
+from agent.explanation import (
+    EXPLANATION_INSTRUCTION,
+    REPAIR_EXPLANATION_INSTRUCTION,
+    parse_explanation,
+)
 from agent.rtl_cleaner import clean_rtl
 from tools.file_tool import save_file
 from tools.rtl_memory import retrieve_rtl_examples
@@ -676,6 +681,7 @@ def _record_trace(
     retrieval: Dict[str, Any],
     device_paths: List[str],
     model_metadata: Dict[str, Any],
+    explanation: Optional[Dict[str, Any]] = None,
 ) -> None:
     if trace is None:
         return
@@ -687,6 +693,7 @@ def _record_trace(
         "retrieval": retrieval,
         "device_paths": list(device_paths),
         "model_metadata": model_metadata,
+        "explanation": explanation,
     })
 
 
@@ -730,33 +737,41 @@ def generate_multi_device_glue_rtl(
         prefer_byte_count=parsed_spec.nbytes if parsed_spec.nbytes > 1 else None,
     )
     retrieved_context = _behavior_context(retrieval_result["text"])
-    prompt = MULTI_SMALL_MODEL_PROMPT.format(
+    base_prompt = MULTI_SMALL_MODEL_PROMPT.format(
         device_maps="\n\n".join(maps), protocol_spec=spec,
         implementation_rules=I2C_IMPLEMENTATION_RULES,
         retrieved_context=retrieved_context,
     )
-    prompt = _specialize_protocol_prompt(
-        prompt, parsed_spec.address_hex, parsed_spec.data_hex, parsed_spec.data_hexes
+    base_prompt = _specialize_protocol_prompt(
+        base_prompt, parsed_spec.address_hex, parsed_spec.data_hex, parsed_spec.data_hexes
     )
+    # Append the structured explanation contract.
+    prompt = base_prompt + "\n\n" + EXPLANATION_INSTRUCTION
     raw_output, model_metadata = _invoke_model(
         prompt, model=model, temperature=temperature, seed=seed
     )
+    # Parse the structured explanation from the response.
+    explanation = parse_explanation(raw_output, repair=False)
+    # The RTL part (everything outside the explanation section) is what gets
+    # cleaned and wrapped. This preserves the existing RTL extraction path.
+    rtl_part = explanation.get("rtl_part") or raw_output
     if patcher:
-        cleaned = clean_rtl(raw_output)
+        cleaned = clean_rtl(rtl_part)
         rtl = normalize_model_rtl(
             cleaned, device_paths, parsed_spec.address_hex, parsed_spec.data_hex,
             parsed_spec.data_hexes,
         )
     else:
         # Ablation: keep the model response verbatim inside the fixed wrapper.
-        cleaned = raw_output
-        rtl = wrap_raw_fragment(device_paths, raw_output)
+        cleaned = rtl_part
+        rtl = wrap_raw_fragment(device_paths, rtl_part)
     if out_path:
         save_file(out_path, rtl)
     _record_trace(
         trace, prompt=prompt, raw_output=raw_output, cleaned_code=cleaned,
         retrieved_context=retrieved_context, retrieval=retrieval_result,
         device_paths=device_paths, model_metadata=model_metadata,
+        explanation=explanation,
     )
     return rtl
 
@@ -806,22 +821,28 @@ def repair_rtl(
         prompt, expected_addr, expected_data, expected_data_list
     )
     prompt += "\nObserved-failure preservation contract:\n" + _repair_discipline(failure_detail) + "\n"
+    # Append the structured explanation contract for repair.
+    prompt += "\n\n" + REPAIR_EXPLANATION_INSTRUCTION
     raw_output, model_metadata = _invoke_model(
         prompt, model=model, temperature=temperature, seed=seed
     )
+    # Parse the structured explanation from the repair response.
+    explanation = parse_explanation(raw_output, repair=True)
+    rtl_part = explanation.get("rtl_part") or raw_output
     if patcher:
-        cleaned = clean_rtl(raw_output)
+        cleaned = clean_rtl(rtl_part)
         fixed = normalize_model_rtl(
             cleaned, device_paths, expected_addr, expected_data, expected_data_list
         )
     else:
-        cleaned = raw_output
-        fixed = wrap_raw_fragment(device_paths, raw_output)
+        cleaned = rtl_part
+        fixed = wrap_raw_fragment(device_paths, rtl_part)
     if out_path:
         save_file(out_path, fixed)
     _record_trace(
         trace, prompt=prompt, raw_output=raw_output, cleaned_code=cleaned,
         retrieved_context=repair_context, retrieval=retrieval_result,
         device_paths=list(device_paths or []), model_metadata=model_metadata,
+        explanation=explanation,
     )
     return fixed

@@ -155,6 +155,7 @@ def run_once(
         retrieval=cfg.retrieval,
         patcher=cfg.patcher,
         event_sink=event_sink,
+        trace=trace,
         compile_fn=hooks.get("compile_fn") or compile_verilog,
         hardware_check_fn=hooks.get("hardware_check_fn") or run_hardware_checks,
         sim_fn=hooks.get("sim_fn") or run_simulation,
