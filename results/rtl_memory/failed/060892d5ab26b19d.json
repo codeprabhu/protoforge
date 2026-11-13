@@ -1,0 +1,15 @@
+{
+  "created_at": 1794586476.1621454,
+  "detail": "No ACK was seen after the data byte -- the slave never pulled SDA low on the 9th clock of the data phase. No STOP condition (SDA rising while SCL is high) was observed on the bus -- the transaction never terminated correctly. The data bytes captured on the bus did not match the required [0x3C] payload. The bus showed more than one STOP condition (or none); v1 requires exactly one STOP at the end of the transaction. The transaction did not contain exactly one address byte followed by the expected number of data bytes.",
+  "failed_checks": [
+    "data_ack",
+    "stop",
+    "correct_data",
+    "single_stop",
+    "byte_count"
+  ],
+  "model": "qwen2.5-coder:7b",
+  "sha256": "060892d5ab26b19db70c7d3c8900a0ca3cffc3fbba57277cdf966f7db32e3af0",
+  "stage": "simulate",
+  "verified_pass": false
+}
